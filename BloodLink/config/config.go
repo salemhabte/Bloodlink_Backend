@@ -23,6 +23,8 @@ var (
 	JWTREFRESHSECRET string
 	CURR_USER        string
 
+    MysqlDSN string
+
 	FROM       string
 	APPPASS    string
 	SMTPSERVER string
@@ -68,4 +70,15 @@ func getEnv(key string) string {
 		log.Fatalf("Environment variable %s is not set", key)
 	}
 	return val
+}
+
+type Config struct {
+    MysqlDSN string
+}
+
+func LoadConfig() Config {
+    InitEnv()
+    return Config{
+        MysqlDSN: getEnv("MYSQL_DSN"),
+    }
 }
