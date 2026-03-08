@@ -29,7 +29,7 @@ func main() {
 	}
 
 	log.Println("Connected to remote MySQL database!")
-
+	// ===== CAMPAIGN SECTION =====
 	// --- Repositories ---
 	campaignRepo := Repository.NewCampaignRepository(db)
 
