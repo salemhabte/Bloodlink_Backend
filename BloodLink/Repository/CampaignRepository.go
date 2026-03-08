@@ -28,7 +28,11 @@ func (r *CampaignRepository) CreateCampaign(campaign *Domain.Campaign) error {
 }
 
 func (r *CampaignRepository) GetAllCampaigns() ([]Domain.Campaign, error) {
-    query := "SELECT campaign_id, title, content, location, start_date, end_date, created_at FROM campaigns"
+    query := `
+SELECT campaign_id, title, content, location, start_date, end_date, created_at
+FROM campaigns
+WHERE end_date >= NOW()
+`
     rows, err := r.DB.Query(query)
     if err != nil {
         return nil, err
@@ -64,7 +68,12 @@ func (r *CampaignRepository) GetAllCampaigns() ([]Domain.Campaign, error) {
 }
 
 func (r *CampaignRepository) GetCampaignByID(id string) (*Domain.Campaign, error) {
-    query := "SELECT campaign_id, title, content, location, start_date, end_date, created_at FROM campaigns WHERE campaign_id=?"
+    query := `
+SELECT campaign_id, title, content, location, start_date, end_date, created_at
+FROM campaigns
+WHERE campaign_id = ? AND end_date >= NOW()
+LIMIT 1
+`
     row := r.DB.QueryRow(query, id)
 
     var c Domain.Campaign
@@ -136,4 +145,54 @@ func (r *CampaignRepository) DeleteCampaign(id string) error {
     query := "DELETE FROM campaigns WHERE campaign_id=?"
     _, err := r.DB.Exec(query, id)
     return err
+}
+func (r *CampaignRepository) GetCampaignsByLocation(location string) ([]Domain.Campaign, error) {
+	// MySQL query: search campaigns by location (case-insensitive depends on collation)
+	query := `
+	SELECT campaign_id, title, content, location, start_date, end_date, created_at
+	FROM campaigns
+	WHERE location LIKE CONCAT('%', ?, '%') AND end_date >= NOW()
+	`
+
+	rows, err := r.DB.Query(query, location)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var campaigns []Domain.Campaign
+	for rows.Next() {
+		var c Domain.Campaign
+		var startDateStr, endDateStr, createdAtStr string
+
+		if err := rows.Scan(
+			&c.CampaignID,
+			&c.Title,
+			&c.Content,
+			&c.Location,
+			&startDateStr,
+			&endDateStr,
+			&createdAtStr,
+		); err != nil {
+			return nil, err
+		}
+
+		// Convert string to time.Time
+		c.StartDate, err = time.Parse("2006-01-02 15:04:05", startDateStr)
+		if err != nil {
+			return nil, err
+		}
+		c.EndDate, err = time.Parse("2006-01-02 15:04:05", endDateStr)
+		if err != nil {
+			return nil, err
+		}
+		c.CreatedAt, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
+		if err != nil {
+			return nil, err
+		}
+
+		campaigns = append(campaigns, c)
+	}
+
+	return campaigns, nil
 }

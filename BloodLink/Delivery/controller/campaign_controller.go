@@ -110,3 +110,16 @@ func (c *CampaignController) DeleteCampaign(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Campaign deleted successfully"})
 }
+// Search campaigns by location
+func (c *CampaignController) GetCampaignsByLocation(ctx *gin.Context) {
+
+	location := ctx.Query("location")
+
+	campaigns, err := c.Usecase.GetCampaignsByLocation(location)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, campaigns)
+}
