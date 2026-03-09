@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS   hospitals (
+    hospital_id VARCHAR(36) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    address VARCHAR(255),
+    phone VARCHAR(50),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
