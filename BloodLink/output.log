@@ -1,0 +1,11 @@
+Connected to MySQL database successfully!
+2026/03/09 18:13:40 Migration failed on query: CREATE TABLE IF NOT EXISTS Donors (
+			donor_id VARCHAR(36) PRIMARY KEY,
+			user_id VARCHAR(36) NOT NULL,
+			blood_type VARCHAR(5),
+			status VARCHAR(20) DEFAULT 'Available',
+			last_donation_date DATE,
+			FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+		);
+Error: Error 1005 (HY000): Can't create table 'sql12819087.Donors' (errno: 121)
+exit status 1

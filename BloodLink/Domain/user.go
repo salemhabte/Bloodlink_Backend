@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	Donor          = "donor"
-	BloodBankAdmin = "bloodbankadmin"
-	HospitalAdmin  = "hospitaladmin"
-	BloodCollector = "bloodcollector"
-	LabTech        = "labtech"
+	RoleDonor          = "donor"
+	RoleBloodBankAdmin = "bloodbankadmin"
+	RoleHospitalAdmin  = "hospitaladmin"
+	RoleBloodCollector = "bloodcollector"
+	RoleLabTech        = "labtech"
 )
 
 type AuthTokens struct {
@@ -30,7 +30,9 @@ type UserClaims struct {
 
 type User struct {
 	ID        string    `json:"id" db:"user_id"`
+	FullName  string    `json:"full_name" db:"full_name"`
 	Email     string    `json:"email" db:"email"`
+	Phone     string    `json:"phone" db:"phone"`
 	Password  string    `json:"password" db:"password"`
 	Role      string    `json:"role" db:"role"`
 	IsActive  bool      `json:"is_active" db:"is_active"`
@@ -38,16 +40,26 @@ type User struct {
 	OTP       string    `json:"otp" db:"otp"`
 }
 
+// UserProfile stores common display information for all roles
 type UserProfile struct {
 	ProfileID         string `json:"profile_id" db:"profile_id"`
 	UserID            string `json:"user_id" db:"user_id"`
-	Email             string `json:"email" db:"email"`
-	Password          string `json:"password" db:"password"`
 	FullName          string `json:"full_name" db:"full_name"`
 	Phone             string `json:"phone" db:"phone"`
-	Address           string `json:"address" db:"address"`
+	City              string `json:"city" db:"city"`
+	Area              string `json:"area" db:"area"`
 	ProfilePictureURL string `json:"profile_picture_url" db:"profile_picture_url"`
 }
+
+type Donor struct {
+	DonorID          string `json:"donor_id" db:"donor_id"`
+	UserID           string `json:"user_id" db:"user_id"`
+	BloodType        string `json:"blood_type" db:"blood_type"`
+	Status           string `json:"status" db:"status"`
+	LastDonationDate string `json:"last_donation_date" db:"last_donation_date"`
+}
+
+
 
 type EmailOTP struct {
 	Email string `json:"email" bson:"email"`
@@ -62,4 +74,23 @@ type ResetPasswordRequestDTO struct {
 	Email       string `json:"email" binding:"required,email"`
 	OTP         string `json:"otp" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=6,max=50"`
+}
+// RegisterRequest represents the payload for user registration
+type RegisterRequest struct {
+	FullName string `json:"full_name" binding:"required"`
+	Email    string `json:"email" binding:"required"`
+	Phone    string `json:"phone" binding:"required"`
+	Password string `json:"password" binding:"required,min=8"`
+	Role     string `json:"role" binding:"required"`
+}
+
+// LoginRequest represents the payload for user login
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type VerifyOTPRequest struct {
+	Email string `json:"email" binding:"required"`
+	OTP   string `json:"otp" binding:"required"`
 }

@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"log"
 
+	"bloodlink/config"
+
 	_ "github.com/go-sql-driver/mysql"
 )
 
 var DB *sql.DB
 
 func ConnectDB() {
-	dsn := "sql12819087:NtpQbxQu4J@tcp(sql12.freesqldatabase.com:3306)/sql12819087"
+	dsn := config.MYSQL_DSN
 	var err error
 	DB, err = sql.Open("mysql", dsn)
 	if err != nil {

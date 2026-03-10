@@ -6,14 +6,10 @@ import (
 )
 
 type IUserUseCase interface {
-	ReSendAccessToken(jwtToken string) (string, error) // (accessTokenString, error)
-	ValidOTPRequest(emailOtp *domain.EmailOTP) (*domain.User, error)
-	StoreUserInOTPColl(user *domain.User) (error)
-	StoreUserInMainColl(user *domain.User) (*domain.User, error)
-	Login(email, password string) (string,string, error)
-	SendResetOTP(ctx context.Context, email string) error
-	Logout(ctx context.Context, user string) error
-	ResetPassword(ctx context.Context, email, otp, newPassword string) error
+	RegisterUser(ctx context.Context, user *domain.User) error
+	Login(ctx context.Context, email, password string) (string, string, error)
+	VerifyOTP(ctx context.Context, email, otp string) error
 	GetProfile(ctx context.Context, userID string) (*domain.UserProfile, error)
-	UpdateProfile(ctx context.Context, userID string, updateReq *domain.UserProfile) error
+	UpdateProfile(ctx context.Context, profile *domain.UserProfile) error
+	DeleteUser(ctx context.Context, userID string) error
 }
