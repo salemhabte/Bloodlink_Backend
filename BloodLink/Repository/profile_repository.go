@@ -15,8 +15,8 @@ func NewProfileRepository(db *sql.DB) *ProfileRepository {
 }
 
 func (r *ProfileRepository) CreateProfile(ctx context.Context, profile *domain.UserProfile) error {
-	query := `INSERT INTO User_Profile (profile_id, user_id, full_name, phone, city, area, profile_picture_url) 
-              VALUES (?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO user_profiles (profile_id, user_id, full_name, phone, address, profile_picture_url) 
+              VALUES (?, ?, ?, ?, ?, ?)`
 
 	_, err := r.DB.ExecContext(ctx, query,
 		profile.ProfileID,
@@ -30,7 +30,7 @@ func (r *ProfileRepository) CreateProfile(ctx context.Context, profile *domain.U
 }
 
 func (r *ProfileRepository) GetProfileByUserID(ctx context.Context, userID string) (*domain.UserProfile, error) {
-	query := `SELECT profile_id, user_id, full_name, phone, address, profile_picture_url FROM User_Profile WHERE user_id = ?`
+	query := `SELECT profile_id, user_id, full_name, phone, address, profile_picture_url FROM user_profiles WHERE user_id = ?`
 	row := r.DB.QueryRowContext(ctx, query, userID)
 
 	var profile domain.UserProfile
@@ -53,7 +53,7 @@ func (r *ProfileRepository) GetProfileByUserID(ctx context.Context, userID strin
 }
 
 func (r *ProfileRepository) UpdateProfile(ctx context.Context, profile *domain.UserProfile) error {
-	query := `UPDATE user_profiles SET full_name = ?, phone = ?, Address = ?, profile_picture_url = ? WHERE user_id = ?`
+	query := `UPDATE user_profiles SET full_name = ?, phone = ?, address = ?, profile_picture_url = ? WHERE user_id = ?`
 	_, err := r.DB.ExecContext(ctx, query,
 		profile.FullName,
 		profile.Phone,
