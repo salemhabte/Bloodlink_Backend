@@ -39,12 +39,11 @@ Overall, the system improves communication and coordination between donors, bloo
 ## 🛠 Technology Stack
 
 ### Backend
-- Java
-- Spring Boot
+- Go
 - RESTful APIs
 
 ### Database
-- PostgreSQL / MySQL
+- MySQL
 
 ### Development Tools
 - Git & GitHub (Version Control)
