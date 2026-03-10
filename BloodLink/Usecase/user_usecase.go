@@ -9,7 +9,7 @@ import (
 	domain "bloodlink/Domain"
 	domainInterface "bloodlink/Domain/Interfaces"
 	"bloodlink/Infrastructure"
-	"log"
+	
 
 	"github.com/google/uuid"
 )
