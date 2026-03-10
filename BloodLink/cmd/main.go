@@ -6,7 +6,7 @@ import (
 	"bloodlink/Infrastructure"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
-	
+
 	"bloodlink/config"
 	"log"
 )
@@ -38,10 +38,6 @@ func main() {
 
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
-
-	
-
-	
 
 	// 5. Initialize Router
 	r := router.SetupRouter(userController, jwtService, campaignController)
