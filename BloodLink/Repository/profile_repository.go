@@ -30,7 +30,7 @@ func (r *ProfileRepository) CreateProfile(ctx context.Context, profile *domain.U
 }
 
 func (r *ProfileRepository) GetProfileByUserID(ctx context.Context, userID string) (*domain.UserProfile, error) {
-	query := `SELECT profile_id, user_id, full_name, phone, address, profile_picture_url FROM user_profiles WHERE user_id = ?`
+	query := `SELECT profile_id, user_id, COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(address, ''), COALESCE(profile_picture_url, '') FROM user_profiles WHERE user_id = ?`
 	row := r.DB.QueryRowContext(ctx, query, userID)
 
 	var profile domain.UserProfile

@@ -46,7 +46,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) erro
 
 // GetUserByEmail retrieves a user by their email address for login verification
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query := `SELECT user_id, full_name, email, phone, password_hash, role, is_active, otp, created_at FROM users WHERE email = ?`
+	query := `SELECT user_id, full_name, email, COALESCE(phone, ''), password_hash, role, is_active, COALESCE(otp, ''), created_at FROM users WHERE email = ?`
 
 	row := r.DB.QueryRowContext(ctx, query, email)
 
