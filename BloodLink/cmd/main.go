@@ -6,11 +6,7 @@ import (
 	"bloodlink/Infrastructure"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
-	"database/sql"
-	"log"
-
-	_ "github.com/go-sql-driver/mysql"
-	"bloodlink/Usecase"
+	
 	"bloodlink/config"
 	"log"
 )

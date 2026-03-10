@@ -2,9 +2,9 @@ package router
 
 import (
 	"bloodlink/Delivery/controller"
-	"bloodlink/Infrastructure"
 	domain "bloodlink/Domain"
 	domainInterface "bloodlink/Domain/Interfaces"
+	"bloodlink/Infrastructure"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,6 +12,7 @@ import (
 func SetupRouter(
 	userCtrl *controller.UserController,
 	auth domainInterface.IAuthentication,
+	campaignController *controller.CampaignController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -33,6 +34,24 @@ func SetupRouter(
 			protectedRoutes.GET("/profile", userCtrl.GetProfile)
 			protectedRoutes.PUT("/profile", userCtrl.UpdateProfile)
 			protectedRoutes.DELETE("/user", userCtrl.DeleteUser)
+		}
+	}
+
+	campaigns := r.Group("/api/campaigns")
+	{
+		campaigns.GET("/", campaignController.GetAllCampaigns)
+		campaigns.GET("/:id", campaignController.GetCampaignByID)
+		campaigns.GET("/search", campaignController.GetCampaignsByLocation)
+	}
+	//Campaign Routes Accessible by blood bank Admin
+
+	admin := r.Group("/api/bloodbankadmin")
+	{
+		adminCampaigns := admin.Group("/campaigns")
+		{
+			adminCampaigns.POST("/", campaignController.CreateCampaign)
+			adminCampaigns.PUT("/:id", campaignController.UpdateCampaign)
+			adminCampaigns.DELETE("/:id", campaignController.DeleteCampaign)
 		}
 	}
 

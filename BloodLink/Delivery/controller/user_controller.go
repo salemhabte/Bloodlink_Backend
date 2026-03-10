@@ -165,4 +165,3 @@ func (c *UserController) DeleteUser(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "User and all related data deleted successfully"})
 }
-
