@@ -24,7 +24,7 @@ var (
 func InitEnv() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("can not load .env file")
+		log.Printf("Warning: .env file not found or could not be loaded. Relying on system environment variables.")
 	}
 	MYSQL_DSN = getEnv("MYSQL_DSN")
 
