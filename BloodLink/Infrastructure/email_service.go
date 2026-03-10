@@ -12,7 +12,8 @@ func SendOTP(toEmail, otp string) error {
 	smtpHost := config.SMTPSERVER
 	smtpPort := config.SMTPPORT
 
-	auth := smtp.PlainAuth("", from, password, smtpHost)
+	user := config.SMTPUSER
+	auth := smtp.PlainAuth("", user, password, smtpHost)
 
 	subject := "Subject: Verify your BloodLink account\n"
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
