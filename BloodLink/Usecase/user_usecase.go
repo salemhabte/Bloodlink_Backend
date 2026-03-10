@@ -3,16 +3,16 @@ package Usecase
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	domain "bloodlink/Domain"
 	domainInterface "bloodlink/Domain/Interfaces"
 	"bloodlink/Infrastructure"
-	
+	"log"
+
 	"github.com/google/uuid"
 )
-
-
 
 // Instead of passing interface, we can pass our concrete repo for now, or update the interface.
 // For clean architecture, we usually pass an interface.
@@ -81,10 +81,12 @@ func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) e
 		return err
 	}
 
-	// 2. Send OTP Email
-	if err := Infrastructure.SendOTP(user.Email, user.OTP); err != nil {
-		return errors.New("failed to send verification email: " + err.Error())
-	}
+	// 2. Send OTP Email (Asynchronously to avoid timeouts on Render)
+	go func(email, otp string) {
+		if err := Infrastructure.SendOTP(email, otp); err != nil {
+			log.Printf("[ERROR] Failed to send verification email to %s: %v", email, err)
+		}
+	}(user.Email, user.OTP)
 
 	return nil
 }
@@ -143,7 +145,6 @@ func (u *UserUseCaseBase) UpdateProfile(ctx context.Context, profile *domain.Use
 func (u *UserUseCaseBase) DeleteUser(ctx context.Context, userID string) error {
 	return u.userRepo.DeleteUser(ctx, userID)
 }
-
 
 func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (string, string, error) {
 	// Hardcoded BloodBank Admin bypass

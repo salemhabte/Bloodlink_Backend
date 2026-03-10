@@ -33,11 +33,19 @@ func InitEnv() {
 	FROM = getEnv("FROM")
 	APPPASS = getEnv("APPPASS")
 	SMTPSERVER = getEnv("SMTPSERVER")
-	SMTPPORT = getEnv("SMTPPORT")
+	SMTPPORT = getEnvWithDefault("SMTPPORT", "2525")
 	SMTPUSER = getEnv("SMTPUSER")
 
 	JWTREFRESHSECRET = getEnv("JWTREFRESHSECRET")
 
+}
+
+func getEnvWithDefault(key, defaultVal string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultVal
+	}
+	return val
 }
 
 func getEnv(key string) string {
