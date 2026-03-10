@@ -19,8 +19,8 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 
 // CreateUser inserts a newly registered user into the database
 func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) error {
-	query := `INSERT INTO Users (user_id, email, full_name, phone, password_hash, role, is_active, otp, created_at) 
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO users (user_id, email, full_name, phone, password_hash, role, is_active, otp, created_at) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	// Note: ER diagram says password_hash, domain says password.
 	// We'll map the db columns according to ER diagram or logic.
@@ -46,7 +46,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) erro
 
 // GetUserByEmail retrieves a user by their email address for login verification
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query := `SELECT user_id, full_name, email, phone, password_hash, role, is_active, otp, created_at FROM Users WHERE email = ?`
+	query := `SELECT user_id, full_name, email, phone, password_hash, role, is_active, otp, created_at FROM users WHERE email = ?`
 
 	row := r.DB.QueryRowContext(ctx, query, email)
 
@@ -75,14 +75,14 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 
 // ActivateUser updates the user's status to active and clears the OTP
 func (r *UserRepository) ActivateUser(ctx context.Context, userID string) error {
-	query := `UPDATE Users SET is_active = true, otp = NULL WHERE user_id = ?`
+	query := `UPDATE users SET is_active = true, otp = NULL WHERE user_id = ?`
 	_, err := r.DB.ExecContext(ctx, query, userID)
 	return err
 }
 
 // CreateDonor inserts a minimal donor record into the database
 func (r *UserRepository) CreateDonor(ctx context.Context, donor *domain.Donor) error {
-	query := `INSERT INTO Donors (donor_id, user_id, status) VALUES (?, ?, ?)`
+	query := `INSERT INTO donors (donor_id, user_id, status) VALUES (?, ?, ?)`
 	_, err := r.DB.ExecContext(ctx, query, donor.DonorID, donor.UserID, donor.Status)
 	return err
 }
@@ -90,7 +90,7 @@ func (r *UserRepository) CreateDonor(ctx context.Context, donor *domain.Donor) e
 // DeleteUser removes a user from the database.
 // Due to ON DELETE CASCADE, this will also remove their Profile and Donor record.
 func (r *UserRepository) DeleteUser(ctx context.Context, userID string) error {
-	query := `DELETE FROM Users WHERE user_id = ?`
+	query := `DELETE FROM users WHERE user_id = ?`
 	_, err := r.DB.ExecContext(ctx, query, userID)
 	if err != nil {
 		log.Printf("[DATABASE ERROR] DeleteUser failed: %v", err)
@@ -98,4 +98,3 @@ func (r *UserRepository) DeleteUser(ctx context.Context, userID string) error {
 	}
 	return nil
 }
-

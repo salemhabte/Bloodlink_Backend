@@ -46,8 +46,7 @@ type UserProfile struct {
 	UserID            string `json:"user_id" db:"user_id"`
 	FullName          string `json:"full_name" db:"full_name"`
 	Phone             string `json:"phone" db:"phone"`
-	City              string `json:"city" db:"city"`
-	Area              string `json:"area" db:"area"`
+	Address           string `json:"address" db:"address"`
 	ProfilePictureURL string `json:"profile_picture_url" db:"profile_picture_url"`
 }
 
@@ -58,8 +57,6 @@ type Donor struct {
 	Status           string `json:"status" db:"status"`
 	LastDonationDate string `json:"last_donation_date" db:"last_donation_date"`
 }
-
-
 
 type EmailOTP struct {
 	Email string `json:"email" bson:"email"`
@@ -75,6 +72,7 @@ type ResetPasswordRequestDTO struct {
 	OTP         string `json:"otp" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=6,max=50"`
 }
+
 // RegisterRequest represents the payload for user registration
 type RegisterRequest struct {
 	FullName string `json:"full_name" binding:"required"`
