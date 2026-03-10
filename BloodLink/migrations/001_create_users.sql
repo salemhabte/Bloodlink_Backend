@@ -1,18 +1,12 @@
 CREATE TABLE IF NOT EXISTS Users (
     user_id VARCHAR(36) PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20),
     password_hash TEXT NOT NULL,
-
-    role ENUM(
-        'DONOR',
-        'BLOODBANK_ADMIN',
-        'BLOOD_COLLECTOR',
-        'LAB_TECHNICIAN',
-        'HOSPITAL_ADMIN'
-    ) NOT NULL,
-
+    role VARCHAR(50) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     is_verified BOOLEAN DEFAULT FALSE,
-
+    otp VARCHAR(6),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
