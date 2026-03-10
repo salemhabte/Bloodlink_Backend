@@ -2,15 +2,16 @@ package Usecase
 
 import (
 	"bloodlink/Domain"
+	Interface "bloodlink/Domain/Interfaces"
 )
 
 // ===== CAMPAIGN USECASE =====
 
 type CampaignUsecase struct {
-	Repo Domain.ICampaignRepository
+	Repo Interface.ICampaignRepository
 }
 
-func NewCampaignUsecase(repo Domain.ICampaignRepository) *CampaignUsecase {
+func NewCampaignUsecase(repo Interface.ICampaignRepository) *CampaignUsecase {
 	return &CampaignUsecase{Repo: repo}
 }
 
