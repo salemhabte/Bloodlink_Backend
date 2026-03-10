@@ -3,34 +3,38 @@ package main
 import (
 	"bloodlink/Delivery/controller"
 	"bloodlink/Delivery/router"
+	"bloodlink/Infrastructure"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
 	"database/sql"
 	"log"
 
 	_ "github.com/go-sql-driver/mysql"
+	"bloodlink/Usecase"
+	"bloodlink/config"
+	"log"
 )
 
 func main() {
+	// 1. Initialize Configuration
+	config.InitEnv()
 
-	// Remote MySQL DSN from your teammate
-	dsn := "sql12819087:NtpQbxQu4J@tcp(sql12.freesqldatabase.com:3306)/sql12819087"
+	// 2. Connect to Database (MySQL)
+	Repository.ConnectDB()
+	db := Repository.DB
 
-	// Connect to DB
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		log.Fatal("DB connection failed:", err)
-	}
-	defer db.Close()
+	// Run Database Migrations (Auto-Create Tables)
+	Repository.RunMigrations()
 
-	// Check DB connection
-	if err := db.Ping(); err != nil {
-		log.Fatal("Cannot connect to database:", err)
-	}
+	// 3. Initialize Infrastructure Services
+	passwordService := Infrastructure.NewPasswordService()
+	jwtService := Infrastructure.NewJWTAuthentication(config.JWTSECRET)
 
-	log.Println("Connected to remote MySQL database!")
-	// ===== CAMPAIGN SECTION =====
-	// --- Repositories ---
+	// 4. Initialize Auth System
+	userRepo := Repository.NewUserRepository(db)
+	profileRepo := Repository.NewProfileRepository(db)
+	userUseCase := Usecase.NewUserUseCase(userRepo, profileRepo, jwtService, passwordService)
+	userController := controller.NewUserController(userUseCase)
 	campaignRepo := Repository.NewCampaignRepository(db)
 
 	// --- Usecases ---
@@ -39,9 +43,16 @@ func main() {
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
 
-	// --- Router ---
-	r := router.SetupRouter(campaignController)
+	
 
-	log.Println("Server running on port 8080...")
-	log.Fatal(r.Run(":8080"))
+	
+
+	// 5. Initialize Router
+	r := router.SetupRouter(userController, jwtService, campaignController)
+
+	// 7. Start the Server
+	log.Println("Starting server on :8080")
+	if err := r.Run(":8080"); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
+	}
 }
