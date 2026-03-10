@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS donors (
+CREATE TABLE IF NOT EXISTS Donors (
     donor_id VARCHAR(36) PRIMARY KEY,
     user_id VARCHAR(36) NOT NULL,
 
@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS donors (
     weight DECIMAL(5,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );

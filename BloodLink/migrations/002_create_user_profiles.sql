@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS user_profiles (
+CREATE TABLE IF NOT EXISTS User_Profile (
     profile_id VARCHAR(36) PRIMARY KEY,
     user_id VARCHAR(36) NOT NULL,
 
@@ -9,5 +9,5 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    FOREIGN KEY (user_id) REFERENCES Users(user_id)
 );
