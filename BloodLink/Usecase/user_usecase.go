@@ -32,6 +32,7 @@ type IProfileRepository interface {
 	CreateProfile(ctx context.Context, profile *domain.UserProfile) error
 	GetProfileByUserID(ctx context.Context, userID string) (*domain.UserProfile, error)
 	UpdateProfile(ctx context.Context, profile *domain.UserProfile) error
+	GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error)
 }
 
 type UserUseCaseBase struct {
@@ -140,6 +141,10 @@ func (u *UserUseCaseBase) VerifyOTP(ctx context.Context, email, otp string) erro
 
 func (u *UserUseCaseBase) GetProfile(ctx context.Context, userID string) (*domain.UserProfile, error) {
 	return u.profileRepo.GetProfileByUserID(ctx, userID)
+}
+
+func (u *UserUseCaseBase) GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error) {
+	return u.profileRepo.GetAllProfiles(ctx)
 }
 
 func (u *UserUseCaseBase) UpdateProfile(ctx context.Context, profile *domain.UserProfile) error {

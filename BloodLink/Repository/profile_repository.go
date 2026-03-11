@@ -63,3 +63,30 @@ func (r *ProfileRepository) UpdateProfile(ctx context.Context, profile *domain.U
 	)
 	return err
 }
+
+func (r *ProfileRepository) GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error) {
+	query := `SELECT profile_id, user_id, COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(address, ''), COALESCE(profile_picture_url, '') FROM user_profiles`
+	rows, err := r.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var profiles []domain.UserProfile
+	for rows.Next() {
+		var profile domain.UserProfile
+		if err := rows.Scan(
+			&profile.ProfileID,
+			&profile.UserID,
+			&profile.FullName,
+			&profile.Phone,
+			&profile.Address,
+			&profile.ProfilePictureURL,
+		); err != nil {
+			return nil, err
+		}
+		profiles = append(profiles, profile)
+	}
+
+	return profiles, nil
+}

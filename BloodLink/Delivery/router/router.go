@@ -35,7 +35,8 @@ func SetupRouter(
 		protectedRoutes.Use(Infrastructure.AuthMiddleware(auth, domain.RoleDonor, domain.RoleBloodBankAdmin, domain.RoleBloodCollector, domain.RoleLabTech, domain.RoleHospitalAdmin))
 		{
 			protectedRoutes.GET("/profile", userCtrl.GetProfile)
-			protectedRoutes.PUT("/profile", userCtrl.UpdateProfile)
+			protectedRoutes.GET("/profile/:id", userCtrl.GetProfileByID)
+			protectedRoutes.PATCH("/profile", userCtrl.UpdateProfile)
 			protectedRoutes.DELETE("/user", userCtrl.DeleteUser)
 			protectedRoutes.GET("/donors/filter", userCtrl.GetDonors)
 		}
@@ -67,6 +68,11 @@ func SetupRouter(
 		adminUsers := admin.Group("/users")
 		{
 			adminUsers.GET("/filter", userCtrl.GetUsersByRole)
+		}
+
+		adminProfiles := admin.Group("/profiles")
+		{
+			adminProfiles.GET("/", userCtrl.GetAllProfiles)
 		}
 	}
 

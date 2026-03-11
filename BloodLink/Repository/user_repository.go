@@ -125,7 +125,6 @@ func (r *UserRepository) ResetPassword(ctx context.Context, email, hashedPasswor
 	return nil
 }
 
-
 // UpdateDonorStatus updates the status of a donor by donor_id
 func (r *UserRepository) UpdateDonorStatus(ctx context.Context, donorID, status string) error {
 	query := `UPDATE donors SET status = ? WHERE donor_id = ?`
