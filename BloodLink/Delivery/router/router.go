@@ -31,6 +31,8 @@ func SetupRouter(
 			authRoutes.POST("/reset-password", userCtrl.ResetPassword)
 			authRoutes.POST("/refresh-token", userCtrl.RefreshTokenHandler)
 		}
+		
+		api.POST("/logout", Infrastructure.AuthMiddleware(auth), userCtrl.Logout)
 
 		// Example Protected Routes (for verification)
 		protectedRoutes := api.Group("/protected")

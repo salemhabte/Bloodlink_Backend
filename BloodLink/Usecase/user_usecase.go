@@ -26,6 +26,7 @@ type IUserRepository interface {
 	ResetPassword(ctx context.Context, email, hashedPassword string) error
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
 	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
+	UpdateRefreshToken(ctx context.Context, userID, refreshToken string) error
 }
 
 type IProfileRepository interface {
@@ -244,6 +245,10 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 			return "", "", err
 		}
 
+		// Save refresh token to DB (bypass for hardcoded admin usually, but let's keep it consistent if possible)
+		// Actually, admin@bloodlink.com doesn't exist in DB, so u.userRepo.UpdateRefreshToken will fail.
+		// Let's only do it for normal users.
+
 		return accessToken, refreshToken, nil
 	}
 
@@ -283,6 +288,11 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 		return "", "", err
 	}
 
+	// Save Refresh Token to DB
+	if err := u.userRepo.UpdateRefreshToken(ctx, user.ID, refreshToken); err != nil {
+		return "", "", err
+	}
+
 	return accessToken, refreshToken, nil
 }
 
@@ -305,9 +315,11 @@ func (u *UserUseCaseBase) RefreshToken(ctx context.Context, refreshTokenStr stri
 		if err != nil || user == nil {
 			return "", "", errors.New("user no longer exists")
 		}
-		
-		// If needed, check if user is still active here
-		// if !user.IsActive { ... }
+
+		// REVOCATION CHECK: Verify stored token matches provided token
+		if user.RefreshToken != refreshTokenStr {
+			return "", "", errors.New("refresh token has been revoked or session expired")
+		}
 
 		// Refresh the claims with current user data
 		claims.AccountType = user.Role
@@ -325,5 +337,17 @@ func (u *UserUseCaseBase) RefreshToken(ctx context.Context, refreshTokenStr stri
 		return "", "", err
 	}
 
+	// Update the stored refresh token (Token Rotation)
+	if claims.Email != "admin@bloodlink.com" {
+		if err := u.userRepo.UpdateRefreshToken(ctx, claims.UserID, newRefreshToken); err != nil {
+			return "", "", err
+		}
+	}
+
 	return newAccessToken, newRefreshToken, nil
+}
+
+func (u *UserUseCaseBase) Logout(ctx context.Context, userID string) error {
+	// Simple revocation: clear the refresh token in the database
+	return u.userRepo.UpdateRefreshToken(ctx, userID, "")
 }

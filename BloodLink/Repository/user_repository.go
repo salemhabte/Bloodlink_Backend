@@ -46,7 +46,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) erro
 
 // GetUserByEmail retrieves a user by their email address for login verification
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query := `SELECT user_id, full_name, email, COALESCE(phone, ''), password_hash, role, is_active, COALESCE(otp, ''), created_at FROM users WHERE email = ?`
+	query := `SELECT user_id, full_name, email, COALESCE(phone, ''), password_hash, role, is_active, COALESCE(otp, ''), created_at, COALESCE(refresh_token, '') FROM users WHERE email = ?`
 
 	row := r.DB.QueryRowContext(ctx, query, email)
 
@@ -61,6 +61,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 		&user.IsActive,
 		&user.OTP,
 		&user.CreatedAt,
+		&user.RefreshToken,
 	)
 
 	if err != nil {
@@ -277,4 +278,10 @@ func (r *UserRepository) GetUsersByRole(ctx context.Context, role string) ([]dom
 	}
 
 	return users, nil
+}
+
+func (r *UserRepository) UpdateRefreshToken(ctx context.Context, userID, refreshToken string) error {
+	query := `UPDATE users SET refresh_token = ? WHERE user_id = ?`
+	_, err := r.DB.ExecContext(ctx, query, refreshToken, userID)
+	return err
 }

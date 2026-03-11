@@ -355,3 +355,21 @@ func (c *UserController) GetUsersByRole(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, users)
 }
+
+func (c *UserController) Logout(ctx *gin.Context) {
+	userID := ctx.GetString("userID")
+	if userID == "" {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "user id not found in context"})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	if err := c.UserUseCase.Logout(cCtx, userID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+}
