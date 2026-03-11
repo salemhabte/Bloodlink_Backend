@@ -58,6 +58,22 @@ type Donor struct {
 	LastDonationDate string `json:"last_donation_date" db:"last_donation_date"`
 }
 
+type DonorResponse struct {
+	DonorID   string `json:"donor_id" db:"donor_id"`
+	UserID    string `json:"user_id" db:"user_id"`
+	FullName  string `json:"full_name" db:"full_name"`
+	Email     string `json:"email" db:"email"`
+	Phone     string `json:"phone" db:"phone"`
+	Address   string `json:"address" db:"address"`
+	BloodType string `json:"blood_type" db:"blood_type"`
+	Status    string `json:"status" db:"status"`
+}
+
+type DonorFilter struct {
+	BloodType string `json:"blood_type"`
+	Status    string `json:"status"`
+}
+
 type EmailOTP struct {
 	Email string `json:"email" bson:"email"`
 	OTP   string `json:"otp" bson:"otp"`
@@ -91,4 +107,8 @@ type LoginRequest struct {
 type VerifyOTPRequest struct {
 	Email string `json:"email" binding:"required"`
 	OTP   string `json:"otp" binding:"required"`
+}
+
+type RefreshTokenRequestDTO struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }
