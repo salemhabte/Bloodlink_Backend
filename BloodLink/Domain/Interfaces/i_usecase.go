@@ -1,8 +1,8 @@
 package Domain
 
 import (
-	"context"
 	domain "bloodlink/Domain"
+	"context"
 )
 
 type IUserUseCase interface {
@@ -12,4 +12,8 @@ type IUserUseCase interface {
 	GetProfile(ctx context.Context, userID string) (*domain.UserProfile, error)
 	UpdateProfile(ctx context.Context, profile *domain.UserProfile) error
 	DeleteUser(ctx context.Context, userID string) error
+	FilterDonors(ctx context.Context, filter domain.DonorFilter) ([]domain.DonorResponse, error)
+	ForgotPassword(ctx context.Context, email string) error
+	ResetPassword(ctx context.Context, email, otp, newPassword string) error
+	UpdateDonorStatus(ctx context.Context, donorID, status string) error
 }

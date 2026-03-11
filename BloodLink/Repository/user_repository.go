@@ -98,3 +98,143 @@ func (r *UserRepository) DeleteUser(ctx context.Context, userID string) error {
 	}
 	return nil
 }
+
+// SetOTP stores an OTP for the user identified by email (used for forgot password)
+func (r *UserRepository) SetOTP(ctx context.Context, email, otp string) error {
+	query := `UPDATE users SET otp = ? WHERE email = ?`
+	result, err := r.DB.ExecContext(ctx, query, otp, email)
+	if err != nil {
+		log.Printf("[DATABASE ERROR] SetOTP failed: %v", err)
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return errors.New("user not found")
+	}
+	return nil
+}
+
+// ResetPassword updates the password and clears the OTP for the user identified by email
+func (r *UserRepository) ResetPassword(ctx context.Context, email, hashedPassword string) error {
+	query := `UPDATE users SET password_hash = ?, otp = NULL WHERE email = ?`
+	_, err := r.DB.ExecContext(ctx, query, hashedPassword, email)
+	if err != nil {
+		log.Printf("[DATABASE ERROR] ResetPassword failed: %v", err)
+		return err
+	}
+	return nil
+}
+
+
+// UpdateDonorStatus updates the status of a donor by donor_id
+func (r *UserRepository) UpdateDonorStatus(ctx context.Context, donorID, status string) error {
+	query := `UPDATE donors SET status = ? WHERE donor_id = ?`
+	result, err := r.DB.ExecContext(ctx, query, status, donorID)
+	if err != nil {
+		log.Printf("[DATABASE ERROR] UpdateDonorStatus failed: %v", err)
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return errors.New("donor not found")
+	}
+	return nil
+}
+
+func (r *UserRepository) GetAllDonors(ctx context.Context) ([]domain.DonorResponse, error) {
+	query := `
+		SELECT 
+			d.donor_id, 
+			d.user_id, 
+			u.full_name, 
+			u.email, 
+			u.phone, 
+			COALESCE(p.address, ''), 
+			COALESCE(d.blood_type, ''), 
+			d.status 
+		FROM donors d
+		JOIN users u ON d.user_id = u.user_id
+		LEFT JOIN user_profile p ON u.user_id = p.user_id
+	`
+	rows, err := r.DB.QueryContext(ctx, query)
+	if err != nil {
+		log.Printf("[DATABASE ERROR] GetAllDonors failed: %v", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var donors []domain.DonorResponse
+	for rows.Next() {
+		var donor domain.DonorResponse
+		if err := rows.Scan(
+			&donor.DonorID,
+			&donor.UserID,
+			&donor.FullName,
+			&donor.Email,
+			&donor.Phone,
+			&donor.Address,
+			&donor.BloodType,
+			&donor.Status,
+		); err != nil {
+			return nil, err
+		}
+		donors = append(donors, donor)
+	}
+
+	return donors, nil
+}
+
+func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFilter) ([]domain.DonorResponse, error) {
+	query := `
+		SELECT 
+			d.donor_id, 
+			d.user_id, 
+			u.full_name, 
+			u.email, 
+			u.phone, 
+			COALESCE(p.address, ''), 
+			COALESCE(d.blood_type, ''), 
+			d.status 
+		FROM donors d
+		JOIN users u ON d.user_id = u.user_id
+		LEFT JOIN user_profile p ON u.user_id = p.user_id
+		WHERE 1=1
+	`
+	args := []interface{}{}
+
+	if filter.BloodType != "" {
+		query += " AND d.blood_type = ?"
+		args = append(args, filter.BloodType)
+	}
+	if filter.Status != "" {
+		query += " AND d.status = ?"
+		args = append(args, filter.Status)
+	}
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		log.Printf("[DATABASE ERROR] FilterDonors failed: %v", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var donors []domain.DonorResponse
+	for rows.Next() {
+		var donor domain.DonorResponse
+		if err := rows.Scan(
+			&donor.DonorID,
+			&donor.UserID,
+			&donor.FullName,
+			&donor.Email,
+			&donor.Phone,
+			&donor.Address,
+			&donor.BloodType,
+			&donor.Status,
+		); err != nil {
+			return nil, err
+		}
+		donors = append(donors, donor)
+	}
+
+	return donors, nil
+}

@@ -25,6 +25,8 @@ func SetupRouter(
 			authRoutes.POST("/register", userCtrl.RegisterUser)
 			authRoutes.POST("/login", userCtrl.HandleLogin)
 			authRoutes.POST("/verify-otp", userCtrl.VerifyOTP)
+			authRoutes.POST("/forgot-password", userCtrl.ForgotPassword)
+			authRoutes.POST("/reset-password", userCtrl.ResetPassword)
 		}
 
 		// Example Protected Routes (for verification)
@@ -34,6 +36,7 @@ func SetupRouter(
 			protectedRoutes.GET("/profile", userCtrl.GetProfile)
 			protectedRoutes.PUT("/profile", userCtrl.UpdateProfile)
 			protectedRoutes.DELETE("/user", userCtrl.DeleteUser)
+			protectedRoutes.GET("/donors/filter", userCtrl.GetDonors)
 		}
 	}
 
@@ -46,12 +49,18 @@ func SetupRouter(
 	//Campaign Routes Accessible by blood bank Admin
 
 	admin := r.Group("/api/bloodbankadmin")
+	admin.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
 	{
 		adminCampaigns := admin.Group("/campaigns")
 		{
 			adminCampaigns.POST("/", campaignController.CreateCampaign)
 			adminCampaigns.PUT("/:id", campaignController.UpdateCampaign)
 			adminCampaigns.DELETE("/:id", campaignController.DeleteCampaign)
+		}
+
+		adminDonors := admin.Group("/donors")
+		{
+			adminDonors.PUT("/:donor_id/status", userCtrl.UpdateDonorStatus)
 		}
 	}
 

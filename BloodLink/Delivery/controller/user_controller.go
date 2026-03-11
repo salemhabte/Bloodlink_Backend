@@ -165,3 +165,83 @@ func (c *UserController) DeleteUser(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "User and all related data deleted successfully"})
 }
+
+func (c *UserController) UpdateDonorStatus(ctx *gin.Context) {
+	donorID := ctx.Param("donor_id")
+	if donorID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "donor_id is required"})
+		return
+	}
+
+	var body struct {
+		Status string `json:"status" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	if err := c.UserUseCase.UpdateDonorStatus(cCtx, donorID, body.Status); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Donor status updated to " + body.Status})
+}
+
+func (c *UserController) ForgotPassword(ctx *gin.Context) {
+	var req domain.ForgotPasswordRequestDTO
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	if err := c.UserUseCase.ForgotPassword(cCtx, req.Email); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Password reset OTP sent to your email"})
+}
+
+func (c *UserController) ResetPassword(ctx *gin.Context) {
+	var req domain.ResetPasswordRequestDTO
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	if err := c.UserUseCase.ResetPassword(cCtx, req.Email, req.OTP, req.NewPassword); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
+}
+
+func (c *UserController) GetDonors(ctx *gin.Context) {
+	filter := domain.DonorFilter{
+		BloodType: ctx.Query("blood_type"),
+		Status:    ctx.Query("status"),
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	donors, err := c.UserUseCase.FilterDonors(cCtx, filter)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donors)
+}
