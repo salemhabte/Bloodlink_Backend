@@ -27,6 +27,7 @@ func SetupRouter(
 			authRoutes.POST("/verify-otp", userCtrl.VerifyOTP)
 			authRoutes.POST("/forgot-password", userCtrl.ForgotPassword)
 			authRoutes.POST("/reset-password", userCtrl.ResetPassword)
+			authRoutes.POST("/refresh-token", userCtrl.RefreshTokenHandler)
 		}
 
 		// Example Protected Routes (for verification)

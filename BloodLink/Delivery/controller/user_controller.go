@@ -245,3 +245,26 @@ func (c *UserController) GetDonors(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, donors)
 }
+
+func (c *UserController) RefreshTokenHandler(ctx *gin.Context) {
+	var req domain.RefreshTokenRequestDTO
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	accessToken, refreshToken, err := c.UserUseCase.RefreshToken(cCtx, req.RefreshToken)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message":       "tokens refreshed successfully",
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+	})
+}

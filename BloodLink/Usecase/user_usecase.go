@@ -275,3 +275,45 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 
 	return accessToken, refreshToken, nil
 }
+
+func (u *UserUseCaseBase) RefreshToken(ctx context.Context, refreshTokenStr string) (string, string, error) {
+	// Parse and validate the refresh token
+	claims, err := u.auth.ParseTokenToClaim(refreshTokenStr)
+	if err != nil {
+		return "", "", errors.New("invalid or expired refresh token")
+	}
+
+	// Double check the token type
+	if claims.TokenType != domainInterface.RefreshToken {
+		return "", "", errors.New("invalid token type")
+	}
+
+	// For normal users, verify they still exist and are active
+	// Hardcoded Admin bypass check
+	if claims.Email != "admin@bloodlink.com" {
+		user, err := u.userRepo.GetUserByEmail(ctx, claims.Email)
+		if err != nil || user == nil {
+			return "", "", errors.New("user no longer exists")
+		}
+		
+		// If needed, check if user is still active here
+		// if !user.IsActive { ... }
+
+		// Refresh the claims with current user data
+		claims.AccountType = user.Role
+		claims.IsVerified = user.IsActive
+	}
+
+	// Generate new tokens
+	newAccessToken, err := u.auth.GenerateToken(claims, domainInterface.AccessToken)
+	if err != nil {
+		return "", "", err
+	}
+
+	newRefreshToken, err := u.auth.GenerateToken(claims, domainInterface.RefreshToken)
+	if err != nil {
+		return "", "", err
+	}
+
+	return newAccessToken, newRefreshToken, nil
+}

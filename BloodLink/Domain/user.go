@@ -108,3 +108,7 @@ type VerifyOTPRequest struct {
 	Email string `json:"email" binding:"required"`
 	OTP   string `json:"otp" binding:"required"`
 }
+
+type RefreshTokenRequestDTO struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
