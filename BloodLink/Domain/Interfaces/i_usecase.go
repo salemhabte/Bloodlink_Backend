@@ -17,4 +17,5 @@ type IUserUseCase interface {
 	ResetPassword(ctx context.Context, email, otp, newPassword string) error
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
 	RefreshToken(ctx context.Context, refreshToken string) (string, string, error)
+	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 }

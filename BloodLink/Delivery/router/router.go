@@ -63,6 +63,11 @@ func SetupRouter(
 		{
 			adminDonors.PUT("/:donor_id/status", userCtrl.UpdateDonorStatus)
 		}
+
+		adminUsers := admin.Group("/users")
+		{
+			adminUsers.GET("/filter", userCtrl.GetUsersByRole)
+		}
 	}
 
 	return r

@@ -25,6 +25,7 @@ type IUserRepository interface {
 	SetOTP(ctx context.Context, email, otp string) error
 	ResetPassword(ctx context.Context, email, hashedPassword string) error
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
+	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 }
 
 type IProfileRepository interface {
@@ -159,6 +160,10 @@ func (u *UserUseCaseBase) UpdateDonorStatus(ctx context.Context, donorID, status
 		return errors.New("invalid status: must be Pending, Approved, or Rejected")
 	}
 	return u.userRepo.UpdateDonorStatus(ctx, donorID, status)
+}
+
+func (u *UserUseCaseBase) GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error) {
+	return u.userRepo.GetUsersByRole(ctx, role)
 }
 
 func (u *UserUseCaseBase) ForgotPassword(ctx context.Context, email string) error {

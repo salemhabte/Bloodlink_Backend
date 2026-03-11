@@ -112,3 +112,13 @@ type VerifyOTPRequest struct {
 type RefreshTokenRequestDTO struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
+
+type UserResponse struct {
+	ID        string    `json:"id" db:"user_id"`
+	FullName  string    `json:"full_name" db:"full_name"`
+	Email     string    `json:"email" db:"email"`
+	Phone     string    `json:"phone" db:"phone"`
+	Role      string    `json:"role" db:"role"`
+	IsActive  bool      `json:"is_active" db:"is_active"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
