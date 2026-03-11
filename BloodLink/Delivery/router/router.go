@@ -6,6 +6,7 @@ import (
 	domainInterface "bloodlink/Domain/Interfaces"
 	"bloodlink/Infrastructure"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,6 +17,7 @@ func SetupRouter(
 ) *gin.Engine {
 
 	r := gin.Default()
+	r.Use(cors.Default())
 
 	// Public Routes
 	api := r.Group("/api")
