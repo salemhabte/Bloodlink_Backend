@@ -25,12 +25,14 @@ type IUserRepository interface {
 	SetOTP(ctx context.Context, email, otp string) error
 	ResetPassword(ctx context.Context, email, hashedPassword string) error
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
+	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 }
 
 type IProfileRepository interface {
 	CreateProfile(ctx context.Context, profile *domain.UserProfile) error
 	GetProfileByUserID(ctx context.Context, userID string) (*domain.UserProfile, error)
 	UpdateProfile(ctx context.Context, profile *domain.UserProfile) error
+	GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error)
 }
 
 type UserUseCaseBase struct {
@@ -141,6 +143,10 @@ func (u *UserUseCaseBase) GetProfile(ctx context.Context, userID string) (*domai
 	return u.profileRepo.GetProfileByUserID(ctx, userID)
 }
 
+func (u *UserUseCaseBase) GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error) {
+	return u.profileRepo.GetAllProfiles(ctx)
+}
+
 func (u *UserUseCaseBase) UpdateProfile(ctx context.Context, profile *domain.UserProfile) error {
 	return u.profileRepo.UpdateProfile(ctx, profile)
 }
@@ -159,6 +165,10 @@ func (u *UserUseCaseBase) UpdateDonorStatus(ctx context.Context, donorID, status
 		return errors.New("invalid status: must be Pending, Approved, or Rejected")
 	}
 	return u.userRepo.UpdateDonorStatus(ctx, donorID, status)
+}
+
+func (u *UserUseCaseBase) GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error) {
+	return u.userRepo.GetUsersByRole(ctx, role)
 }
 
 func (u *UserUseCaseBase) ForgotPassword(ctx context.Context, email string) error {

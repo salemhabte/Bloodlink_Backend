@@ -73,6 +73,9 @@ func RunMigrations() {
 				if strings.Contains(errStr, "Error 1060") ||
 					strings.Contains(errStr, "Error 1061") ||
 					strings.Contains(errStr, "Error 1050") ||
+					strings.Contains(errStr, "Error 121") ||
+					strings.Contains(errStr, "Error 1025") ||
+					strings.Contains(errStr, "Error 1005") ||
 					strings.Contains(errStr, "Error 1091") {
 					log.Printf("[MIGRATION WARNING] Skipping statement in %s: %v", fileName, err)
 					continue

@@ -125,7 +125,6 @@ func (r *UserRepository) ResetPassword(ctx context.Context, email, hashedPasswor
 	return nil
 }
 
-
 // UpdateDonorStatus updates the status of a donor by donor_id
 func (r *UserRepository) UpdateDonorStatus(ctx context.Context, donorID, status string) error {
 	query := `UPDATE donors SET status = ? WHERE donor_id = ?`
@@ -237,4 +236,45 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 	}
 
 	return donors, nil
+}
+
+// GetUsersByRole retrieves all users matching a specific role
+func (r *UserRepository) GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error) {
+	query := `
+		SELECT 
+			user_id, 
+			full_name, 
+			email, 
+			COALESCE(phone, ''), 
+			role, 
+			is_active, 
+			created_at 
+		FROM users 
+		WHERE role = ?
+	`
+	rows, err := r.DB.QueryContext(ctx, query, role)
+	if err != nil {
+		log.Printf("[DATABASE ERROR] GetUsersByRole failed: %v", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []domain.UserResponse
+	for rows.Next() {
+		var u domain.UserResponse
+		if err := rows.Scan(
+			&u.ID,
+			&u.FullName,
+			&u.Email,
+			&u.Phone,
+			&u.Role,
+			&u.IsActive,
+			&u.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+
+	return users, nil
 }

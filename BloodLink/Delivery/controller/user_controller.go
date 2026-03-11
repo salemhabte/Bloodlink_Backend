@@ -122,6 +122,45 @@ func (c *UserController) GetProfile(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, profile)
 }
 
+// GetProfileByID fetches a user's profile based on the ID passed in the path
+func (c *UserController) GetProfileByID(ctx *gin.Context) {
+	userID := ctx.Param("id")
+	if userID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "user id is required"})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	profile, err := c.UserUseCase.GetProfile(cCtx, userID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if profile == nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "profile not found"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, profile)
+}
+
+// GetAllProfiles fetches all user profiles in the system
+func (c *UserController) GetAllProfiles(ctx *gin.Context) {
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	profiles, err := c.UserUseCase.GetAllProfiles(cCtx)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, profiles)
+}
+
 func (c *UserController) UpdateProfile(ctx *gin.Context) {
 	userID := ctx.GetString("userID")
 	if userID == "" {
@@ -129,23 +168,51 @@ func (c *UserController) UpdateProfile(ctx *gin.Context) {
 		return
 	}
 
-	var profile domain.UserProfile
-	if err := ctx.ShouldBindJSON(&profile); err != nil {
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	// 1. Fetch the existing profile
+	existingProfile, err := c.UserUseCase.GetProfile(cCtx, userID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch existing profile"})
+		return
+	}
+	if existingProfile == nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Profile not found to update"})
+		return
+	}
+
+	// 2. Read the partial updates from the request
+	var updates map[string]interface{}
+	if err := ctx.ShouldBindJSON(&updates); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	profile.UserID = userID // Security: ensure they only update their own profile
+	// 3. Apply only the provided updates
+	if val, ok := updates["full_name"].(string); ok {
+		existingProfile.FullName = val
+	}
+	if val, ok := updates["phone"].(string); ok {
+		existingProfile.Phone = val
+	}
+	if val, ok := updates["address"].(string); ok {
+		existingProfile.Address = val
+	}
+	if val, ok := updates["profile_picture_url"].(string); ok {
+		existingProfile.ProfilePictureURL = val
+	}
 
-	cCtx, cancel := context.WithCancel(ctx.Request.Context())
-	defer cancel()
-
-	if err := c.UserUseCase.UpdateProfile(cCtx, &profile); err != nil {
+	// 4. Save the merged profile back to the database
+	if err := c.UserUseCase.UpdateProfile(cCtx, existingProfile); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "Profile updated successfully",
+		"profile": existingProfile,
+	})
 }
 
 func (c *UserController) DeleteUser(ctx *gin.Context) {
@@ -267,4 +334,24 @@ func (c *UserController) RefreshTokenHandler(ctx *gin.Context) {
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 	})
+}
+
+// GetUsersByRole handles fetching users filtered by their role
+func (c *UserController) GetUsersByRole(ctx *gin.Context) {
+	role := ctx.Query("role")
+	if role == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "role query parameter is required"})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	users, err := c.UserUseCase.GetUsersByRole(cCtx, role)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, users)
 }
