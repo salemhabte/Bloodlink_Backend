@@ -21,6 +21,10 @@ type IUserRepository interface {
 	ActivateUser(ctx context.Context, userID string) error
 	CreateDonor(ctx context.Context, donor *domain.Donor) error
 	DeleteUser(ctx context.Context, userID string) error
+	FilterDonors(ctx context.Context, filter domain.DonorFilter) ([]domain.DonorResponse, error)
+	SetOTP(ctx context.Context, email, otp string) error
+	ResetPassword(ctx context.Context, email, hashedPassword string) error
+	UpdateDonorStatus(ctx context.Context, donorID, status string) error
 }
 
 type IProfileRepository interface {
@@ -125,7 +129,7 @@ func (u *UserUseCaseBase) VerifyOTP(ctx context.Context, email, otp string) erro
 		donor := &domain.Donor{
 			DonorID: uuid.New().String(),
 			UserID:  user.ID,
-			Status:  "Available",
+			Status:  "Pending",
 		}
 		return u.userRepo.CreateDonor(ctx, donor)
 	}
@@ -143,6 +147,66 @@ func (u *UserUseCaseBase) UpdateProfile(ctx context.Context, profile *domain.Use
 
 func (u *UserUseCaseBase) DeleteUser(ctx context.Context, userID string) error {
 	return u.userRepo.DeleteUser(ctx, userID)
+}
+
+func (u *UserUseCaseBase) FilterDonors(ctx context.Context, filter domain.DonorFilter) ([]domain.DonorResponse, error) {
+	return u.userRepo.FilterDonors(ctx, filter)
+}
+
+func (u *UserUseCaseBase) UpdateDonorStatus(ctx context.Context, donorID, status string) error {
+	validStatuses := map[string]bool{"Pending": true, "Approved": true, "Rejected": true}
+	if !validStatuses[status] {
+		return errors.New("invalid status: must be Pending, Approved, or Rejected")
+	}
+	return u.userRepo.UpdateDonorStatus(ctx, donorID, status)
+}
+
+func (u *UserUseCaseBase) ForgotPassword(ctx context.Context, email string) error {
+	// Verify user exists
+	user, err := u.userRepo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	// Generate and store OTP
+	otp := Infrastructure.GenerateOTP()
+	if err := u.userRepo.SetOTP(ctx, email, otp); err != nil {
+		return err
+	}
+
+	// Send OTP email asynchronously
+	go func() {
+		if err := Infrastructure.SendPasswordResetOTP(email, otp); err != nil {
+			log.Printf("[ERROR] Failed to send password reset email to %s: %v", email, err)
+		}
+	}()
+
+	return nil
+}
+
+func (u *UserUseCaseBase) ResetPassword(ctx context.Context, email, otp, newPassword string) error {
+	// Get user and verify OTP
+	user, err := u.userRepo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+	if user.OTP != otp {
+		return errors.New("invalid OTP")
+	}
+
+	// Validate and hash new password
+	if !u.validation.IsStrongPassword(newPassword) {
+		return errors.New("password is not strong enough")
+	}
+	hashedPassword := u.validation.Hashpassword(newPassword)
+
+	return u.userRepo.ResetPassword(ctx, email, hashedPassword)
 }
 
 func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (string, string, error) {
@@ -210,4 +274,46 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 	}
 
 	return accessToken, refreshToken, nil
+}
+
+func (u *UserUseCaseBase) RefreshToken(ctx context.Context, refreshTokenStr string) (string, string, error) {
+	// Parse and validate the refresh token
+	claims, err := u.auth.ParseTokenToClaim(refreshTokenStr)
+	if err != nil {
+		return "", "", errors.New("invalid or expired refresh token")
+	}
+
+	// Double check the token type
+	if claims.TokenType != domainInterface.RefreshToken {
+		return "", "", errors.New("invalid token type")
+	}
+
+	// For normal users, verify they still exist and are active
+	// Hardcoded Admin bypass check
+	if claims.Email != "admin@bloodlink.com" {
+		user, err := u.userRepo.GetUserByEmail(ctx, claims.Email)
+		if err != nil || user == nil {
+			return "", "", errors.New("user no longer exists")
+		}
+		
+		// If needed, check if user is still active here
+		// if !user.IsActive { ... }
+
+		// Refresh the claims with current user data
+		claims.AccountType = user.Role
+		claims.IsVerified = user.IsActive
+	}
+
+	// Generate new tokens
+	newAccessToken, err := u.auth.GenerateToken(claims, domainInterface.AccessToken)
+	if err != nil {
+		return "", "", err
+	}
+
+	newRefreshToken, err := u.auth.GenerateToken(claims, domainInterface.RefreshToken)
+	if err != nil {
+		return "", "", err
+	}
+
+	return newAccessToken, newRefreshToken, nil
 }

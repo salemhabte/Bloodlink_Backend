@@ -27,3 +27,25 @@ func SendOTP(toEmail, otp string) error {
 	}
 	return nil
 }
+
+func SendPasswordResetOTP(toEmail, otp string) error {
+	from := config.FROM
+	password := config.APPPASS
+	smtpHost := config.SMTPSERVER
+	smtpPort := config.SMTPPORT
+
+	user := config.SMTPUSER
+	auth := smtp.PlainAuth("", user, password, smtpHost)
+
+	subject := "Subject: BloodLink Password Reset\n"
+	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
+	body := fmt.Sprintf("<html><body><p>You requested a password reset for your BloodLink account.</p><p><strong>Your OTP is: %s</strong></p><p>This OTP will expire soon. If you did not request this, please ignore this email.</p></body></html>", otp)
+	message := []byte(subject + mime + body)
+
+	addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
+	err := smtp.SendMail(addr, auth, from, []string{toEmail}, message)
+	if err != nil {
+		return fmt.Errorf("failed to send password reset email: %v", err)
+	}
+	return nil
+}
