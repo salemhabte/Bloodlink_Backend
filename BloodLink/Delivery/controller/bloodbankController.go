@@ -5,6 +5,8 @@ import (
     "bloodlink/Usecase"
     "net/http"
     "time"
+	"fmt"
+	
 
     "github.com/gin-gonic/gin"
 )
@@ -160,6 +162,7 @@ func (c *DonationController) CreateDonation(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	 fmt.Printf("Inserting donation: %+v", record)
 
 	if err := c.usecase.CreateDonation(&record); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

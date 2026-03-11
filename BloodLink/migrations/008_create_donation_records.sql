@@ -28,5 +28,5 @@ CREATE TABLE donation_records (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (donor_id) REFERENCES donors(donor_id),
-    FOREIGN KEY (collected_by) REFERENCES blood_collectors(collector_id)
+    FOREIGN KEY (collected_by) REFERENCES users(user_id)
 );
