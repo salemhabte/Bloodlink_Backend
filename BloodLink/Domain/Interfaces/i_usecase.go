@@ -1,8 +1,8 @@
 package Domain
 
 import (
-	"context"
 	domain "bloodlink/Domain"
+	"context"
 )
 
 type IUserUseCase interface {

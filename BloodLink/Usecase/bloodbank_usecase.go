@@ -39,3 +39,5 @@ func (u *CampaignUsecase) DeleteCampaign(id string) error {
 func (u *CampaignUsecase) GetCampaignsByLocation(location string) ([]Domain.Campaign, error) {
 	return u.Repo.GetCampaignsByLocation(location)
 }
+
+

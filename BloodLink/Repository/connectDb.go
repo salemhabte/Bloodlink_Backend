@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time" 
 
 	"bloodlink/config"
 
@@ -25,6 +26,9 @@ func ConnectDB() {
 	if err != nil {
 		log.Fatal("Error connecting to database: ", err)
 	}
+	DB.SetMaxOpenConns(10)
+DB.SetMaxIdleConns(5)
+DB.SetConnMaxLifetime(5 * time.Minute)
 
 	fmt.Println("Connected to MySQL database successfully!")
 }

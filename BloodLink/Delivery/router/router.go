@@ -13,6 +13,7 @@ func SetupRouter(
 	userCtrl *controller.UserController,
 	auth domainInterface.IAuthentication,
 	campaignController *controller.CampaignController,
+	donationController *controller.DonationController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -54,6 +55,13 @@ func SetupRouter(
 			adminCampaigns.DELETE("/:id", campaignController.DeleteCampaign)
 		}
 	}
+	// Blood Collector Routes
+bloodCollector := r.Group("/api/bloodcollector")
+{
+	bloodCollector.GET("/donor", donationController.SearchDonor)
+	bloodCollector.POST("/donation", donationController.CreateDonation)
+	bloodCollector.PUT("/donation/:id/status", donationController.UpdateDonationStatus)
+}
 
 	return r
 }
