@@ -19,21 +19,39 @@ func NewCampaignRepository(db *sql.DB) Interfaces.ICampaignRepository {
 	return &CampaignRepository{DB: db}
 }
 
+// CreateCampaign inserts a new campaign
 func (r *CampaignRepository) CreateCampaign(campaign *Domain.Campaign) error {
 	campaign.CampaignID = uuid.New().String()
 	campaign.CreatedAt = time.Now()
 
-	query := "INSERT INTO campaigns (campaign_id, title, content, location, start_date, end_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-	_, err := r.DB.Exec(query, campaign.CampaignID, campaign.Title, campaign.Content, campaign.Location, campaign.StartDate, campaign.EndDate, campaign.CreatedAt)
+	query := `
+	INSERT INTO campaigns 
+	(campaign_id, title, content, location, start_date, end_date, created_at) 
+	VALUES (?, ?, ?, ?, ?, ?, ?)`
+
+	_, err := r.DB.Exec(
+		query,
+		campaign.CampaignID,
+		campaign.Title,
+		campaign.Content,
+		campaign.Location,
+		campaign.StartDate,
+		campaign.EndDate,
+		campaign.CreatedAt,
+	)
+
 	return err
 }
 
+// GetAllCampaigns returns all active campaigns
 func (r *CampaignRepository) GetAllCampaigns() ([]Domain.Campaign, error) {
+
 	query := `
-SELECT campaign_id, title, content, location, start_date, end_date, created_at
-FROM campaigns
-WHERE end_date >= NOW()
-`
+	SELECT campaign_id, title, content, location, start_date, end_date, created_at
+	FROM campaigns
+	WHERE end_date >= NOW()
+	`
+
 	rows, err := r.DB.Query(query)
 	if err != nil {
 		return nil, err
@@ -41,59 +59,54 @@ WHERE end_date >= NOW()
 	defer rows.Close()
 
 	var campaigns []Domain.Campaign
+
 	for rows.Next() {
 		var c Domain.Campaign
-		var startDateStr, endDateStr, createdAtStr string
 
-		if err := rows.Scan(&c.CampaignID, &c.Title, &c.Content, &c.Location, &startDateStr, &endDateStr, &createdAtStr); err != nil {
-			return nil, err
-		}
+		err := rows.Scan(
+			&c.CampaignID,
+			&c.Title,
+			&c.Content,
+			&c.Location,
+			&c.StartDate,
+			&c.EndDate,
+			&c.CreatedAt,
+		)
 
-		// Parse datetime strings to time.Time
-		c.StartDate, err = time.Parse("2006-01-02 15:04:05", startDateStr)
-		if err != nil {
-			return nil, err
-		}
-		c.EndDate, err = time.Parse("2006-01-02 15:04:05", endDateStr)
-		if err != nil {
-			return nil, err
-		}
-		c.CreatedAt, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
 		if err != nil {
 			return nil, err
 		}
 
 		campaigns = append(campaigns, c)
 	}
+
 	return campaigns, nil
 }
 
+// GetCampaignByID returns a campaign by ID
 func (r *CampaignRepository) GetCampaignByID(id string) (*Domain.Campaign, error) {
+
 	query := `
-SELECT campaign_id, title, content, location, start_date, end_date, created_at
-FROM campaigns
-WHERE campaign_id = ? AND end_date >= NOW()
-LIMIT 1
-`
+	SELECT campaign_id, title, content, location, start_date, end_date, created_at
+	FROM campaigns
+	WHERE campaign_id = ? AND end_date >= NOW()
+	LIMIT 1
+	`
+
 	row := r.DB.QueryRow(query, id)
 
 	var c Domain.Campaign
-	var startDateStr, endDateStr, createdAtStr string
 
-	if err := row.Scan(&c.CampaignID, &c.Title, &c.Content, &c.Location, &startDateStr, &endDateStr, &createdAtStr); err != nil {
-		return nil, err
-	}
+	err := row.Scan(
+		&c.CampaignID,
+		&c.Title,
+		&c.Content,
+		&c.Location,
+		&c.StartDate,
+		&c.EndDate,
+		&c.CreatedAt,
+	)
 
-	var err error
-	c.StartDate, err = time.Parse("2006-01-02 15:04:05", startDateStr)
-	if err != nil {
-		return nil, err
-	}
-	c.EndDate, err = time.Parse("2006-01-02 15:04:05", endDateStr)
-	if err != nil {
-		return nil, err
-	}
-	c.CreatedAt, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
 	if err != nil {
 		return nil, err
 	}
@@ -101,37 +114,42 @@ LIMIT 1
 	return &c, nil
 }
 
+// UpdateCampaign updates an existing campaign
 func (r *CampaignRepository) UpdateCampaign(campaign *Domain.Campaign) error {
-	// Fetch the existing campaign
+
 	existing, err := r.GetCampaignByID(campaign.CampaignID)
 	if err != nil {
 		return err
 	}
 
-	// Update only the fields that are provided
 	if campaign.Title != "" {
 		existing.Title = campaign.Title
 	}
+
 	if campaign.Content != "" {
 		existing.Content = campaign.Content
 	}
+
 	if campaign.Location != "" {
 		existing.Location = campaign.Location
 	}
+
 	if !campaign.StartDate.IsZero() {
 		existing.StartDate = campaign.StartDate
 	}
+
 	if !campaign.EndDate.IsZero() {
 		existing.EndDate = campaign.EndDate
 	}
 
-	// Execute the update query with safe values
 	query := `
-        UPDATE campaigns 
-        SET title=?, content=?, location=?, start_date=?, end_date=? 
-        WHERE campaign_id=?
-    `
-	_, err = r.DB.Exec(query,
+	UPDATE campaigns
+	SET title=?, content=?, location=?, start_date=?, end_date=?
+	WHERE campaign_id=?
+	`
+
+	_, err = r.DB.Exec(
+		query,
 		existing.Title,
 		existing.Content,
 		existing.Location,
@@ -139,20 +157,28 @@ func (r *CampaignRepository) UpdateCampaign(campaign *Domain.Campaign) error {
 		existing.EndDate,
 		existing.CampaignID,
 	)
+
 	return err
 }
 
+// DeleteCampaign removes a campaign
 func (r *CampaignRepository) DeleteCampaign(id string) error {
+
 	query := "DELETE FROM campaigns WHERE campaign_id=?"
+
 	_, err := r.DB.Exec(query, id)
+
 	return err
 }
+
+// GetCampaignsByLocation finds campaigns by location
 func (r *CampaignRepository) GetCampaignsByLocation(location string) ([]Domain.Campaign, error) {
-	// MySQL query: search campaigns by location (case-insensitive depends on collation)
+
 	query := `
 	SELECT campaign_id, title, content, location, start_date, end_date, created_at
 	FROM campaigns
-	WHERE location LIKE CONCAT('%', ?, '%') AND end_date >= NOW()
+	WHERE location LIKE CONCAT('%', ?, '%')
+	AND end_date >= NOW()
 	`
 
 	rows, err := r.DB.Query(query, location)
@@ -162,32 +188,20 @@ func (r *CampaignRepository) GetCampaignsByLocation(location string) ([]Domain.C
 	defer rows.Close()
 
 	var campaigns []Domain.Campaign
+
 	for rows.Next() {
 		var c Domain.Campaign
-		var startDateStr, endDateStr, createdAtStr string
 
-		if err := rows.Scan(
+		err := rows.Scan(
 			&c.CampaignID,
 			&c.Title,
 			&c.Content,
 			&c.Location,
-			&startDateStr,
-			&endDateStr,
-			&createdAtStr,
-		); err != nil {
-			return nil, err
-		}
+			&c.StartDate,
+			&c.EndDate,
+			&c.CreatedAt,
+		)
 
-		// Convert string to time.Time
-		c.StartDate, err = time.Parse("2006-01-02 15:04:05", startDateStr)
-		if err != nil {
-			return nil, err
-		}
-		c.EndDate, err = time.Parse("2006-01-02 15:04:05", endDateStr)
-		if err != nil {
-			return nil, err
-		}
-		c.CreatedAt, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
 		if err != nil {
 			return nil, err
 		}

@@ -5,6 +5,8 @@ import (
     "bloodlink/Usecase"
     "net/http"
     "time"
+	"fmt"
+	
 
     "github.com/gin-gonic/gin"
 )
@@ -124,4 +126,68 @@ func (c *CampaignController) GetCampaignsByLocation(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, campaigns)
+}
+
+// DonationController handles HTTP requests for the blood collector
+type DonationController struct {
+	usecase *Usecase.DonationUsecase
+}
+
+// Constructor
+func NewDonationController(usecase *Usecase.DonationUsecase) *DonationController {
+	return &DonationController{usecase: usecase}
+}
+
+// SearchDonor handles GET /bloodcollector/donor?email=
+func (c *DonationController) SearchDonor(ctx *gin.Context) {
+	email := ctx.Query("email")
+	if email == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Email is required"})
+		return
+	}
+
+	donor, err := c.usecase.SearchDonorByEmail(email)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Donor not found"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donor)
+}
+
+// CreateDonation handles POST /bloodcollector/donation
+func (c *DonationController) CreateDonation(ctx *gin.Context) {
+	var record Domain.DonationRecord
+	if err := ctx.ShouldBindJSON(&record); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	 fmt.Printf("Inserting donation: %+v", record)
+
+	if err := c.usecase.CreateDonation(&record); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, record)
+}
+
+// UpdateDonationStatus handles PUT /bloodcollector/donation/:id/status
+func (c *DonationController) UpdateDonationStatus(ctx *gin.Context) {
+	donationID := ctx.Param("id")
+	var body struct {
+		Status string `json:"status"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := c.usecase.UpdateDonationStatus(donationID, body.Status); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Status updated successfully"})
 }
