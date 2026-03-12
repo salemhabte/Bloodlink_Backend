@@ -9,7 +9,15 @@ type IDonationRepository interface {
 	// CreateDonation inserts a new donation record into the database
 	CreateDonation(record *domain.DonationRecord) error
 
-	// SearchDonorByEmail finds a donor using their email
-	SearchDonorByEmail(email string) (*domain.Donor, error)
+	// Search donor by email or phone
+	SearchDonor(query string) (*domain.DonorResponse, error)
 	UpdateDonationStatus(donationID string, status string) error
+	// Update donation medical info
+	UpdateDonation(record *domain.DonationRecord) error
+
+	GetDonationByID(id string) (*domain.DonationRecord, error)
+	// Get all donations
+	GetAllDonations() ([]domain.DonationRecord, error)
+	// Get last donation for 3 month rule
+	GetLastDonationByDonor(donorID string) (*domain.DonationRecord, error)
 }

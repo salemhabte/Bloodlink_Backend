@@ -83,8 +83,14 @@ func SetupRouter(
 	// Blood Collector Routes
 bloodCollector := r.Group("/api/bloodcollector")
 {
-	bloodCollector.GET("/donor", donationController.SearchDonor)
+	bloodCollector.GET("/donor/search", donationController.SearchDonor)
+
 	bloodCollector.POST("/donation", donationController.CreateDonation)
+
+	bloodCollector.GET("/donation", donationController.GetAllDonations)
+	bloodCollector.GET("/donation/:id", donationController.GetDonationByID)
+
+	bloodCollector.PUT("/donation/:id", donationController.UpdateDonation)
 	bloodCollector.PUT("/donation/:id/status", donationController.UpdateDonationStatus)
 }
 

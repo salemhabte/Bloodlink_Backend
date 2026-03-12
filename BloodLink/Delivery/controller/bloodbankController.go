@@ -140,13 +140,14 @@ func NewDonationController(usecase *Usecase.DonationUsecase) *DonationController
 
 // SearchDonor handles GET /bloodcollector/donor?email=
 func (c *DonationController) SearchDonor(ctx *gin.Context) {
-	email := ctx.Query("email")
-	if email == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Email is required"})
+	query := ctx.Query("q") // q is email or phone
+
+	if query == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Search value is required"})
 		return
 	}
 
-	donor, err := c.usecase.SearchDonorByEmail(email)
+	donor, err := c.usecase.SearchDonor(query)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Donor not found"})
 		return
@@ -190,4 +191,50 @@ func (c *DonationController) UpdateDonationStatus(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Status updated successfully"})
+}
+
+
+func (c *DonationController) GetDonationByID(ctx *gin.Context) {
+
+	id := ctx.Param("id")
+
+	donation, err := c.usecase.GetDonationByID(id)
+
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Donation not found"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donation)
+}
+func (c *DonationController) GetAllDonations(ctx *gin.Context) {
+
+	donations, err := c.usecase.GetAllDonations()
+
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donations)
+}
+func (c *DonationController) UpdateDonation(ctx *gin.Context) {
+
+	id := ctx.Param("id")
+
+	var record Domain.DonationRecord
+
+	if err := ctx.ShouldBindJSON(&record); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	record.DonationID = id
+
+	if err := c.usecase.UpdateDonation(&record); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Donation updated successfully"})
 }
