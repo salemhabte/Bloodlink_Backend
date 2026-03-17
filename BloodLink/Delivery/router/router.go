@@ -18,7 +18,12 @@ func SetupRouter(
 ) *gin.Engine {
 
 	r := gin.Default()
-	r.Use(cors.Default())
+	r.Use(cors.New(cors.Config{
+		AllowAllOrigins: true,
+		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:    []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:   []string{"Content-Length"},
+	}))
 
 	// Public Routes
 	api := r.Group("/api")
@@ -32,7 +37,7 @@ func SetupRouter(
 			authRoutes.POST("/reset-password", userCtrl.ResetPassword)
 			authRoutes.POST("/refresh-token", userCtrl.RefreshTokenHandler)
 		}
-		
+
 		api.POST("/logout", Infrastructure.AuthMiddleware(auth), userCtrl.Logout)
 
 		// Example Protected Routes (for verification)
