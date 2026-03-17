@@ -6,8 +6,6 @@ import (
 	domain "bloodlink/Domain"
 )
 
-
-
 // we should use GetByID instead of GetByEmail for performance
 type IOTPRepository interface {
 	CreateUnverifiedUser(ctx context.Context, unverifiedUser *domain.User) error
