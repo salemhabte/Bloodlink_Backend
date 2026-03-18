@@ -1,15 +1,16 @@
 package controller
 
 import (
-    "bloodlink/Domain"
-    "bloodlink/Usecase"
-    "net/http"
-    "time"
+	"bloodlink/Domain"
+	"bloodlink/Usecase"
 	"fmt"
-	
+	"net/http"
+	"strings"
+	"time"
 
-    "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
+
 // ==============================
 //      CAMPAIGN CONTROLLER IMPLEMENTATION
 // ==============================
@@ -140,13 +141,21 @@ func NewDonationController(usecase *Usecase.DonationUsecase) *DonationController
 
 // SearchDonor handles GET /bloodcollector/donor?email=
 func (c *DonationController) SearchDonor(ctx *gin.Context) {
+	// Get query from URL
 	query := ctx.Query("q") // q is email or phone
+
+	// Trim spaces to avoid hidden character issues
+	query = strings.TrimSpace(query)
+
+	// Debug: print what we actually received
+	fmt.Printf("SearchDonor query received: '%s'\n", query)
 
 	if query == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Search value is required"})
 		return
 	}
 
+	// Call usecase
 	donor, err := c.usecase.SearchDonor(query)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "Donor not found"})

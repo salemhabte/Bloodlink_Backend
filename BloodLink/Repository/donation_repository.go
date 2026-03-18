@@ -4,6 +4,8 @@ import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
 	"database/sql"
+	"fmt"
+	"strings"
 )
 
 // donationRepository implements the IDonationRepository interface
@@ -44,34 +46,45 @@ func (r *donationRepository) CreateDonation(record *Domain.DonationRecord) error
 }
 // SearchDonor finds a donor using email or phone
 func (r *donationRepository) SearchDonor(query string) (*Domain.DonorResponse, error) {
+	query = strings.TrimSpace(query) // trim hidden spaces
+
 	sqlStr := `
-	SELECT d.donor_id, d.user_id, u.full_name, u.email, u.phone, u.address, d.blood_type, d.status
+	SELECT 
+		d.donor_id,
+		d.user_id,
+		u.full_name,
+		u.email,
+		u.phone,
+		d.blood_type,
+		d.status
 	FROM donors d
 	JOIN users u ON d.user_id = u.user_id
-	WHERE LOWER(u.email) = LOWER(?) OR u.phone = ?
+	WHERE LOWER(TRIM(u.email)) = LOWER(?)
+	   OR u.phone LIKE CONCAT('%', ?, '%')
 	LIMIT 1
 	`
 
 	var donor Domain.DonorResponse
 
-	err := r.db.QueryRow(sqlStr, query, query).Scan(
+	err := r.db.QueryRow(sqlStr, strings.ToLower(query), query).Scan(
 		&donor.DonorID,
 		&donor.UserID,
 		&donor.FullName,
 		&donor.Email,
 		&donor.Phone,
-		&donor.Address,
 		&donor.BloodType,
 		&donor.Status,
 	)
 
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("donor not found")
+		}
 		return nil, err
 	}
 
 	return &donor, nil
 }
-
 
 func (r *donationRepository) GetDonationByID(id string) (*Domain.DonationRecord, error) {
 
@@ -169,7 +182,7 @@ func (r *donationRepository) UpdateDonation(record *Domain.DonationRecord) error
 
 	query := `
 	UPDATE donation_records
-	SET weight=?, blood_pressure=?, hemoglobin=?, temperature=?, pulse=?, quantity_ml=?, collection_date=?
+	SET weight=?, blood_pressure=?, hemoglobin=?, temperature=?, pulse=?, quantity_ml=?, collection_date=?, status=?
 	WHERE donation_id=?`
 
 	_, err := r.db.Exec(
