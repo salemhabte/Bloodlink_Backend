@@ -1,6 +1,7 @@
 package Infrastructure
 
 import (
+	"bloodlink/Domain"
 	"bloodlink/config"
 	"bytes"
 	"encoding/json"
@@ -9,43 +10,21 @@ import (
 	"net/http"
 )
 
-type SendGridRequest struct {
-	Personalizations []Personalization `json:"personalizations"`
-	From             EmailAddress      `json:"from"`
-	Subject          string            `json:"subject"`
-	Content          []Content         `json:"content"`
-}
-
-type Personalization struct {
-	To      []EmailAddress `json:"to"`
-	Subject string         `json:"subject,omitempty"`
-}
-
-type EmailAddress struct {
-	Email string `json:"email"`
-	Name  string `json:"name,omitempty"`
-}
-
-type Content struct {
-	Type  string `json:"type"`
-	Value string `json:"value"`
-}
-
 func sendGridEmail(toEmail, subject, htmlBody string) error {
-	reqBody := SendGridRequest{
-		Personalizations: []Personalization{
+	reqBody := Domain.SendGridRequest{
+		Personalizations: []Domain.Personalization{
 			{
-				To: []EmailAddress{
+				To: []Domain.EmailAddress{
 					{Email: toEmail},
 				},
 			},
 		},
-		From: EmailAddress{
+		From: Domain.EmailAddress{
 			Email: config.FROM_EMAIL,
 			Name:  config.FROM_NAME,
 		},
 		Subject: subject,
-		Content: []Content{
+		Content: []Domain.Content{
 			{
 				Type:  "text/html",
 				Value: htmlBody,

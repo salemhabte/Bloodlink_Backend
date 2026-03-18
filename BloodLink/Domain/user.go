@@ -60,14 +60,14 @@ type Donor struct {
 }
 
 type DonorResponse struct {
-	DonorID   string `json:"donor_id" db:"donor_id"`
-	UserID    string `json:"user_id" db:"user_id"`
-	FullName  string `json:"full_name" db:"full_name"`
-	Email     string `json:"email" db:"email"`
-	Phone     string `json:"phone" db:"phone"`
-	Address   string `json:"address" db:"address"`
+	DonorID   string  `json:"donor_id" db:"donor_id"`
+	UserID    string  `json:"user_id" db:"user_id"`
+	FullName  string  `json:"full_name" db:"full_name"`
+	Email     string  `json:"email" db:"email"`
+	Phone     string  `json:"phone" db:"phone"`
+	Address   string  `json:"address" db:"address"`
 	BloodType *string `json:"blood_type" db:"blood_type"`
-	Status    string `json:"status" db:"status"`
+	Status    string  `json:"status" db:"status"`
 }
 
 type DonorFilter struct {
@@ -122,4 +122,26 @@ type UserResponse struct {
 	Role      string    `json:"role" db:"role"`
 	IsActive  bool      `json:"is_active" db:"is_active"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+type SendGridRequest struct {
+	Personalizations []Personalization `json:"personalizations"`
+	From             EmailAddress      `json:"from"`
+	Subject          string            `json:"subject"`
+	Content          []Content         `json:"content"`
+}
+
+type Personalization struct {
+	To      []EmailAddress `json:"to"`
+	Subject string         `json:"subject,omitempty"`
+}
+
+type EmailAddress struct {
+	Email string `json:"email"`
+	Name  string `json:"name,omitempty"`
+}
+
+type Content struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
 }
