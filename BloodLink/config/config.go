@@ -14,11 +14,9 @@ var (
 	JWTREFRESHSECRET string
 	CURR_USER        string
 
-	FROM       string
-	APPPASS    string
-	SMTPSERVER string
-	SMTPPORT   string
-	SMTPUSER   string
+	SENDGRID_API_KEY string
+	FROM_EMAIL       string
+	FROM_NAME        string
 )
 
 func InitEnv() {
@@ -30,11 +28,9 @@ func InitEnv() {
 
 	JWTSECRET = getEnv("JWTSECRET")
 
-	FROM = getEnv("FROM")
-	APPPASS = getEnv("APPPASS")
-	SMTPSERVER = getEnv("SMTPSERVER")
-	SMTPPORT = getEnvWithDefault("SMTPPORT", "2525")
-	SMTPUSER = getEnv("SMTPUSER")
+	SENDGRID_API_KEY = getEnv("SENDGRID_API_KEY")
+	FROM_EMAIL = getEnvWithDefault("FROM_EMAIL", "nebiyattakele23@gmail.com")
+	FROM_NAME = getEnvWithDefault("FROM_NAME", "BloodLink")
 
 	JWTREFRESHSECRET = getEnv("JWTREFRESHSECRET")
 
