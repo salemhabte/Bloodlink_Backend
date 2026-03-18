@@ -66,7 +66,7 @@ type DonorResponse struct {
 	Email     string `json:"email" db:"email"`
 	Phone     string `json:"phone" db:"phone"`
 	Address   string `json:"address" db:"address"`
-	BloodType string `json:"blood_type" db:"blood_type"`
+	BloodType *string `json:"blood_type" db:"blood_type"`
 	Status    string `json:"status" db:"status"`
 }
 
