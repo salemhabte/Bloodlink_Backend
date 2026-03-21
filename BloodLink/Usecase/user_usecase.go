@@ -249,7 +249,7 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 		// Actually, admin@bloodlink.com doesn't exist in DB, so u.userRepo.UpdateRefreshToken will fail.
 		// Let's only do it for normal users.
 
-		return accessToken, refreshToken, "admin", nil
+		return accessToken, refreshToken, "bloodbankadmin", nil
 	}
 
 	// Normal User flow
