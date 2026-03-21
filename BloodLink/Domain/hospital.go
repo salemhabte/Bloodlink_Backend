@@ -12,6 +12,8 @@ type Hospital struct {
 	ContactPersonName  string    `json:"contact_person_name" db:"contact_person_name"`
 	ContactPersonPhone string    `json:"contact_person_phone" db:"contact_person_phone"`
 	Status             string    `json:"status" db:"status"`
+	Document1URL       string    `json:"document1_url" db:"document1_url"`
+	Document2URL       string    `json:"document2_url" db:"document2_url"`
 	CreatedAt          time.Time `json:"created_at" db:"created_at"`
 }
 
@@ -34,4 +36,10 @@ type UpdateHospitalRequest struct {
 	ContactPersonName  string `json:"contact_person_name"`
 	ContactPersonPhone string `json:"contact_person_phone"`
 	Status             string `json:"status"`
+}
+
+// UploadHospitalDocumentsRequest DTO
+type UploadHospitalDocumentsRequest struct {
+	Document1URL string `json:"document1_url" binding:"required"`
+	Document2URL string `json:"document2_url" binding:"required"`
 }

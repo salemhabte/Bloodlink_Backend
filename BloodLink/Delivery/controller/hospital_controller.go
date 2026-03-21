@@ -69,3 +69,29 @@ func (c *HospitalController) UpdateHospital(ctx *gin.Context) {
 		"hospital": hospital,
 	})
 }
+
+func (c *HospitalController) UploadDocuments(ctx *gin.Context) {
+	hospitalID := ctx.Param("id")
+	if hospitalID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "hospital id is required"})
+		return
+	}
+
+	var req domain.UploadHospitalDocumentsRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	if err := c.HospitalUsecase.UploadHospitalDocuments(cCtx, hospitalID, &req); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "Hospital documents uploaded successfully",
+	})
+}

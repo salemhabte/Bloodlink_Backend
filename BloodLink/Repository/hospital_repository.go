@@ -43,7 +43,7 @@ func (r *HospitalRepository) Create(ctx context.Context, hospital *domain.Hospit
 }
 
 func (r *HospitalRepository) GetByID(ctx context.Context, id string) (*domain.Hospital, error) {
-	query := `SELECT hospital_id, hospital_name, address, COALESCE(city, ''), phone, COALESCE(contact_person_name, ''), COALESCE(contact_person_phone, ''), status, created_at 
+	query := `SELECT hospital_id, hospital_name, address, COALESCE(city, ''), phone, COALESCE(contact_person_name, ''), COALESCE(contact_person_phone, ''), status, COALESCE(document1_url, ''), COALESCE(document2_url, ''), created_at 
               FROM hospitals WHERE hospital_id = ?`
 
 	row := r.DB.QueryRowContext(ctx, query, id)
@@ -58,6 +58,8 @@ func (r *HospitalRepository) GetByID(ctx context.Context, id string) (*domain.Ho
 		&h.ContactPersonName,
 		&h.ContactPersonPhone,
 		&h.Status,
+		&h.Document1URL,
+		&h.Document2URL,
 		&h.CreatedAt,
 	)
 
@@ -94,3 +96,14 @@ func (r *HospitalRepository) Update(ctx context.Context, h *domain.Hospital) err
 
 	return nil
 }
+
+func (r *HospitalRepository) UpdateDocuments(ctx context.Context, id string, doc1 string, doc2 string) error {
+	query := `UPDATE hospitals SET document1_url = ?, document2_url = ? WHERE hospital_id = ?`
+	_, err := r.DB.ExecContext(ctx, query, doc1, doc2, id)
+	if err != nil {
+		log.Printf("[DATABASE ERROR] UpdateDocuments failed: %v", err)
+		return err
+	}
+	return nil
+}
+

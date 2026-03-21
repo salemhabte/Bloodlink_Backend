@@ -76,3 +76,8 @@ func (u *HospitalUsecase) UpdateHospital(ctx context.Context, id string, req *do
 
 	return hospital, nil
 }
+
+func (u *HospitalUsecase) UploadHospitalDocuments(ctx context.Context, id string, req *domain.UploadHospitalDocumentsRequest) error {
+	// Let repo handle exist check, or we can check first. For simplicity repo will update safely.
+	return u.repo.UpdateDocuments(ctx, id, req.Document1URL, req.Document2URL)
+}

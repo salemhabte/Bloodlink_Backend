@@ -56,6 +56,7 @@ func SetupRouter(
 		{
 			hospitals.POST("/register", hospitalController.RegisterHospital)
 			hospitals.PUT("/:id", Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin), hospitalController.UpdateHospital)
+			hospitals.POST("/:id/documents", Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin), hospitalController.UploadDocuments)
 		}
 	}
 
