@@ -220,11 +220,11 @@ func (u *UserUseCaseBase) ResetPassword(ctx context.Context, email, otp, newPass
 	return u.userRepo.ResetPassword(ctx, email, hashedPassword)
 }
 
-func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (string, string, error) {
+func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (string, string, string, error) {
 	// Hardcoded BloodBank Admin bypass
 	if email == "admin@bloodlink.com" {
 		if password != "Admin123!" {
-			return "", "", errors.New("invalid credentials")
+			return "", "", "", errors.New("invalid credentials")
 		}
 
 		// Create claims for the hardcoded admin
@@ -237,35 +237,35 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 
 		accessToken, err := u.auth.GenerateToken(claims, domainInterface.AccessToken)
 		if err != nil {
-			return "", "", err
+			return "", "", "", err
 		}
 
 		refreshToken, err := u.auth.GenerateToken(claims, domainInterface.RefreshToken)
 		if err != nil {
-			return "", "", err
+			return "", "", "", err
 		}
 
 		// Save refresh token to DB (bypass for hardcoded admin usually, but let's keep it consistent if possible)
 		// Actually, admin@bloodlink.com doesn't exist in DB, so u.userRepo.UpdateRefreshToken will fail.
 		// Let's only do it for normal users.
 
-		return accessToken, refreshToken, nil
+		return accessToken, refreshToken, "admin", nil
 	}
 
 	// Normal User flow
 	// Get user by email
 	user, err := u.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if user == nil {
-		return "", "", errors.New("invalid credentials") // Avoid "user not found" for security
+		return "", "", "", errors.New("invalid credentials") // Avoid "user not found" for security
 	}
 
 	// Compare password
 	err = u.validation.ComparePassword(user.Password, password)
 	if err != nil {
-		return "", "", errors.New("invalid credentials")
+		return "", "", "", errors.New("invalid credentials")
 	}
 
 	// Create claims
@@ -279,21 +279,21 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 	// Generate Access Token
 	accessToken, err := u.auth.GenerateToken(claims, domainInterface.AccessToken)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	// Generate Refresh Token
 	refreshToken, err := u.auth.GenerateToken(claims, domainInterface.RefreshToken)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	// Save Refresh Token to DB
 	if err := u.userRepo.UpdateRefreshToken(ctx, user.ID, refreshToken); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
-	return accessToken, refreshToken, nil
+	return accessToken, refreshToken, user.Role, nil
 }
 
 func (u *UserUseCaseBase) RefreshToken(ctx context.Context, refreshTokenStr string) (string, string, error) {
