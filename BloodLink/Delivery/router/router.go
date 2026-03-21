@@ -15,6 +15,7 @@ func SetupRouter(
 	auth domainInterface.IAuthentication,
 	campaignController *controller.CampaignController,
 	donationController *controller.DonationController,
+	hospitalController *controller.HospitalController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -49,6 +50,12 @@ func SetupRouter(
 			protectedRoutes.PATCH("/profile", userCtrl.UpdateProfile)
 			protectedRoutes.DELETE("/user", userCtrl.DeleteUser)
 			protectedRoutes.GET("/donors/filter", userCtrl.GetDonors)
+		}
+
+		hospitals := api.Group("/hospitals")
+		{
+			hospitals.POST("/register", hospitalController.RegisterHospital)
+			hospitals.PUT("/:id", Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin), hospitalController.UpdateHospital)
 		}
 	}
 
