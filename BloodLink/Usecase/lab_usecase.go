@@ -134,17 +134,15 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult) error {
 		return err
 	}
 
-	
 	result.DonorID = existing.DonorID
 
-	// 2. Validate (NO override)
+	// 2. Validate overall status (no override)
 	suggested, conflict := SuggestOverallStatus(
 		result.HIVResult,
 		result.HepatitisResult,
 		result.SyphilisResult,
 		result.OverallStatus,
 	)
-
 	if conflict {
 		return fmt.Errorf("invalid overall_status. suggested: %s", suggested)
 	}
@@ -159,10 +157,10 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult) error {
 		return err
 	}
 
-	// 5. Update donor OverallStatus
+	// 5. Update donor overall status
 	if err := u.repo.UpdateDonorOverallStatus(result.DonorID, result.OverallStatus); err != nil {
-	return err
-}
+		return err
+	}
 
 	// 6. Handle blood unit
 	bloodUnit, err := u.repo.GetBloodUnitByDonationID(result.DonationID)
@@ -175,14 +173,33 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult) error {
 			// Update existing blood unit
 			bloodUnit.BloodType = result.BloodType
 			bloodUnit.Status = "AVAILABLE"
-
 			if err := u.repo.UpdateBloodUnit(bloodUnit); err != nil {
 				return err
 			}
 		} else {
-			fmt.Println("Warning: blood unit not found for donation", result.DonationID)
+			// Create new blood unit if it does not exist
+			donation, err := u.repo.GetDonationByID(result.DonationID)
+			if err != nil {
+				return err
+			}
+
+			newUnit := &Domain.BloodUnit{
+				BloodUnitID:    uuid.New().String(),
+				DonationID:     donation.DonationID,
+				BloodType:      result.BloodType,
+				VolumeML:       donation.QuantityML,
+				CollectionDate: donation.CollectionDate,
+				ExpirationDate: donation.CollectionDate.AddDate(0, 0, 42),
+				Status:         "AVAILABLE",
+				CreatedAt:      time.Now(),
+			}
+
+			if err := u.repo.CreateBloodUnit(newUnit); err != nil {
+				return err
+			}
 		}
 	} else {
+		// Remove blood unit if status is TEMPORARY or PERMANENTLY DEFERRED
 		if bloodUnit != nil {
 			if err := u.repo.DeleteBloodUnit(result.DonationID); err != nil {
 				return err

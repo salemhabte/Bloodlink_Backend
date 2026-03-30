@@ -101,7 +101,7 @@ func (r *LabRepository) GetDonationByID(donationID string) (*Domain.DonationReco
 	JOIN donors dn ON d.donor_id = dn.donor_id
 	JOIN users u ON dn.user_id = u.user_id
 	JOIN users u2 ON d.collected_by = u2.user_id
-	WHERE d.donation_id=? AND d.status='APPROVED' AND d.collected_by IS NOT NULL
+	WHERE d.donation_id=?
 	`
 
 	err := r.DB.QueryRow(query, donationID).Scan(
