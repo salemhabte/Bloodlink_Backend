@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"strconv"
+	"github.com/jung-kurt/gofpdf"
+	"encoding/csv"
 )
 
 // ==============================
@@ -443,6 +446,228 @@ func (c *LabController) GetDonation(ctx *gin.Context) {
 	data, err := c.usecase.GetDonation(donationID)
 	if err != nil {
 		ctx.JSON(404, gin.H{"error": "donation not found"})
+		return
+	}
+
+	ctx.JSON(200, data)
+}
+
+//BloodInventoryController
+type BloodInventoryController struct {
+	usecase *Usecase.BloodInventoryUsecase
+}
+
+func NewBloodInventoryController(u *Usecase.BloodInventoryUsecase) *BloodInventoryController {
+	return &BloodInventoryController{usecase: u}
+}
+
+// 🔹 GET /inventory
+func (c *BloodInventoryController) GetAll(ctx *gin.Context) {
+	data, err := c.usecase.GetAllUnits()
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(200, data)
+}
+
+// 🔹 GET /inventory/stats
+func (c *BloodInventoryController) GetStats(ctx *gin.Context) {
+	stats, err := c.usecase.GetStats()
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(200, stats)
+}
+
+// 🔹 PUT /inventory/:id/status
+func (c *BloodInventoryController) UpdateStatus(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	var body struct {
+		Status string `json:"status"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(400, gin.H{"error": "Invalid body"})
+		return
+	}
+
+	err := c.usecase.UpdateStatus(id, body.Status)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, gin.H{"message": "Status updated"})
+}
+
+// 🔹 DELETE /inventory/:id
+func (c *BloodInventoryController) Delete(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	err := c.usecase.DeleteUnit(id)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, gin.H{"message": "Deleted successfully"})
+}
+func (c *BloodInventoryController) GetFullDetails(ctx *gin.Context) {
+
+	id := ctx.Param("id")
+
+	data, err := c.usecase.GetFullDetails(id)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, data)
+}
+func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
+
+	units, _ := c.usecase.GetAllUnits()
+
+	ctx.Header("Content-Disposition", "attachment; filename=blood_units.csv")
+	ctx.Header("Content-Type", "text/csv")
+
+	writer := csv.NewWriter(ctx.Writer)
+	defer writer.Flush()
+
+	writer.Write([]string{
+    "blood_unit_id",
+    "donation_id",
+    "blood_type",
+    "volume_ml",
+    "collection_date",
+    "expiration_date",
+    "status",
+})
+
+for _, u := range units {
+    writer.Write([]string{
+        u.BloodUnitID,
+        u.DonationID,
+        u.BloodType,
+        strconv.Itoa(u.VolumeML),
+        u.CollectionDate.Format("2006-01-02"),
+        u.ExpirationDate.Format("2006-01-02"),
+        u.Status,
+    })
+}
+}
+func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
+
+    units, err := c.usecase.GetAllUnits()
+    if err != nil {
+        ctx.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    pdf := gofpdf.New("P", "mm", "A4", "")
+    pdf.AddPage()
+
+    // 🔹 Title
+    pdf.SetFont("Arial", "B", 16)
+    pdf.Cell(190, 10, "Blood Inventory Report")
+    pdf.Ln(12)
+
+    // 🔹 Header Row
+    pdf.SetFont("Arial", "B", 9)
+
+    col1 := 45.0
+    col2 := 45.0
+    col3 := 15.0
+    col4 := 15.0
+    col5 := 25.0
+    col6 := 25.0
+    col7 := 20.0
+
+   pdf.CellFormat(col1, 10, "Blood Unit ID", "1", 0, "C", false, 0, "")
+pdf.CellFormat(col2, 10, "Donation ID", "1", 0, "C", false, 0, "")
+pdf.CellFormat(col3, 10, "Blood Type", "1", 0, "C", false, 0, "")
+pdf.CellFormat(col4, 10, "Volume (ml)", "1", 0, "C", false, 0, "")
+pdf.CellFormat(col5, 10, "Collection Date", "1", 0, "C", false, 0, "")
+pdf.CellFormat(col6, 10, "Expiry Date", "1", 0, "C", false, 0, "")
+pdf.CellFormat(col7, 10, "Unit Status", "1", 0, "C", false, 0, "")
+pdf.Ln(-1)
+    // 🔹 Data Rows
+    pdf.SetFont("Arial", "", 8)
+
+    for _, u := range units {
+
+        if u.Status == "EXPIRED" {
+            pdf.SetTextColor(255, 0, 0)
+        } else {
+            pdf.SetTextColor(0, 0, 0)
+        }
+
+        // Save current position
+        x := pdf.GetX()
+        y := pdf.GetY()
+
+        lineHeight := 5.0
+        maxHeight := lineHeight
+
+        // --- Column 1 (Unit ID) ---
+        pdf.SetXY(x, y)
+        pdf.MultiCell(col1, lineHeight, u.BloodUnitID, "1", "L", false)
+        h1 := pdf.GetY() - y
+
+        // --- Column 2 (Donation ID) ---
+        pdf.SetXY(x+col1, y)
+        pdf.MultiCell(col2, lineHeight, u.DonationID, "1", "L", false)
+        h2 := pdf.GetY() - y
+
+        // Determine max height
+        if h1 > maxHeight {
+            maxHeight = h1
+        }
+        if h2 > maxHeight {
+            maxHeight = h2
+        }
+
+        // --- Remaining columns ---
+        pdf.SetXY(x+col1+col2, y)
+        pdf.CellFormat(col3, maxHeight, u.BloodType, "1", 0, "C", false, 0, "")
+
+        pdf.CellFormat(col4, maxHeight, strconv.Itoa(u.VolumeML), "1", 0, "C", false, 0, "")
+
+        pdf.CellFormat(col5, maxHeight, u.CollectionDate.Format("2006-01-02"), "1", 0, "C", false, 0, "")
+
+        pdf.CellFormat(col6, maxHeight, u.ExpirationDate.Format("2006-01-02"), "1", 0, "C", false, 0, "")
+
+        pdf.CellFormat(col7, maxHeight, u.Status, "1", 0, "C", false, 0, "")
+
+        // Move to next row
+        pdf.Ln(maxHeight)
+    }
+
+    pdf.SetTextColor(0, 0, 0)
+
+    ctx.Header("Content-Type", "application/pdf")
+    ctx.Header("Content-Disposition", "attachment; filename=blood_inventory.pdf")
+
+    err = pdf.Output(ctx.Writer)
+    if err != nil {
+        ctx.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+}
+func (c *BloodInventoryController) Filter(ctx *gin.Context) {
+
+	unitID := ctx.Query("unit_id")
+	bloodType := ctx.Query("blood_type")
+	status := ctx.Query("status")
+	startDate := ctx.Query("start_date")
+	endDate := ctx.Query("end_date")
+
+	data, err := c.usecase.FilterUnits(unitID, bloodType, status, startDate, endDate)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 

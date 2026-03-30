@@ -16,6 +16,7 @@ func SetupRouter(
 	campaignController *controller.CampaignController,
 	donationController *controller.DonationController,
 	labController *controller.LabController,
+	inventoryController *controller.BloodInventoryController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -115,6 +116,26 @@ lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 
 	lab.PUT("/tests/:donation_id", labController.UpdateTest)
 	lab.POST("/tests/:donation_id/reject", labController.RejectBlood)
+}
+adminInventory := r.Group("/api/inventory")
+adminInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
+{
+	adminInventory.GET("/", inventoryController.GetAll)
+	adminInventory.GET("/stats", inventoryController.GetStats)
+	adminInventory.GET("/filter", inventoryController.Filter)
+	adminInventory.GET("/export/csv", inventoryController.ExportCSV)
+	adminInventory.GET("/export/pdf", inventoryController.ExportPDF)
+	adminInventory.GET("/:id/details", inventoryController.GetFullDetails)
+
+	adminInventory.PUT("/:id/status", inventoryController.UpdateStatus)
+	adminInventory.DELETE("/:id", inventoryController.Delete)
+}
+labInventory := r.Group("/api/lab/inventory")
+labInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+{
+	labInventory.GET("/", inventoryController.GetAll)
+	labInventory.GET("/filter", inventoryController.Filter)
+	labInventory.GET("/:id/details", inventoryController.GetFullDetails)
 }
 
 	return r

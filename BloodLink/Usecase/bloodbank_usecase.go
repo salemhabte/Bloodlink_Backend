@@ -171,3 +171,98 @@ func (u *DonationUsecase) UpdateDonation(record *Domain.DonationRecord) error {
 
     return nil
 }
+//BloodInventoryUsecase
+
+type BloodInventoryUsecase struct {
+	repo Interface.IBloodInventoryRepository
+}
+
+func NewBloodInventoryUsecase(r Interface.IBloodInventoryRepository) *BloodInventoryUsecase {
+	return &BloodInventoryUsecase{repo: r}
+}
+
+// 🔹 Get All
+func (u *BloodInventoryUsecase) GetAllUnits() ([]Domain.BloodUnit, error) {
+	return u.repo.GetAllBloodUnits()
+}
+
+// 🔹 Get Stats
+func (u *BloodInventoryUsecase) GetStats() (map[string]int, error) {
+	units, err := u.repo.GetAllBloodUnits()
+	if err != nil {
+		return nil, err
+	}
+
+	stats := map[string]int{
+		"total":      0,
+		"available":  0,
+		"nearExpiry": 0,
+		"expired":    0,
+	}
+
+	now := time.Now()
+
+	for _, unit := range units {
+		stats["total"]++
+
+		if unit.Status == "AVAILABLE" {
+			stats["available"]++
+		}
+
+		if unit.ExpirationDate.Before(now) {
+			stats["expired"]++
+		}
+
+		if unit.ExpirationDate.After(now) &&
+			unit.ExpirationDate.Before(now.AddDate(0, 0, 7)) {
+			stats["nearExpiry"]++
+		}
+	}
+
+	return stats, nil
+}
+
+// 🔹 Update Status
+func (u *BloodInventoryUsecase) UpdateStatus(id, status string) error {
+	return u.repo.UpdateBloodUnitStatus(id, status)
+}
+
+// 🔹 Delete
+func (u *BloodInventoryUsecase) DeleteUnit(id string) error {
+	return u.repo.DeleteBloodUnitByID(id)
+}
+func (u *BloodInventoryUsecase) GetFullDetails(id string) (map[string]interface{}, error) {
+
+	data, err := u.repo.GetFullBloodUnitDetails(id)
+	if err != nil {
+		return nil, err
+	}
+
+	bu := data["blood_unit"].(Domain.BloodUnit)
+
+	now := time.Now()
+	diff := bu.ExpirationDate.Sub(now).Hours() / 24
+
+	expiry := map[string]interface{}{
+		"days_remaining": int(diff),
+		"expires_on":     bu.ExpirationDate,
+	}
+
+	//  AUTO STATUS UPDATE
+	if bu.ExpirationDate.Before(now) && bu.Status != "EXPIRED" {
+		u.repo.UpdateBloodUnitStatus(bu.BloodUnitID, "EXPIRED")
+		expiry["expiry_status"] = "EXPIRED"
+	} else {
+		expiry["expiry_status"] = "VALID"
+	}
+
+	data["expiry"] = expiry
+
+	return data, nil
+}
+func (u *BloodInventoryUsecase) FilterUnits(
+	unitID, bloodType, status, startDate, endDate string,
+) ([]Domain.BloodUnit, error) {
+
+	return u.repo.FilterBloodUnits(unitID, bloodType, status, startDate, endDate)
+}
