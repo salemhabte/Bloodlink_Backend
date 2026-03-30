@@ -1,0 +1,1 @@
+ALTER TABLE donors CHANGE COLUMN status overall_status VARCHAR(20) DEFAULT 'Pending';

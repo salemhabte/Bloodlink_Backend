@@ -15,6 +15,7 @@ func SetupRouter(
 	auth domainInterface.IAuthentication,
 	campaignController *controller.CampaignController,
 	donationController *controller.DonationController,
+	labController *controller.LabController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -87,14 +88,33 @@ func SetupRouter(
 	}
 	// Blood Collector Routes
 bloodCollector := r.Group("/api/bloodcollector")
-bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
+// bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
 {
+	bloodCollector.GET("/donors", donationController.GetPendingDonors)
+bloodCollector.GET("/donor/:id", donationController.GetDonorByID)
+bloodCollector.GET("/donor/search/pending", donationController.SearchPendingDonor)
     bloodCollector.GET("/donor/search", donationController.SearchDonor)
     bloodCollector.POST("/donation", donationController.CreateDonation)
     bloodCollector.GET("/donation", donationController.GetAllDonations)
     bloodCollector.GET("/donation/:id", donationController.GetDonationByID)
     bloodCollector.PUT("/donation/:id", donationController.UpdateDonation)
     bloodCollector.PUT("/donation/:id/status", donationController.UpdateDonationStatus)
+}
+
+lab := r.Group("/api/lab")
+lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+{
+	lab.POST("/tests", labController.SubmitTestResult)
+	lab.GET("/tests/:donation_id", labController.GetTestResult)
+
+	lab.GET("/donations/:donation_id", labController.GetDonation)
+
+	lab.GET("/pending-tests", labController.GetPendingTests)
+	lab.GET("/tests/history", labController.GetHistory)
+	lab.GET("/tests", labController.FilterTests)
+
+	lab.PUT("/tests/:donation_id", labController.UpdateTest)
+	lab.POST("/tests/:donation_id/reject", labController.RejectBlood)
 }
 
 	return r

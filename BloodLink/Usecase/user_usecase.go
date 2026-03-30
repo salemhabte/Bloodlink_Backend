@@ -130,9 +130,9 @@ func (u *UserUseCaseBase) VerifyOTP(ctx context.Context, email, otp string) erro
 	// Create role-specific tables
 	if user.Role == domain.RoleDonor {
 		donor := &domain.Donor{
-			DonorID: uuid.New().String(),
-			UserID:  user.ID,
-			Status:  "Pending",
+			DonorID:       uuid.New().String(),
+			UserID:        user.ID,
+			OverallStatus: "Pending",
 		}
 		return u.userRepo.CreateDonor(ctx, donor)
 	}

@@ -83,8 +83,8 @@ func (r *UserRepository) ActivateUser(ctx context.Context, userID string) error 
 
 // CreateDonor inserts a minimal donor record into the database
 func (r *UserRepository) CreateDonor(ctx context.Context, donor *domain.Donor) error {
-	query := `INSERT INTO donors (donor_id, user_id, status) VALUES (?, ?, ?)`
-	_, err := r.DB.ExecContext(ctx, query, donor.DonorID, donor.UserID, donor.Status)
+	query := `INSERT INTO donors (donor_id, user_id, overall_status) VALUES (?, ?, ?)`
+	_, err := r.DB.ExecContext(ctx, query, donor.DonorID, donor.UserID, donor.OverallStatus)
 	return err
 }
 
@@ -128,7 +128,7 @@ func (r *UserRepository) ResetPassword(ctx context.Context, email, hashedPasswor
 
 // UpdateDonorStatus updates the status of a donor by donor_id
 func (r *UserRepository) UpdateDonorStatus(ctx context.Context, donorID, status string) error {
-	query := `UPDATE donors SET status = ? WHERE donor_id = ?`
+	query := `UPDATE donors SET overall_status WHERE donor_id = ?`
 	result, err := r.DB.ExecContext(ctx, query, status, donorID)
 	if err != nil {
 		log.Printf("[DATABASE ERROR] UpdateDonorStatus failed: %v", err)
@@ -151,7 +151,7 @@ func (r *UserRepository) GetAllDonors(ctx context.Context) ([]domain.DonorRespon
 			u.phone, 
 			COALESCE(p.address, ''), 
 			COALESCE(d.blood_type, ''), 
-			d.status 
+			donor.OverallStatus
 		FROM donors d
 		JOIN users u ON d.user_id = u.user_id
 		LEFT JOIN user_profile p ON u.user_id = p.user_id
@@ -174,7 +174,7 @@ func (r *UserRepository) GetAllDonors(ctx context.Context) ([]domain.DonorRespon
 			&donor.Phone,
 			&donor.Address,
 			&donor.BloodType,
-			&donor.Status,
+			&donor.OverallStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -194,7 +194,7 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 			u.phone, 
 			COALESCE(p.address, ''), 
 			COALESCE(d.blood_type, ''), 
-			d.status 
+			d.overall_status 
 		FROM donors d
 		JOIN users u ON d.user_id = u.user_id
 		LEFT JOIN user_profile p ON u.user_id = p.user_id
@@ -206,9 +206,9 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 		query += " AND d.blood_type = ?"
 		args = append(args, filter.BloodType)
 	}
-	if filter.Status != "" {
-		query += " AND d.status = ?"
-		args = append(args, filter.Status)
+	if filter.OverallStatus != "" {
+		query += " AND d.overall_status = ?"
+		args = append(args, filter.OverallStatus)
 	}
 
 	rows, err := r.DB.QueryContext(ctx, query, args...)
@@ -229,7 +229,7 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 			&donor.Phone,
 			&donor.Address,
 			&donor.BloodType,
-			&donor.Status,
+			&donor.OverallStatus,
 		); err != nil {
 			return nil, err
 		}
