@@ -33,17 +33,20 @@ func main() {
 	userController := controller.NewUserController(userUseCase)
 	campaignRepo := Repository.NewCampaignRepository(db)
 	donationRepo := Repository.NewDonationRepository(db)
+	labRepo := Repository.NewLabRepository(db)
 
 	// --- Usecases ---
 	campaignUsecase := Usecase.NewCampaignUsecase(campaignRepo)
 	donationUsecase := Usecase.NewDonationUsecase(donationRepo)
+	labUsecase := Usecase.NewLabUsecase(labRepo)
 
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
 	donationController := controller.NewDonationController(donationUsecase)
+	labController := controller.NewLabController(labUsecase)
 
 	// 5. Initialize Router
-	r := router.SetupRouter(userController, jwtService, campaignController, donationController)
+	r := router.SetupRouter(userController, jwtService, campaignController, donationController, labController)
 
 	// 7. Start the Server
 	log.Println("Starting server on :8080")

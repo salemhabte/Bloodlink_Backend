@@ -181,7 +181,49 @@ func (c *DonationController) CreateDonation(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusCreated, record)
 }
+func (c *DonationController) GetPendingDonors(ctx *gin.Context) {
 
+	donors, err := c.usecase.GetPendingDonors()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donors)
+}
+func (c *DonationController) GetDonorByID(ctx *gin.Context) {
+
+	id := ctx.Param("id")
+
+	donor, err := c.usecase.GetPendingDonorByID(id)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Donor not found"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donor)
+}
+func (c *DonationController) SearchPendingDonor(ctx *gin.Context) {
+
+	query := ctx.Query("q") // ?q=email_or_phone
+
+	if query == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": "query parameter 'q' is required",
+		})
+		return
+	}
+
+	donor, err := c.usecase.SearchPendingDonor(query)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donor)
+}
 // UpdateDonationStatus handles PUT /bloodcollector/donation/:id/status
 func (c *DonationController) UpdateDonationStatus(ctx *gin.Context) {
 	donationID := ctx.Param("id")
@@ -246,4 +288,163 @@ func (c *DonationController) UpdateDonation(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Donation updated successfully"})
+}
+
+// LabController handles lab technician requests
+type LabController struct {
+	usecase *Usecase.LabUsecase
+}
+
+func NewLabController(usecase *Usecase.LabUsecase) *LabController {
+	return &LabController{usecase: usecase}
+}
+
+// POST /api/lab/tests
+func (c *LabController) SubmitTestResult(ctx *gin.Context) {
+	var input Domain.DonorTestResult
+
+	// 1. Bind request
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
+		return
+	}
+
+	// 2. Get logged-in lab technician from JWT
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	input.TestedBy = userID.(string)
+
+	// 3. Check if test already exists
+	existing, _ := c.usecase.GetTestResult(input.DonationID)
+	if existing != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "a test for this donation already exists"})
+		return
+	}
+
+	// 4. Process test
+	err := c.usecase.ProcessTestResult(&input)
+	if err != nil {
+		// Suggestion logic (your nice feature)
+		if strings.HasPrefix(err.Error(), "⚠ Suggestion:") {
+			ctx.JSON(http.StatusBadRequest, gin.H{"warning": err.Error()})
+			return
+		}
+
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 5. Success
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "test result processed successfully",
+	})
+}
+
+// GET /api/lab/test-result/:donation_id
+func (c *LabController) GetTestResult(ctx *gin.Context) {
+	donationID := ctx.Param("donation_id")
+	if donationID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "donation_id is required"})
+		return
+	}
+
+	result, err := c.usecase.GetTestResult(donationID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "test result not found"})
+		return
+	}
+	// Convert boolean → readable text
+	response := gin.H{
+		"test_id": result.TestID,
+		"donation_id": result.DonationID,
+		"donor_id": result.DonorID,
+		"tested_by": result.TestedBy,
+
+		"hiv_result":        result.HIVResult,
+		"hepatitis_result":  result.HepatitisResult,
+		"syphilis_result":   result.SyphilisResult,
+
+		"blood_type": result.BloodType,
+		"overall_status": result.OverallStatus,
+		"created_at": result.CreatedAt,
+	}
+
+	ctx.JSON(http.StatusOK, response)
+}
+
+
+func (c *LabController) GetPendingTests(ctx *gin.Context) {
+	data, err := c.usecase.GetPendingDonations()
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(200, data)
+}
+func (c *LabController) GetHistory(ctx *gin.Context) {
+	data, err := c.usecase.GetAllTestResults()
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(200, data)
+}
+func (c *LabController) FilterTests(ctx *gin.Context) {
+	status := ctx.Query("status")
+
+	data, err := c.usecase.GetTestResultsByStatus(status)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, data)
+}
+func (c *LabController) UpdateTest(ctx *gin.Context) {
+	donationID := ctx.Param("donation_id")
+	var input Domain.DonorTestResult
+
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		ctx.JSON(400, gin.H{"error": "invalid input"})
+		return
+	}
+	input.DonationID = donationID
+
+	err := c.usecase.UpdateTestResult(&input)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, gin.H{"message": "updated"})
+}
+func (c *LabController) RejectBlood(ctx *gin.Context) {
+	id := ctx.Param("donation_id")
+
+	err := c.usecase.RejectBlood(id)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, gin.H{"message": "blood rejected"})
+}
+func (c *LabController) GetDonation(ctx *gin.Context) {
+	donationID := ctx.Param("donation_id")
+
+	if donationID == "" {
+		ctx.JSON(400, gin.H{"error": "donation_id is required"})
+		return
+	}
+
+	data, err := c.usecase.GetDonation(donationID)
+	if err != nil {
+		ctx.JSON(404, gin.H{"error": "donation not found"})
+		return
+	}
+
+	ctx.JSON(200, data)
 }
