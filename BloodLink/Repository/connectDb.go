@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"time" 
+	"time"
 
 	"bloodlink/config"
 
@@ -27,8 +27,8 @@ func ConnectDB() {
 		log.Fatal("Error connecting to database: ", err)
 	}
 	DB.SetMaxOpenConns(10)
-DB.SetMaxIdleConns(5)
-DB.SetConnMaxLifetime(5 * time.Minute)
+	DB.SetMaxIdleConns(5)
+	DB.SetConnMaxLifetime(5 * time.Minute)
 
 	fmt.Println("Connected to PostgreSQL database successfully!")
 }

@@ -17,6 +17,7 @@ func SetupRouter(
 	donationController *controller.DonationController,
 	labController *controller.LabController,
 	inventoryController *controller.BloodInventoryController,
+	hospitalController *controller.HospitalController,
 ) *gin.Engine {
 
 	r := gin.Default()
