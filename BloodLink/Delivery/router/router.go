@@ -15,7 +15,8 @@ func SetupRouter(
 	auth domainInterface.IAuthentication,
 	campaignController *controller.CampaignController,
 	donationController *controller.DonationController,
-	hospitalController *controller.HospitalController,
+	labController *controller.LabController,
+	inventoryController *controller.BloodInventoryController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -94,16 +95,55 @@ func SetupRouter(
 		}
 	}
 	// Blood Collector Routes
-bloodCollector := r.Group("/api/bloodcollector")
-bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
-{
-    bloodCollector.GET("/donor/search", donationController.SearchDonor)
-    bloodCollector.POST("/donation", donationController.CreateDonation)
-    bloodCollector.GET("/donation", donationController.GetAllDonations)
-    bloodCollector.GET("/donation/:id", donationController.GetDonationByID)
-    bloodCollector.PUT("/donation/:id", donationController.UpdateDonation)
-    bloodCollector.PUT("/donation/:id/status", donationController.UpdateDonationStatus)
-}
+	bloodCollector := r.Group("/api/bloodcollector")
+	// bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
+	{
+		bloodCollector.GET("/donors", donationController.GetPendingDonors)
+		bloodCollector.GET("/donor/:id", donationController.GetDonorByID)
+		bloodCollector.GET("/donor/search/pending", donationController.SearchPendingDonor)
+		bloodCollector.GET("/donor/search", donationController.SearchDonor)
+		bloodCollector.POST("/donation", donationController.CreateDonation)
+		bloodCollector.GET("/donation", donationController.GetAllDonations)
+		bloodCollector.GET("/donation/:id", donationController.GetDonationByID)
+		bloodCollector.PUT("/donation/:id", donationController.UpdateDonation)
+		bloodCollector.PUT("/donation/:id/status", donationController.UpdateDonationStatus)
+	}
+
+	lab := r.Group("/api/lab")
+	lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+	{
+		lab.POST("/tests", labController.SubmitTestResult)
+		lab.GET("/tests/:donation_id", labController.GetTestResult)
+
+		lab.GET("/donations/:donation_id", labController.GetDonation)
+
+		lab.GET("/pending-tests", labController.GetPendingTests)
+		lab.GET("/tests/history", labController.GetHistory)
+		lab.GET("/tests", labController.FilterTests)
+
+		lab.PUT("/tests/:donation_id", labController.UpdateTest)
+		lab.POST("/tests/:donation_id/reject", labController.RejectBlood)
+	}
+	adminInventory := r.Group("/api/inventory")
+	adminInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
+	{
+		adminInventory.GET("/", inventoryController.GetAll)
+		adminInventory.GET("/stats", inventoryController.GetStats)
+		adminInventory.GET("/filter", inventoryController.Filter)
+		adminInventory.GET("/export/csv", inventoryController.ExportCSV)
+		adminInventory.GET("/export/pdf", inventoryController.ExportPDF)
+		adminInventory.GET("/:id/details", inventoryController.GetFullDetails)
+
+		adminInventory.PUT("/:id/status", inventoryController.UpdateStatus)
+		adminInventory.DELETE("/:id", inventoryController.Delete)
+	}
+	labInventory := r.Group("/api/lab/inventory")
+	labInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+	{
+		labInventory.GET("/", inventoryController.GetAll)
+		labInventory.GET("/filter", inventoryController.Filter)
+		labInventory.GET("/:id/details", inventoryController.GetFullDetails)
+	}
 
 	return r
 }

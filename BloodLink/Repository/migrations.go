@@ -1,7 +1,6 @@
 package Repository
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -20,8 +19,7 @@ func RunMigrations() {
 		log.Fatalf("Error creating schema_migrations table: %v", err)
 	}
 
-	// 2. Normalize Table Casing (Fix for Linux/Render case-sensitivity)
-	normalizeTableCasing()
+	// 2. Removed MySQL specific Windows/Linux casing normalizer
 
 	// 3. Get all .sql files in order
 	files, err := filepath.Glob(filepath.Join(migrationFolder, "*.sql"))
@@ -40,7 +38,7 @@ func RunMigrations() {
 
 		// 4. Check if migration was already applied
 		var count int
-		err := DB.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE migration_file = ?", fileName).Scan(&count)
+		err := DB.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE migration_file = $1", fileName).Scan(&count)
 		if err != nil {
 			log.Fatalf("Error checking migration status for %s: %v", fileName, err)
 		}
@@ -84,7 +82,7 @@ func RunMigrations() {
 			}
 		}
 
-		_, err = DB.Exec("INSERT INTO schema_migrations (migration_file) VALUES (?)", fileName)
+		_, err = DB.Exec("INSERT INTO schema_migrations (migration_file) VALUES ($1)", fileName)
 		if err != nil {
 			log.Fatalf("Error recording migration status for %s: %v", fileName, err)
 		}
@@ -94,30 +92,5 @@ func RunMigrations() {
 }
 
 func normalizeTableCasing() {
-	rows, err := DB.Query("SHOW TABLES")
-	if err != nil {
-		log.Printf("[WARNING] Could not list tables for normalization: %v", err)
-		return
-	}
-	defer rows.Close()
-
-	var tables []string
-	for rows.Next() {
-		var table string
-		if err := rows.Scan(&table); err == nil {
-			tables = append(tables, table)
-		}
-	}
-
-	for _, table := range tables {
-		lowerTable := strings.ToLower(table)
-		if table != lowerTable {
-			log.Printf("Normalizing table casing: %s -> %s", table, lowerTable)
-			// Use backticks to handle special characters or keywords
-			renameSQL := fmt.Sprintf("RENAME TABLE `%s` TO `%s` ", table, lowerTable)
-			if _, err := DB.Exec(renameSQL); err != nil {
-				log.Printf("[WARNING] Failed to rename table %s to %s: %v", table, lowerTable, err)
-			}
-		}
-	}
+	// Not needed for Postgres as Postgres normalizes internally without error 121/1146 issues natively
 }

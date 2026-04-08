@@ -72,7 +72,7 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	// 4. Check if donor donated within last 3 months
 	lastDonation, err := u.repo.GetLastDonationByDonor(record.DonorID)
 	if err == nil && lastDonation != nil {
-		if time.Since(lastDonation.CollectionDate).Hours() < 2160 { // 90 days
+		if time.Since(lastDonation.CollectionDate).Hours() < 2160 {
 			return errors.New("donor must wait 3 months before donating again")
 		}
 	}
@@ -81,9 +81,27 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	u.evaluateDonation(record)
 
 	// 6. Save to database
-	return u.repo.CreateDonation(record)
+	if err := u.repo.CreateDonation(record); err != nil {
+		return err
+	}
+
+	// 7.Update donor weight
+	if err := u.repo.UpdateDonorWeight(record.DonorID, record.Weight); err != nil {
+		return err
+	}
+
+	return nil
+}
+func (u *DonationUsecase) GetPendingDonors() ([]Domain.DonorResponse, error) {
+	return u.repo.GetPendingDonors()
 }
 
+func (u *DonationUsecase) GetPendingDonorByID(id string) (*Domain.DonorResponse, error) {
+	return u.repo.GetPendingDonorByID(id)
+}
+func (u *DonationUsecase) SearchPendingDonor(query string) (*Domain.DonorResponse, error) {
+	return u.repo.SearchPendingDonor(query)
+}
 // evaluateDonation determines status automatically
 func (u *DonationUsecase) evaluateDonation(record *Domain.DonationRecord) {
 
@@ -127,8 +145,124 @@ func (u *DonationUsecase) GetAllDonations() ([]Domain.DonationRecord, error) {
 // NEW: Update donation medical information
 func (u *DonationUsecase) UpdateDonation(record *Domain.DonationRecord) error {
 
-	// Recalculate status after update
-	u.evaluateDonation(record)
+    // Get existing donation
+    existing, err := u.repo.GetDonationByID(record.DonationID)
+    if err != nil {
+        return errors.New("donation not found")
+    }
 
-	return u.repo.UpdateDonation(record)
+    // Prevent wrong donor update
+    if existing.DonorID != record.DonorID {
+        return errors.New("donor_id does not match this donation")
+    }
+
+    // 1. Recalculate donation status
+    u.evaluateDonation(record)
+
+    // 2. Update donation
+    if err := u.repo.UpdateDonation(record); err != nil {
+        return err
+    }
+
+    // 3. Update donor weight
+    if err := u.repo.UpdateDonorWeight(record.DonorID, record.Weight); err != nil {
+        return err
+    }
+
+    return nil
+}
+//BloodInventoryUsecase
+
+type BloodInventoryUsecase struct {
+	repo Interface.IBloodInventoryRepository
+}
+
+func NewBloodInventoryUsecase(r Interface.IBloodInventoryRepository) *BloodInventoryUsecase {
+	return &BloodInventoryUsecase{repo: r}
+}
+
+// 🔹 Get All
+func (u *BloodInventoryUsecase) GetAllUnits() ([]Domain.BloodUnit, error) {
+	return u.repo.GetAllBloodUnits()
+}
+
+// 🔹 Get Stats
+func (u *BloodInventoryUsecase) GetStats() (map[string]int, error) {
+	units, err := u.repo.GetAllBloodUnits()
+	if err != nil {
+		return nil, err
+	}
+
+	stats := map[string]int{
+		"total":      0,
+		"available":  0,
+		"nearExpiry": 0,
+		"expired":    0,
+	}
+
+	now := time.Now()
+
+	for _, unit := range units {
+		stats["total"]++
+
+		if unit.Status == "AVAILABLE" {
+			stats["available"]++
+		}
+
+		if unit.ExpirationDate.Before(now) {
+			stats["expired"]++
+		}
+
+		if unit.ExpirationDate.After(now) &&
+			unit.ExpirationDate.Before(now.AddDate(0, 0, 7)) {
+			stats["nearExpiry"]++
+		}
+	}
+
+	return stats, nil
+}
+
+// 🔹 Update Status
+func (u *BloodInventoryUsecase) UpdateStatus(id, status string) error {
+	return u.repo.UpdateBloodUnitStatus(id, status)
+}
+
+// 🔹 Delete
+func (u *BloodInventoryUsecase) DeleteUnit(id string) error {
+	return u.repo.DeleteBloodUnitByID(id)
+}
+func (u *BloodInventoryUsecase) GetFullDetails(id string) (map[string]interface{}, error) {
+
+	data, err := u.repo.GetFullBloodUnitDetails(id)
+	if err != nil {
+		return nil, err
+	}
+
+	bu := data["blood_unit"].(Domain.BloodUnit)
+
+	now := time.Now()
+	diff := bu.ExpirationDate.Sub(now).Hours() / 24
+
+	expiry := map[string]interface{}{
+		"days_remaining": int(diff),
+		"expires_on":     bu.ExpirationDate,
+	}
+
+	//  AUTO STATUS UPDATE
+	if bu.ExpirationDate.Before(now) && bu.Status != "EXPIRED" {
+		u.repo.UpdateBloodUnitStatus(bu.BloodUnitID, "EXPIRED")
+		expiry["expiry_status"] = "EXPIRED"
+	} else {
+		expiry["expiry_status"] = "VALID"
+	}
+
+	data["expiry"] = expiry
+
+	return data, nil
+}
+func (u *BloodInventoryUsecase) FilterUnits(
+	unitID, bloodType, status, startDate, endDate string,
+) ([]Domain.BloodUnit, error) {
+
+	return u.repo.FilterBloodUnits(unitID, bloodType, status, startDate, endDate)
 }

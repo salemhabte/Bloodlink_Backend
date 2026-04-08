@@ -299,7 +299,7 @@ func (c *UserController) ResetPassword(ctx *gin.Context) {
 func (c *UserController) GetDonors(ctx *gin.Context) {
 	filter := domain.DonorFilter{
 		BloodType: ctx.Query("blood_type"),
-		Status:    ctx.Query("status"),
+		OverallStatus:    ctx.Query("overall_status"),
 	}
 
 	cCtx, cancel := context.WithCancel(ctx.Request.Context())

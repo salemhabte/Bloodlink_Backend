@@ -5,14 +5,9 @@ CREATE TABLE IF NOT EXISTS blood_requests (
     blood_type VARCHAR(3) NOT NULL,
     quantity INT NOT NULL,
 
-    urgency_level ENUM('LOW','MEDIUM','HIGH') DEFAULT 'MEDIUM',
+    urgency_level VARCHAR(50) DEFAULT 'MEDIUM',
 
-    status ENUM(
-        'PENDING',
-        'APPROVED',
-        'REJECTED',
-        'FULFILLED'
-    ) DEFAULT 'PENDING',
+    status VARCHAR(50) DEFAULT 'PENDING',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

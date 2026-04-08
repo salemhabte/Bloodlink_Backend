@@ -5,11 +5,13 @@ CREATE TABLE IF NOT EXISTS donor_test_results (
     donor_id VARCHAR(36) NOT NULL,
     tested_by VARCHAR(36) NOT NULL,
 
-    hiv_result BOOLEAN,
-    hepatitis_result BOOLEAN,
-    syphilis_result BOOLEAN,
+    blood_type VARCHAR(3) NULL ,
 
-    overall_status ENUM('SAFE','UNSAFE'),
+    hiv_result VARCHAR(50),
+    hepatitis_result VARCHAR(50),
+    syphilis_result VARCHAR(50),
+
+    overall_status VARCHAR(50),
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
