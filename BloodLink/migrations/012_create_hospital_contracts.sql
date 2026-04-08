@@ -5,11 +5,7 @@ CREATE TABLE IF NOT EXISTS hospital_contracts (
 
     document VARCHAR(255),
 
-    status ENUM(
-        'PENDING',
-        'APPROVED',
-        'REJECTED'
-    ) DEFAULT 'PENDING',
+    status VARCHAR(50) DEFAULT 'PENDING',
 
     contract_start DATE,
     contract_end DATE,

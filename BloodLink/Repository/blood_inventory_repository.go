@@ -3,6 +3,7 @@ package Repository
 import (
 	"bloodlink/Domain"
 	"database/sql"
+	"fmt"
 )
 
 type BloodInventoryRepository struct {
@@ -55,7 +56,7 @@ func (r *BloodInventoryRepository) GetBloodUnitByID(id string) (*Domain.BloodUni
 	query := `
 	SELECT blood_unit_id, donation_id, blood_type, volume_ml,
 	       collection_date, expiration_date, status, created_at
-	FROM blood_units WHERE blood_unit_id = ?
+	FROM blood_units WHERE blood_unit_id = $1
 	`
 
 	var u Domain.BloodUnit
@@ -79,14 +80,14 @@ func (r *BloodInventoryRepository) GetBloodUnitByID(id string) (*Domain.BloodUni
 
 // 🔹 Update Status
 func (r *BloodInventoryRepository) UpdateBloodUnitStatus(id string, status string) error {
-	query := `UPDATE blood_units SET status=? WHERE blood_unit_id=?`
+	query := `UPDATE blood_units SET status=$1 WHERE blood_unit_id=$2`
 	_, err := r.DB.Exec(query, status, id)
 	return err
 }
 
 // 🔹 Delete
 func (r *BloodInventoryRepository) DeleteBloodUnitByID(id string) error {
-	query := `DELETE FROM blood_units WHERE blood_unit_id=?`
+	query := `DELETE FROM blood_units WHERE blood_unit_id=$1`
 	_, err := r.DB.Exec(query, id)
 	return err
 }
@@ -107,7 +108,7 @@ JOIN donation_records d ON bu.donation_id = d.donation_id
 JOIN donors dn ON d.donor_id = dn.donor_id
 JOIN users u ON dn.user_id = u.user_id
 
-WHERE bu.blood_unit_id = ?
+WHERE bu.blood_unit_id = $1
 `
 
 	var result = make(map[string]interface{})
@@ -155,7 +156,7 @@ WHERE bu.blood_unit_id = ?
 	rows, err := r.DB.Query(`
 	SELECT hiv_result, hepatitis_result, syphilis_result
 	FROM donor_test_results
-	WHERE donation_id = ?
+	WHERE donation_id = $1
 	`, donation["donation_id"])
 
 	if err != nil {
@@ -199,26 +200,26 @@ func (r *BloodInventoryRepository) FilterBloodUnits(
 
 	// Filter by ID
 	if unitID != "" {
-		query += " AND blood_unit_id LIKE ?"
 		args = append(args, "%"+unitID+"%")
+		query += fmt.Sprintf(" AND blood_unit_id LIKE $%d", len(args))
 	}
 
 	//  Filter by blood type
 	if bloodType != "" {
-		query += " AND blood_type = ?"
 		args = append(args, bloodType)
+		query += fmt.Sprintf(" AND blood_type = $%d", len(args))
 	}
 
 	// Filter by status
 	if status != "" {
-		query += " AND status = ?"
 		args = append(args, status)
+		query += fmt.Sprintf(" AND status = $%d", len(args))
 	}
 
 	// Date range (collection date)
 	if startDate != "" && endDate != "" {
-		query += " AND collection_date BETWEEN ? AND ?"
 		args = append(args, startDate, endDate)
+		query += fmt.Sprintf(" AND collection_date BETWEEN $%d AND $%d", len(args)-1, len(args))
 	}
 
 	rows, err := r.DB.Query(query, args...)

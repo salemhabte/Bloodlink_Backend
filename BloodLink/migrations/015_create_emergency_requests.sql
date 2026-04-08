@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS emergency_requests (
 
     required_units INT,
 
-    urgency_level ENUM('LOW','MEDIUM','HIGH') DEFAULT 'HIGH',
+    urgency_level VARCHAR(50) DEFAULT 'HIGH',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

@@ -5,17 +5,13 @@ CREATE TABLE IF NOT EXISTS donor_test_results (
     donor_id VARCHAR(36) NOT NULL,
     tested_by VARCHAR(36) NOT NULL,
 
-    blood_type VARCHAR(3) NULL COMMENT 'Donor blood type, e.g., O+, A-',
+    blood_type VARCHAR(3) NULL ,
 
-    hiv_result ENUM('NEGATIVE','POSITIVE'),
-    hepatitis_result ENUM('NEGATIVE','POSITIVE'),
-    syphilis_result ENUM('NEGATIVE','POSITIVE'),
+    hiv_result VARCHAR(50),
+    hepatitis_result VARCHAR(50),
+    syphilis_result VARCHAR(50),
 
-    overall_status ENUM(
-        'CLEARED',
-        'TEMPORARILY_DEFERRED',
-        'PERMANENTLY_DEFERRED'
-    ),
+    overall_status VARCHAR(50),
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

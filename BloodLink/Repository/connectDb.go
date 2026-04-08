@@ -8,15 +8,15 @@ import (
 
 	"bloodlink/config"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 )
 
 var DB *sql.DB
 
 func ConnectDB() {
-	dsn := config.MYSQL_DSN
+	dsn := config.POSTGRES_DSN
 	var err error
-	DB, err = sql.Open("mysql", dsn)
+	DB, err = sql.Open("postgres", dsn)
 	if err != nil {
 		log.Fatal("Error opening database: ", err)
 	}
@@ -30,5 +30,5 @@ func ConnectDB() {
 DB.SetMaxIdleConns(5)
 DB.SetConnMaxLifetime(5 * time.Minute)
 
-	fmt.Println("Connected to MySQL database successfully!")
+	fmt.Println("Connected to PostgreSQL database successfully!")
 }

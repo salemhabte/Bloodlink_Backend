@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 
 	domain "bloodlink/Domain"
@@ -20,7 +21,7 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 // CreateUser inserts a newly registered user into the database
 func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) error {
 	query := `INSERT INTO users (user_id, email, full_name, phone, password_hash, role, is_active, otp, created_at) 
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	// Note: ER diagram says password_hash, domain says password.
 	// We'll map the db columns according to ER diagram or logic.
@@ -46,7 +47,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) erro
 
 // GetUserByEmail retrieves a user by their email address for login verification
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query := `SELECT user_id, full_name, email, COALESCE(phone, ''), password_hash, role, is_active, COALESCE(otp, ''), created_at, COALESCE(refresh_token, '') FROM users WHERE email = ?`
+	query := `SELECT user_id, full_name, email, COALESCE(phone, ''), password_hash, role, is_active, COALESCE(otp, ''), created_at, COALESCE(refresh_token, '') FROM users WHERE email = $1`
 
 	row := r.DB.QueryRowContext(ctx, query, email)
 
@@ -76,14 +77,14 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 
 // ActivateUser updates the user's status to active and clears the OTP
 func (r *UserRepository) ActivateUser(ctx context.Context, userID string) error {
-	query := `UPDATE users SET is_active = true, otp = NULL WHERE user_id = ?`
+	query := `UPDATE users SET is_active = true, otp = NULL WHERE user_id = $1`
 	_, err := r.DB.ExecContext(ctx, query, userID)
 	return err
 }
 
 // CreateDonor inserts a minimal donor record into the database
 func (r *UserRepository) CreateDonor(ctx context.Context, donor *domain.Donor) error {
-	query := `INSERT INTO donors (donor_id, user_id, overall_status) VALUES (?, ?, ?)`
+	query := `INSERT INTO donors (donor_id, user_id, overall_status) VALUES ($1, $2, $3)`
 	_, err := r.DB.ExecContext(ctx, query, donor.DonorID, donor.UserID, donor.OverallStatus)
 	return err
 }
@@ -91,7 +92,7 @@ func (r *UserRepository) CreateDonor(ctx context.Context, donor *domain.Donor) e
 // DeleteUser removes a user from the database.
 // Due to ON DELETE CASCADE, this will also remove their Profile and Donor record.
 func (r *UserRepository) DeleteUser(ctx context.Context, userID string) error {
-	query := `DELETE FROM users WHERE user_id = ?`
+	query := `DELETE FROM users WHERE user_id = $1`
 	_, err := r.DB.ExecContext(ctx, query, userID)
 	if err != nil {
 		log.Printf("[DATABASE ERROR] DeleteUser failed: %v", err)
@@ -102,7 +103,7 @@ func (r *UserRepository) DeleteUser(ctx context.Context, userID string) error {
 
 // SetOTP stores an OTP for the user identified by email (used for forgot password)
 func (r *UserRepository) SetOTP(ctx context.Context, email, otp string) error {
-	query := `UPDATE users SET otp = ? WHERE email = ?`
+	query := `UPDATE users SET otp = $1 WHERE email = $2`
 	result, err := r.DB.ExecContext(ctx, query, otp, email)
 	if err != nil {
 		log.Printf("[DATABASE ERROR] SetOTP failed: %v", err)
@@ -117,7 +118,7 @@ func (r *UserRepository) SetOTP(ctx context.Context, email, otp string) error {
 
 // ResetPassword updates the password and clears the OTP for the user identified by email
 func (r *UserRepository) ResetPassword(ctx context.Context, email, hashedPassword string) error {
-	query := `UPDATE users SET password_hash = ?, otp = NULL WHERE email = ?`
+	query := `UPDATE users SET password_hash = $1, otp = NULL WHERE email = $2`
 	_, err := r.DB.ExecContext(ctx, query, hashedPassword, email)
 	if err != nil {
 		log.Printf("[DATABASE ERROR] ResetPassword failed: %v", err)
@@ -128,7 +129,7 @@ func (r *UserRepository) ResetPassword(ctx context.Context, email, hashedPasswor
 
 // UpdateDonorStatus updates the status of a donor by donor_id
 func (r *UserRepository) UpdateDonorStatus(ctx context.Context, donorID, status string) error {
-	query := `UPDATE donors SET overall_status WHERE donor_id = ?`
+	query := `UPDATE donors SET overall_status = $1 WHERE donor_id = $2`
 	result, err := r.DB.ExecContext(ctx, query, status, donorID)
 	if err != nil {
 		log.Printf("[DATABASE ERROR] UpdateDonorStatus failed: %v", err)
@@ -203,12 +204,12 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 	args := []interface{}{}
 
 	if filter.BloodType != "" {
-		query += " AND d.blood_type = ?"
 		args = append(args, filter.BloodType)
+		query += fmt.Sprintf(" AND d.blood_type = $%d", len(args))
 	}
 	if filter.OverallStatus != "" {
-		query += " AND d.overall_status = ?"
 		args = append(args, filter.OverallStatus)
+		query += fmt.Sprintf(" AND d.overall_status = $%d", len(args))
 	}
 
 	rows, err := r.DB.QueryContext(ctx, query, args...)
@@ -251,7 +252,7 @@ func (r *UserRepository) GetUsersByRole(ctx context.Context, role string) ([]dom
 			is_active, 
 			created_at 
 		FROM users 
-		WHERE role = ?
+		WHERE role = $1
 	`
 	rows, err := r.DB.QueryContext(ctx, query, role)
 	if err != nil {
@@ -281,7 +282,7 @@ func (r *UserRepository) GetUsersByRole(ctx context.Context, role string) ([]dom
 }
 
 func (r *UserRepository) UpdateRefreshToken(ctx context.Context, userID, refreshToken string) error {
-	query := `UPDATE users SET refresh_token = ? WHERE user_id = ?`
+	query := `UPDATE users SET refresh_token = $1 WHERE user_id = $2`
 	_, err := r.DB.ExecContext(ctx, query, refreshToken, userID)
 	return err
 }
