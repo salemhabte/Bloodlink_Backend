@@ -19,7 +19,7 @@ func NewLabRepository(db *sql.DB) *LabRepository {
 func (r *LabRepository) CreateTestResult(result *Domain.DonorTestResult) error {
 	// Check if test already exists
 	var exists string
-	err := r.DB.QueryRow("SELECT test_id FROM donor_test_results WHERE donation_id=?", result.DonationID).Scan(&exists)
+	err := r.DB.QueryRow("SELECT test_id FROM donor_test_results WHERE donation_id=$1", result.DonationID).Scan(&exists)
 	if err == nil {
 		return errors.New("test result for this donation already exists")
 	}
@@ -31,7 +31,7 @@ func (r *LabRepository) CreateTestResult(result *Domain.DonorTestResult) error {
 	query := `
 	INSERT INTO donor_test_results
 	(test_id, donation_id, donor_id, tested_by, hiv_result, hepatitis_result, syphilis_result, blood_type, overall_status, created_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	_, err = r.DB.Exec(query,
 		result.TestID,
@@ -52,7 +52,7 @@ func (r *LabRepository) CreateBloodUnit(unit *Domain.BloodUnit) error {
 	query := `
 	INSERT INTO blood_units
 	(blood_unit_id, donation_id, blood_type, volume_ml, collection_date, expiration_date, status)
-	VALUES (?, ?, ?, ?, ?, ?, ?)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 	_, err := r.DB.Exec(query,
 		unit.BloodUnitID,
@@ -67,13 +67,13 @@ func (r *LabRepository) CreateBloodUnit(unit *Domain.BloodUnit) error {
 }
 
 func (r *LabRepository) UpdateDonorOverallStatus(donorID string, status string) error {
-	query := `UPDATE donors SET overall_status=? WHERE donor_id=?`
+	query := `UPDATE donors SET overall_status=$1 WHERE donor_id=$2`
 	_, err := r.DB.Exec(query, status, donorID)
 	return err
 }
 
 func (r *LabRepository) UpdateDonorBloodType(donorID string, bloodType string) error {
-	query := `UPDATE donors SET blood_type=? WHERE donor_id=?`
+	query := `UPDATE donors SET blood_type=$1 WHERE donor_id=$2`
 	_, err := r.DB.Exec(query, bloodType, donorID)
 	return err
 }
@@ -101,7 +101,7 @@ func (r *LabRepository) GetDonationByID(donationID string) (*Domain.DonationReco
 	JOIN donors dn ON d.donor_id = dn.donor_id
 	JOIN users u ON dn.user_id = u.user_id
 	JOIN users u2 ON d.collected_by = u2.user_id
-	WHERE d.donation_id=?
+	WHERE d.donation_id=$1
 	`
 
 	err := r.DB.QueryRow(query, donationID).Scan(
@@ -140,7 +140,7 @@ func (r *LabRepository) GetDonationByID(donationID string) (*Domain.DonationReco
 func (r *LabRepository) GetTestResult(donationID string) (*Domain.DonorTestResult, error) {
 	var result Domain.DonorTestResult
 	
-	query := `SELECT test_id, donation_id, donor_id, tested_by, hiv_result, hepatitis_result, syphilis_result, blood_type, overall_status, created_at FROM donor_test_results WHERE donation_id=?`
+	query := `SELECT test_id, donation_id, donor_id, tested_by, hiv_result, hepatitis_result, syphilis_result, blood_type, overall_status, created_at FROM donor_test_results WHERE donation_id=$1`
 	
 	err := r.DB.QueryRow(query, donationID).Scan(
 		&result.TestID, &result.DonationID, &result.DonorID, &result.TestedBy,
@@ -279,7 +279,7 @@ func (r *LabRepository) GetTestResultsByStatus(status string) ([]Domain.DonorTes
 		overall_status,
 		created_at
 	FROM donor_test_results
-	WHERE overall_status = ?
+	WHERE overall_status = $1
 	`
 
 	rows, err := r.DB.Query(query, status)
@@ -314,8 +314,8 @@ func (r *LabRepository) UpdateTestResult(result *Domain.DonorTestResult) error {
 	// Update test result only if donation_id exists
 	query := `
 UPDATE donor_test_results
-SET hiv_result=?, hepatitis_result=?, syphilis_result=?, overall_status=?, blood_type=?
-WHERE donation_id=?
+SET hiv_result=$1, hepatitis_result=$2, syphilis_result=$3, overall_status=$4, blood_type=$5
+WHERE donation_id=$6
 `
 
 res, err := r.DB.Exec(query,
@@ -345,13 +345,13 @@ res, err := r.DB.Exec(query,
 }
 
 func (r *LabRepository) DeleteBloodUnit(donationID string) error {
-	query := `DELETE FROM blood_units WHERE donation_id = ?`
+	query := `DELETE FROM blood_units WHERE donation_id = $1`
 	_, err := r.DB.Exec(query, donationID)
 	return err
 }
 // Get blood unit by donation ID
 func (r *LabRepository) GetBloodUnitByDonationID(donationID string) (*Domain.BloodUnit, error) {
-	query := "SELECT blood_unit_id, donation_id, blood_type, volume_ml, collection_date, expiration_date, status FROM blood_units WHERE donation_id=?"
+	query := "SELECT blood_unit_id, donation_id, blood_type, volume_ml, collection_date, expiration_date, status FROM blood_units WHERE donation_id=$1"
 	row := r.DB.QueryRow(query, donationID)
 
 	var unit Domain.BloodUnit
@@ -370,8 +370,8 @@ func (r *LabRepository) GetBloodUnitByDonationID(donationID string) (*Domain.Blo
 func (r *LabRepository) UpdateBloodUnit(unit *Domain.BloodUnit) error {
 	query := `
 	UPDATE blood_units 
-	SET blood_type=?, status=?
-	WHERE donation_id=?
+	SET blood_type=$1, status=$2
+	WHERE donation_id=$3
 	`
 	_, err := r.DB.Exec(query, unit.BloodType, unit.Status, unit.DonationID)
 	return err

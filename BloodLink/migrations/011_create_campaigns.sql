@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     title VARCHAR(255),
     content TEXT,
     location VARCHAR(255),
-    start_date DATETIME,
-    end_date DATETIME,
+    start_date TIMESTAMP,
+    end_date TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

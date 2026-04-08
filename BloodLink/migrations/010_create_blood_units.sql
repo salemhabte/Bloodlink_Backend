@@ -9,12 +9,7 @@ CREATE TABLE IF NOT EXISTS blood_units (
     collection_date DATE,
     expiration_date DATE,
 
-    status ENUM(
-        'AVAILABLE',
-        'RESERVED',
-        'USED',
-        'EXPIRED'
-    ) DEFAULT 'AVAILABLE',
+    status VARCHAR(50) DEFAULT 'AVAILABLE',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

@@ -18,12 +18,7 @@ CREATE TABLE donation_records (
 
     quantity_ml INT,
 
-    status ENUM(
-        'PENDING',
-        'APPROVED',
-        'REJECTED_TEMPORARY',
-        'REJECTED_PERMANENT'
-    ),
+    status VARCHAR(50),
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

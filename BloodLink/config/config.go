@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	MYSQL_DSN string
+	POSTGRES_DSN string
 
 	JWTSECRET        string
 	JWTREFRESHSECRET string
@@ -24,7 +24,7 @@ func InitEnv() {
 	if err != nil {
 		log.Printf("Warning: .env file not found or could not be loaded. Relying on system environment variables.")
 	}
-	MYSQL_DSN = getEnv("MYSQL_DSN")
+	POSTGRES_DSN = getEnv("POSTGRES_DSN")
 
 	JWTSECRET = getEnv("JWTSECRET")
 

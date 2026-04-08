@@ -27,7 +27,7 @@ func (r *CampaignRepository) CreateCampaign(campaign *Domain.Campaign) error {
 	query := `
 	INSERT INTO campaigns 
 	(campaign_id, title, content, location, start_date, end_date, created_at) 
-	VALUES (?, ?, ?, ?, ?, ?, ?)`
+	VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 	_, err := r.DB.Exec(
 		query,
@@ -89,7 +89,7 @@ func (r *CampaignRepository) GetCampaignByID(id string) (*Domain.Campaign, error
 	query := `
 	SELECT campaign_id, title, content, location, start_date, end_date, created_at
 	FROM campaigns
-	WHERE campaign_id = ? AND end_date >= NOW()
+	WHERE campaign_id = $1 AND end_date >= NOW()
 	LIMIT 1
 	`
 
@@ -144,8 +144,8 @@ func (r *CampaignRepository) UpdateCampaign(campaign *Domain.Campaign) error {
 
 	query := `
 	UPDATE campaigns
-	SET title=?, content=?, location=?, start_date=?, end_date=?
-	WHERE campaign_id=?
+	SET title=$1, content=$2, location=$3, start_date=$4, end_date=$5
+	WHERE campaign_id=$6
 	`
 
 	_, err = r.DB.Exec(
@@ -164,7 +164,7 @@ func (r *CampaignRepository) UpdateCampaign(campaign *Domain.Campaign) error {
 // DeleteCampaign removes a campaign
 func (r *CampaignRepository) DeleteCampaign(id string) error {
 
-	query := "DELETE FROM campaigns WHERE campaign_id=?"
+	query := "DELETE FROM campaigns WHERE campaign_id=$1"
 
 	_, err := r.DB.Exec(query, id)
 
@@ -177,7 +177,7 @@ func (r *CampaignRepository) GetCampaignsByLocation(location string) ([]Domain.C
 	query := `
 	SELECT campaign_id, title, content, location, start_date, end_date, created_at
 	FROM campaigns
-	WHERE location LIKE CONCAT('%', ?, '%')
+	WHERE location LIKE CONCAT('%', $1, '%')
 	AND end_date >= NOW()
 	`
 
