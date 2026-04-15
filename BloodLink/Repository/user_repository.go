@@ -198,7 +198,7 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 			d.overall_status 
 		FROM donors d
 		JOIN users u ON d.user_id = u.user_id
-		LEFT JOIN user_profile p ON u.user_id = p.user_id
+		LEFT JOIN user_profiles p ON u.user_id = p.user_id
 		WHERE 1=1
 	`
 	args := []interface{}{}
