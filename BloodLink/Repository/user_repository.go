@@ -198,7 +198,7 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 			d.overall_status 
 		FROM donors d
 		JOIN users u ON d.user_id = u.user_id
-		LEFT JOIN user_profile p ON u.user_id = p.user_id
+		LEFT JOIN user_profiles p ON u.user_id = p.user_id
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -240,7 +240,7 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 	return donors, nil
 }
 
-// GetUsersByRole retrieves all users matching a specific role
+// GetUsersByRole retrieves all users matching a specific role (or all users if role is empty)
 func (r *UserRepository) GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error) {
 	query := `
 		SELECT 
@@ -252,9 +252,15 @@ func (r *UserRepository) GetUsersByRole(ctx context.Context, role string) ([]dom
 			is_active, 
 			created_at 
 		FROM users 
-		WHERE role = $1
 	`
-	rows, err := r.DB.QueryContext(ctx, query, role)
+	args := []interface{}{}
+
+	if role != "" {
+		query += " WHERE role = $1"
+		args = append(args, role)
+	}
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		log.Printf("[DATABASE ERROR] GetUsersByRole failed: %v", err)
 		return nil, err

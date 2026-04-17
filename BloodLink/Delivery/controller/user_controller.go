@@ -340,10 +340,6 @@ func (c *UserController) RefreshTokenHandler(ctx *gin.Context) {
 // GetUsersByRole handles fetching users filtered by their role
 func (c *UserController) GetUsersByRole(ctx *gin.Context) {
 	role := ctx.Query("role")
-	if role == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "role query parameter is required"})
-		return
-	}
 
 	cCtx, cancel := context.WithCancel(ctx.Request.Context())
 	defer cancel()
