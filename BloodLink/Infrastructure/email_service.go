@@ -71,3 +71,8 @@ func SendPasswordResetOTP(toEmail, otp string) error {
 	body := fmt.Sprintf("<html><body><p>You requested a password reset for your BloodLink account.</p><p><strong>Your OTP is: %s</strong></p><p>This OTP will expire soon. If you did not request this, please ignore this email.</p></body></html>", otp)
 	return sendGridEmail(toEmail, subject, body)
 }
+
+func SendBloodRequestNotification(toEmail, subject, content string) error {
+	body := fmt.Sprintf("<html><body><p>%s</p></body></html>", content)
+	return sendGridEmail(toEmail, subject, body)
+}

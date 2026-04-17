@@ -35,21 +35,39 @@ func main() {
 	donationRepo := Repository.NewDonationRepository(db)
 	labRepo := Repository.NewLabRepository(db)
 	inventoryRepo := Repository.NewBloodInventoryRepository(db)
+	hospitalRepo := Repository.NewHospitalRepository(db)
 
 	// --- Usecases ---
 	campaignUsecase := Usecase.NewCampaignUsecase(campaignRepo)
 	donationUsecase := Usecase.NewDonationUsecase(donationRepo)
 	labUsecase := Usecase.NewLabUsecase(labRepo)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
+	
+	pdfService := Usecase.NewPDFGeneratorService("./uploads")
+	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo)
+
+	bloodReqRepo := Repository.NewBloodRequestRepository(db)
+	bloodReqUsecase := Usecase.NewBloodRequestUsecase(bloodReqRepo, hospitalRepo)
 
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
 	donationController := controller.NewDonationController(donationUsecase)
 	labController := controller.NewLabController(labUsecase)
 	inventoryController := controller.NewBloodInventoryController(inventoryUsecase)
+	hospitalController := controller.NewHospitalController(hospitalUsecase)
+	bloodReqController := controller.NewBloodRequestController(bloodReqUsecase)
 
 	// 5. Initialize Router
-	r := router.SetupRouter(userController, jwtService, campaignController, donationController, labController, inventoryController)
+	r := router.SetupRouter(
+		userController, 
+		jwtService, 
+		campaignController, 
+		donationController, 
+		labController, 
+		inventoryController, 
+		hospitalController,
+		bloodReqController,
+	)
 
 	// 7. Start the Server
 	log.Println("Starting server on :8080")

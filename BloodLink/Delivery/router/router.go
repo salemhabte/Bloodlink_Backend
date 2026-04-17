@@ -17,6 +17,8 @@ func SetupRouter(
 	donationController *controller.DonationController,
 	labController *controller.LabController,
 	inventoryController *controller.BloodInventoryController,
+	hospitalController *controller.HospitalController,
+	bloodReqController *controller.BloodRequestController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -41,6 +43,11 @@ func SetupRouter(
 		}
 
 		api.POST("/logout", Infrastructure.AuthMiddleware(auth), userCtrl.Logout)
+
+		publicHospitals := api.Group("/public/hospitals")
+		{
+			publicHospitals.POST("/request-registration", hospitalController.SubmitRegistrationRequest)
+		}
 
 		// Example Protected Routes (for verification)
 		protectedRoutes := api.Group("/protected")
@@ -82,9 +89,36 @@ func SetupRouter(
 			adminUsers.GET("/filter", userCtrl.GetUsersByRole)
 		}
 
+		adminHospitalRequests := admin.Group("/hospital-requests")
+		{
+			adminHospitalRequests.GET("/", hospitalController.GetPendingRequests)
+			adminHospitalRequests.POST("/:id/approve", hospitalController.ApproveRequest)
+			adminHospitalRequests.POST("/:id/reject", hospitalController.RejectRequest)
+		}
+
+		adminContracts := admin.Group("/contracts")
+		{
+			adminContracts.POST("/:id/sign", hospitalController.AdminSignContract)
+			adminContracts.POST("/:id/reject", hospitalController.RejectContract)
+		}
+
+		adminTemplates := admin.Group("/contract-templates")
+		{
+			adminTemplates.GET("/", hospitalController.GetContractTemplates)
+			adminTemplates.POST("/", hospitalController.CreateContractTemplate)
+			adminTemplates.PUT("/:id", hospitalController.UpdateContractTemplate)
+			adminTemplates.DELETE("/:id", hospitalController.DeleteContractTemplate)
+		}
+
 		adminProfiles := admin.Group("/profiles")
 		{
 			adminProfiles.GET("/", userCtrl.GetAllProfiles)
+		}
+
+		adminBloodRequests := admin.Group("/blood-requests")
+		{
+			adminBloodRequests.GET("/", bloodReqController.GetAllRequests)
+			adminBloodRequests.PUT("/:id/status", bloodReqController.UpdateStatus)
 		}
 	}
 	// Blood Collector Routes
@@ -136,6 +170,22 @@ labInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 	labInventory.GET("/", inventoryController.GetAll)
 	labInventory.GET("/filter", inventoryController.Filter)
 	labInventory.GET("/:id/details", inventoryController.GetFullDetails)
+}
+
+hospitalGrp := r.Group("/api/hospitaladmin")
+hospitalGrp.Use(Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin))
+{
+	hContracts := hospitalGrp.Group("/contracts")
+	{
+		hContracts.POST("/:id/sign", hospitalController.HospitalSignContract)
+		hContracts.POST("/:id/reject", hospitalController.RejectContract)
+	}
+
+	hBloodReqs := hospitalGrp.Group("/blood-requests")
+	{
+		hBloodReqs.POST("/", bloodReqController.CreateBloodRequest)
+		hBloodReqs.GET("/", bloodReqController.GetHospitalRequests)
+	}
 }
 
 	return r
