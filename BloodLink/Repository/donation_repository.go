@@ -19,28 +19,38 @@ func NewDonationRepository(db *sql.DB) Interfaces.IDonationRepository {
 }
 func (r *donationRepository) CreateDonation(record *Domain.DonationRecord) error {
 	query := `
-	INSERT INTO donation_records (
-		donation_id, donor_id, collected_by, collection_date,
-		weight, blood_pressure, hemoglobin, temperature, pulse,
-		quantity_ml, status, created_at
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-	`
+INSERT INTO donation_records (
+    donation_id, donor_id, campaign_id, collected_by, collection_date,
+    weight, blood_pressure, hemoglobin, temperature, pulse,
+    quantity_ml, status, created_at
+)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+`
 
-	_, err := r.db.Exec(
-		query,
-		record.DonationID,
-		record.DonorID,
-		record.CollectedBy,
-		record.CollectionDate,
-		record.Weight,
-		record.BloodPressure,
-		record.Hemoglobin,
-		record.Temperature,
-		record.Pulse,
-		record.QuantityML,
-		record.Status,
-		record.CreatedAt,
-	)
+	var campaignID interface{}
+if record.CampaignID != nil {
+    campaignID = *record.CampaignID
+} else {
+    campaignID = nil
+}
+
+_, err := r.db.Exec(
+    query,
+    record.DonationID,     // $1
+    record.DonorID,        // $2
+    campaignID,            // $3 
+    record.CollectedBy,    // $4
+    record.CollectionDate, // $5
+    record.Weight,         // $6
+    record.BloodPressure,  // $7
+    record.Hemoglobin,     // $8
+    record.Temperature,    // $9
+    record.Pulse,          // $10
+    record.QuantityML,     // $11
+    record.Status,         // $12
+    record.CreatedAt,      // $14
+)
+	
 
 	return err
 }
@@ -60,7 +70,7 @@ func (r *donationRepository) SearchDonor(query string) (*Domain.DonorResponse, e
 	FROM donors d
 	JOIN users u ON d.user_id = u.user_id
 	WHERE LOWER(TRIM(u.email)) = LOWER($1)
-	   OR u.phone LIKE CONCAT('%', $2, '%')
+	   OR u.phone LIKE '%' || $2 || '%'
 	LIMIT 1
 	`
 
@@ -92,6 +102,7 @@ func (r *donationRepository) GetDonationByID(id string) (*Domain.DonationRecord,
 	SELECT 
 		d.donation_id,
 		d.donor_id,
+		d.campaign_id,
 		d.collected_by,
 		u1.full_name AS donor_name,
 		u2.full_name AS collector_name,
@@ -116,6 +127,7 @@ func (r *donationRepository) GetDonationByID(id string) (*Domain.DonationRecord,
 	err := r.db.QueryRow(query, id).Scan(
 		&d.DonationID,
 		&d.DonorID,
+		&d.CampaignID,
 		&d.CollectedBy,
 		&d.DonorName,
 		&d.CollectorName,
@@ -142,6 +154,7 @@ func (r *donationRepository) GetAllDonations() ([]Domain.DonationRecord, error) 
 	SELECT 
 		d.donation_id,
 		d.donor_id,
+		d.campaign_id,
 		d.collected_by,
 		u1.full_name AS donor_name,
 		u2.full_name AS collector_name,
@@ -174,6 +187,7 @@ func (r *donationRepository) GetAllDonations() ([]Domain.DonationRecord, error) 
 		err := rows.Scan(
 			&d.DonationID,
 			&d.DonorID,
+			&d.CampaignID,
 			&d.CollectedBy,
 			&d.DonorName,
 			&d.CollectorName,
@@ -366,7 +380,7 @@ func (r *donationRepository) SearchPendingDonor(query string) (*Domain.DonorResp
 	JOIN users u ON d.user_id = u.user_id
 	WHERE (
 		LOWER(TRIM(u.email)) = LOWER($1)
-		OR u.phone LIKE CONCAT('%', $2, '%')
+		OR u.phone LIKE '%' || $2 || '%'
 	)
 	AND NOT EXISTS (
 		SELECT 1 FROM donation_records dr 
@@ -395,4 +409,39 @@ func (r *donationRepository) SearchPendingDonor(query string) (*Domain.DonorResp
 	}
 
 	return &donor, nil
+}
+func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.DonationRecord, error) {
+
+	query := `
+	SELECT donation_id, donor_id, status, collection_date
+	FROM donation_records
+	WHERE donor_id = $1
+	ORDER BY collection_date DESC
+	`
+
+	rows, err := r.db.Query(query, donorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var donations []Domain.DonationRecord
+
+	for rows.Next() {
+		var d Domain.DonationRecord
+
+		err := rows.Scan(
+			&d.DonationID,
+			&d.DonorID,
+			&d.Status,
+			&d.CollectionDate,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		donations = append(donations, d)
+	}
+
+	return donations, nil
 }
