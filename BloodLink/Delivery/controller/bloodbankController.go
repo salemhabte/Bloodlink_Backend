@@ -171,6 +171,7 @@ func (c *DonationController) SearchDonor(ctx *gin.Context) {
 // CreateDonation handles POST /bloodcollector/donation
 func (c *DonationController) CreateDonation(ctx *gin.Context) {
 	var record Domain.DonationRecord
+	
 	if err := ctx.ShouldBindJSON(&record); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

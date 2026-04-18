@@ -35,21 +35,30 @@ func main() {
 	donationRepo := Repository.NewDonationRepository(db)
 	labRepo := Repository.NewLabRepository(db)
 	inventoryRepo := Repository.NewBloodInventoryRepository(db)
+	campaignAnalyticsRepo := Repository.NewCampaignAnalyticsRepository(db)
+	collectorAnalyticsRepo := Repository.NewCollectorAnalyticsRepository(db)
+	labAnalyticsRepo := Repository.NewLabAnalyticsRepository(db)
 
 	// --- Usecases ---
 	campaignUsecase := Usecase.NewCampaignUsecase(campaignRepo)
-	donationUsecase := Usecase.NewDonationUsecase(donationRepo)
+	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo)
 	labUsecase := Usecase.NewLabUsecase(labRepo)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
+	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
+	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
+	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)
 
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
 	donationController := controller.NewDonationController(donationUsecase)
 	labController := controller.NewLabController(labUsecase)
 	inventoryController := controller.NewBloodInventoryController(inventoryUsecase)
+	campaignAnalyticsController := controller.NewCampaignAnalyticsController(campaignAnalyticsUsecase)
+	collectorAnalyticsController := controller.NewCollectorAnalyticsController(collectorAnalyticsUsecase)
+	labAnalyticsController := controller.NewLabAnalyticsController(labAnalyticsUsecase)
 
 	// 5. Initialize Router
-	r := router.SetupRouter(userController, jwtService, campaignController, donationController, labController, inventoryController)
+	r := router.SetupRouter(userController, jwtService, campaignController, donationController, labController, inventoryController, campaignAnalyticsController, collectorAnalyticsController,labAnalyticsController)
 
 	// 7. Start the Server
 	log.Println("Starting server on :8080")

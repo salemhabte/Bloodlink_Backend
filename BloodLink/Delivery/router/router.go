@@ -17,6 +17,9 @@ func SetupRouter(
 	donationController *controller.DonationController,
 	labController *controller.LabController,
 	inventoryController *controller.BloodInventoryController,
+	campaignAnalyticsController *controller.CampaignAnalyticsController,
+	collectorAnalyticsController *controller.CollectorAnalyticsController,
+	labAnalyticsController *controller.LabAnalyticsController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -103,7 +106,7 @@ bloodCollector.GET("/donor/search/pending", donationController.SearchPendingDono
 }
 
 lab := r.Group("/api/lab")
-lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+// lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 {
 	lab.POST("/tests", labController.SubmitTestResult)
 	lab.GET("/tests/:donation_id", labController.GetTestResult)
@@ -136,6 +139,26 @@ labInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 	labInventory.GET("/", inventoryController.GetAll)
 	labInventory.GET("/filter", inventoryController.Filter)
 	labInventory.GET("/:id/details", inventoryController.GetFullDetails)
+}
+analytics := r.Group("/api/analytics/campaigns")
+
+analytics.GET("/dashboard", campaignAnalyticsController.GetDashboard)
+analytics.GET("/:id", campaignAnalyticsController.GetCampaignReport)
+analytics.GET("/", campaignAnalyticsController.GetAllReports)
+
+
+collectorAnalytics := r.Group("/api/analytics/collector")
+// collectorAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
+{
+	collectorAnalytics.GET("/kpi", collectorAnalyticsController.GetKPI)
+	collectorAnalytics.GET("/today", collectorAnalyticsController.GetTodayStats)
+	collectorAnalytics.GET("/donor-insights", collectorAnalyticsController.GetDonorInsights)
+}
+
+labAnalytics := r.Group("/api/analytics/lab")
+// labAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+{
+	labAnalytics.GET("/dashboard", labAnalyticsController.GetDashboard)
 }
 
 	return r

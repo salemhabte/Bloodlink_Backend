@@ -47,12 +47,13 @@ func (u *CampaignUsecase) GetCampaignsByLocation(location string) ([]Domain.Camp
 
 // DonationUsecase contains business logic for blood donations
 type DonationUsecase struct {
-	repo Interface.IDonationRepository
+	repo         Interface.IDonationRepository
+	campaignRepo Interface.ICampaignRepository
 }
 
 // Constructor
-func NewDonationUsecase(repo Interface.IDonationRepository) *DonationUsecase {
-	return &DonationUsecase{repo: repo}
+func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interface.ICampaignRepository) *DonationUsecase {
+	return &DonationUsecase{repo: repo, campaignRepo: campaignRepo}
 }
 
 // CreateDonation handles the business logic for recording a new donation
@@ -62,11 +63,18 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	record.DonationID = uuid.New().String()
 
 	// 2. Clear client-provided status (system sets it)
-	record.Status = ""
+	record.Status = "PENDING"
 
 	// 3. Set collection date if not provided
 	if record.CollectionDate.IsZero() {
 		record.CollectionDate = time.Now()
+	}
+	// Validate campaign 
+	if record.CampaignID != nil {
+		_, err := u.campaignRepo.GetCampaignByID(*record.CampaignID)
+		if err != nil {
+			return errors.New("invalid campaign_id")
+		}
 	}
 
 	// 4. Check if donor donated within last 3 months

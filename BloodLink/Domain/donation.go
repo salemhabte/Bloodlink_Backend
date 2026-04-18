@@ -6,6 +6,7 @@ import "time"
 type DonationRecord struct {
     DonationID     string    `json:"donation_id"`
     DonorID        string    `json:"donor_id"`
+    CampaignID     *string   `json:"campaign_id"`
     CollectedBy    string    `json:"collected_by"`
     //It is donor name, collecter name and overall status
     //used only in the API response and not in the database
