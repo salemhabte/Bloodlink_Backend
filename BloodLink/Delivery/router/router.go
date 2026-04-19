@@ -93,7 +93,7 @@ func SetupRouter(
 	}
 	// Blood Collector Routes
 bloodCollector := r.Group("/api/bloodcollector")
-// bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
+bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
 {
 	bloodCollector.GET("/donors", donationController.GetPendingDonors)
 bloodCollector.GET("/donor/:id", donationController.GetDonorByID)
@@ -149,7 +149,7 @@ analytics.GET("/", campaignAnalyticsController.GetAllReports)
 
 
 collectorAnalytics := r.Group("/api/analytics/collector")
-// collectorAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
+ collectorAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
 {
 	collectorAnalytics.GET("/kpi", collectorAnalyticsController.GetKPI)
 	collectorAnalytics.GET("/today", collectorAnalyticsController.GetTodayStats)
@@ -157,12 +157,12 @@ collectorAnalytics := r.Group("/api/analytics/collector")
 }
 
 labAnalytics := r.Group("/api/analytics/lab")
-// labAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+labAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 {
 	labAnalytics.GET("/dashboard", labAnalyticsController.GetDashboard)
 }
 adminAnalytics := r.Group("/api/analytics/admin")
-//adminAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
+adminAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
 {
 	// FULL DASHBOARD
 	adminAnalytics.GET("/dashboard", adminAnalyticsController.GetDashboard)
