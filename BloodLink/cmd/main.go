@@ -38,6 +38,7 @@ func main() {
 	campaignAnalyticsRepo := Repository.NewCampaignAnalyticsRepository(db)
 	collectorAnalyticsRepo := Repository.NewCollectorAnalyticsRepository(db)
 	labAnalyticsRepo := Repository.NewLabAnalyticsRepository(db)
+	adminAnalyticsRepo := Repository.NewAdminAnalyticsRepository(db)
 
 	// --- Usecases ---
 	campaignUsecase := Usecase.NewCampaignUsecase(campaignRepo)
@@ -47,6 +48,7 @@ func main() {
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
 	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)
+	adminAnalyticsUsecase := Usecase.NewAdminAnalyticsUsecase(adminAnalyticsRepo)
 
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
@@ -56,9 +58,10 @@ func main() {
 	campaignAnalyticsController := controller.NewCampaignAnalyticsController(campaignAnalyticsUsecase)
 	collectorAnalyticsController := controller.NewCollectorAnalyticsController(collectorAnalyticsUsecase)
 	labAnalyticsController := controller.NewLabAnalyticsController(labAnalyticsUsecase)
+	adminAnalyticsController := controller.NewAdminAnalyticsController(adminAnalyticsUsecase)
 
 	// 5. Initialize Router
-	r := router.SetupRouter(userController, jwtService, campaignController, donationController, labController, inventoryController, campaignAnalyticsController, collectorAnalyticsController,labAnalyticsController)
+	r := router.SetupRouter(userController, jwtService, campaignController, donationController, labController, inventoryController, campaignAnalyticsController, collectorAnalyticsController,labAnalyticsController,adminAnalyticsController)
 
 	// 7. Start the Server
 	log.Println("Starting server on :8080")
