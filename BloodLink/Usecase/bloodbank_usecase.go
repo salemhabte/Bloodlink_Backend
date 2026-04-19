@@ -59,17 +59,26 @@ func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interfa
 // CreateDonation handles the business logic for recording a new donation
 func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 
-	// 1. Generate donation ID automatically
+	// ================================
+	// 1. Generate donation ID
+	// ================================
 	record.DonationID = uuid.New().String()
 
-	// 2. Clear client-provided status (system sets it)
+	// ================================
+	// 2. System-controlled status
+	// ================================
 	record.Status = "PENDING"
 
-	// 3. Set collection date if not provided
+	// ================================
+	// 3. Set collection date
+	// ================================
 	if record.CollectionDate.IsZero() {
 		record.CollectionDate = time.Now()
 	}
-	// Validate campaign 
+
+	// ================================
+	// 4. Validate campaign (if provided)
+	// ================================
 	if record.CampaignID != nil {
 		_, err := u.campaignRepo.GetCampaignByID(*record.CampaignID)
 		if err != nil {
@@ -77,7 +86,22 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 		}
 	}
 
-	// 4. Check if donor donated within last 3 months
+	// ================================
+	// 5. IMPORTANT: Check donor eligibility FIRST
+	// ================================
+	overallStatus, err := u.repo.GetDonorOverallStatus(record.DonorID)
+	if err != nil {
+		return errors.New("donor not found")
+	}
+
+	// ❌ BLOCK permanently deferred donors (e.g HIV positive)
+	if overallStatus == "PERMANENTLY_DEFERRED" {
+		return errors.New("donor is permanently deferred and cannot donate")
+	}
+
+	// ================================
+	// 6. 3-MONTH RULE CHECK
+	// ================================
 	lastDonation, err := u.repo.GetLastDonationByDonor(record.DonorID)
 	if err == nil && lastDonation != nil {
 		if time.Since(lastDonation.CollectionDate).Hours() < 2160 {
@@ -85,15 +109,23 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 		}
 	}
 
-	// 5. System automatically evaluates donation status
+	// ================================
+	// 7. Evaluate donation (medical screening)
+	// ================================
 	u.evaluateDonation(record)
 
-	// 6. Save to database
+
+
+	// ================================
+	// 8. Save donation
+	// ================================
 	if err := u.repo.CreateDonation(record); err != nil {
 		return err
 	}
 
-	// 7.Update donor weight
+	// ================================
+	// 9. Update donor weight
+	// ================================
 	if err := u.repo.UpdateDonorWeight(record.DonorID, record.Weight); err != nil {
 		return err
 	}

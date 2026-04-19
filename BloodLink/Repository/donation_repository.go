@@ -445,3 +445,20 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 
 	return donations, nil
 }
+func (r *donationRepository) GetDonorOverallStatus(donorID string) (string, error) {
+
+	query := `
+	SELECT overall_status
+	FROM donors
+	WHERE donor_id = $1
+	`
+
+	var status string
+
+	err := r.db.QueryRow(query, donorID).Scan(&status)
+	if err != nil {
+		return "", err
+	}
+
+	return status, nil
+}
