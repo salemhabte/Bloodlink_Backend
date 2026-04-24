@@ -74,8 +74,8 @@ func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) e
 	user.OTP = Infrastructure.GenerateOTP()
 
 	// Ensure role is valid
-	if user.Role == "" {
-		user.Role = domain.RoleDonor
+	if user.Role == domain.RoleDonor {
+		return errors.New("please use the donor registration endpoint to register as a donor")
 	}
 
 	if user.Role == domain.RoleBloodBankAdmin {
@@ -95,6 +95,59 @@ func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) e
 	}(user.Email, user.OTP)
 
 	return nil
+}
+
+func (u *UserUseCaseBase) RegisterDonor(ctx context.Context, req *domain.RegisterDonorRequest) error {
+	// 1. Validate
+	if !u.validation.IsValidEmail(req.Email) {
+		return errors.New("invalid email format")
+	}
+	if !u.validation.IsStrongPassword(req.Password) {
+		return errors.New("password is not strong enough")
+	}
+
+	// 2. Hash password
+	hashedPassword := u.validation.Hashpassword(req.Password)
+
+	// 3. Create User
+	userID := uuid.New().String()
+	user := &domain.User{
+		ID:        userID,
+		FullName:  req.FullName,
+		Email:     req.Email,
+		Phone:     req.Phone,
+		Password:  hashedPassword,
+		Role:      domain.RoleDonor,
+		IsActive:  true, // No OTP verification
+		CreatedAt: time.Now(),
+	}
+
+	if err := u.userRepo.CreateUser(ctx, user); err != nil {
+		return err
+	}
+
+	// 4. Create Profile
+	profile := &domain.UserProfile{
+		ProfileID: uuid.New().String(),
+		UserID:    userID,
+		FullName:  req.FullName,
+		Phone:     req.Phone,
+		Address:   req.Address,
+	}
+
+	if err := u.profileRepo.CreateProfile(ctx, profile); err != nil {
+		return err
+	}
+
+	// 5. Create Donor
+	donor := &domain.Donor{
+		DonorID:       uuid.New().String(),
+		UserID:        userID,
+		DateOfBirth:   req.BirthDate,
+		OverallStatus: "Pending",
+	}
+
+	return u.userRepo.CreateDonor(ctx, donor)
 }
 
 func (u *UserUseCaseBase) VerifyOTP(ctx context.Context, email, otp string) error {
@@ -125,16 +178,6 @@ func (u *UserUseCaseBase) VerifyOTP(ctx context.Context, email, otp string) erro
 
 	if err := u.profileRepo.CreateProfile(ctx, profile); err != nil {
 		return err
-	}
-
-	// Create role-specific tables
-	if user.Role == domain.RoleDonor {
-		donor := &domain.Donor{
-			DonorID:       uuid.New().String(),
-			UserID:        user.ID,
-			OverallStatus: "Pending",
-		}
-		return u.userRepo.CreateDonor(ctx, donor)
 	}
 
 	return nil
