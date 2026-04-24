@@ -35,6 +35,7 @@ func main() {
 	donationRepo := Repository.NewDonationRepository(db)
 	labRepo := Repository.NewLabRepository(db)
 	inventoryRepo := Repository.NewBloodInventoryRepository(db)
+	hospitalRepo := Repository.NewHospitalRepository(db)
 	campaignAnalyticsRepo := Repository.NewCampaignAnalyticsRepository(db)
 	collectorAnalyticsRepo := Repository.NewCollectorAnalyticsRepository(db)
 	labAnalyticsRepo := Repository.NewLabAnalyticsRepository(db)
@@ -45,6 +46,12 @@ func main() {
 	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo)
 	labUsecase := Usecase.NewLabUsecase(labRepo)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
+	
+	pdfService := Usecase.NewPDFGeneratorService("./uploads")
+	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo)
+
+	bloodReqRepo := Repository.NewBloodRequestRepository(db)
+	bloodReqUsecase := Usecase.NewBloodRequestUsecase(bloodReqRepo, hospitalRepo)
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
 	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)
@@ -55,6 +62,20 @@ func main() {
 	donationController := controller.NewDonationController(donationUsecase)
 	labController := controller.NewLabController(labUsecase)
 	inventoryController := controller.NewBloodInventoryController(inventoryUsecase)
+	hospitalController := controller.NewHospitalController(hospitalUsecase)
+	bloodReqController := controller.NewBloodRequestController(bloodReqUsecase)
+
+	// 5. Initialize Router
+	r := router.SetupRouter(
+		userController, 
+		jwtService, 
+		campaignController, 
+		donationController, 
+		labController, 
+		inventoryController, 
+		hospitalController,
+		bloodReqController,
+	)
 	campaignAnalyticsController := controller.NewCampaignAnalyticsController(campaignAnalyticsUsecase)
 	collectorAnalyticsController := controller.NewCollectorAnalyticsController(collectorAnalyticsUsecase)
 	labAnalyticsController := controller.NewLabAnalyticsController(labAnalyticsUsecase)
