@@ -24,4 +24,6 @@ type IDonationRepository interface {
 GetPendingDonors() ([]domain.DonorResponse, error)
 GetPendingDonorByID(donorID string) (*domain.DonorResponse, error)
 SearchPendingDonor(query string) (*domain.DonorResponse, error)
+GetAllDonationsByDonor(donorID string) ([]domain.DonationRecord, error)
+GetDonorOverallStatus(donorID string) (string, error)
 }

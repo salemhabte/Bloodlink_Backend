@@ -19,6 +19,10 @@ func SetupRouter(
 	inventoryController *controller.BloodInventoryController,
 	hospitalController *controller.HospitalController,
 	bloodReqController *controller.BloodRequestController,
+	campaignAnalyticsController *controller.CampaignAnalyticsController,
+	collectorAnalyticsController *controller.CollectorAnalyticsController,
+	labAnalyticsController *controller.LabAnalyticsController,
+	adminAnalyticsController *controller.AdminAnalyticsController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -125,7 +129,7 @@ func SetupRouter(
 	}
 	// Blood Collector Routes
 bloodCollector := r.Group("/api/bloodcollector")
-// bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
+bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
 {
 	bloodCollector.GET("/donors", donationController.GetPendingDonors)
 bloodCollector.GET("/donor/:id", donationController.GetDonorByID)
@@ -139,7 +143,7 @@ bloodCollector.GET("/donor/search/pending", donationController.SearchPendingDono
 }
 
 lab := r.Group("/api/lab")
-lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+ lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 {
 	lab.POST("/tests", labController.SubmitTestResult)
 	lab.GET("/tests/:donation_id", labController.GetTestResult)
@@ -172,6 +176,39 @@ labInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 	labInventory.GET("/", inventoryController.GetAll)
 	labInventory.GET("/filter", inventoryController.Filter)
 	labInventory.GET("/:id/details", inventoryController.GetFullDetails)
+}
+analytics := r.Group("/api/analytics/campaigns")
+
+analytics.GET("/dashboard", campaignAnalyticsController.GetDashboard)
+analytics.GET("/:id", campaignAnalyticsController.GetCampaignReport)
+analytics.GET("/", campaignAnalyticsController.GetAllReports)
+
+
+collectorAnalytics := r.Group("/api/analytics/collector")
+ collectorAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
+{
+	collectorAnalytics.GET("/kpi", collectorAnalyticsController.GetKPI)
+	collectorAnalytics.GET("/today", collectorAnalyticsController.GetTodayStats)
+	collectorAnalytics.GET("/donor-insights", collectorAnalyticsController.GetDonorInsights)
+}
+
+labAnalytics := r.Group("/api/analytics/lab")
+labAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+{
+	labAnalytics.GET("/dashboard", labAnalyticsController.GetDashboard)
+}
+adminAnalytics := r.Group("/api/analytics/admin")
+adminAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
+{
+	// FULL DASHBOARD
+	adminAnalytics.GET("/dashboard", adminAnalyticsController.GetDashboard)
+
+	// OPTIONAL SPLIT ENDPOINTS
+	adminAnalytics.GET("/donors", adminAnalyticsController.GetDonorSummary)
+	adminAnalytics.GET("/screening", adminAnalyticsController.GetScreeningSummary)
+	adminAnalytics.GET("/collectors", adminAnalyticsController.GetCollectorSummary)
+	adminAnalytics.GET("/lab", adminAnalyticsController.GetLabSummary)
+	adminAnalytics.GET("/inventory", adminAnalyticsController.GetInventorySummary)
 }
 
 hospitalGrp := r.Group("/api/hospitaladmin")

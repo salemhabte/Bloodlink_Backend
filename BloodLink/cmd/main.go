@@ -36,10 +36,14 @@ func main() {
 	labRepo := Repository.NewLabRepository(db)
 	inventoryRepo := Repository.NewBloodInventoryRepository(db)
 	hospitalRepo := Repository.NewHospitalRepository(db)
+	campaignAnalyticsRepo := Repository.NewCampaignAnalyticsRepository(db)
+	collectorAnalyticsRepo := Repository.NewCollectorAnalyticsRepository(db)
+	labAnalyticsRepo := Repository.NewLabAnalyticsRepository(db)
+	adminAnalyticsRepo := Repository.NewAdminAnalyticsRepository(db)
 
 	// --- Usecases ---
 	campaignUsecase := Usecase.NewCampaignUsecase(campaignRepo)
-	donationUsecase := Usecase.NewDonationUsecase(donationRepo)
+	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo)
 	labUsecase := Usecase.NewLabUsecase(labRepo)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
 	
@@ -48,6 +52,10 @@ func main() {
 
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)
 	bloodReqUsecase := Usecase.NewBloodRequestUsecase(bloodReqRepo, hospitalRepo)
+	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
+	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
+	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)
+	adminAnalyticsUsecase := Usecase.NewAdminAnalyticsUsecase(adminAnalyticsRepo)
 
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
@@ -68,6 +76,13 @@ func main() {
 		hospitalController,
 		bloodReqController,
 	)
+	campaignAnalyticsController := controller.NewCampaignAnalyticsController(campaignAnalyticsUsecase)
+	collectorAnalyticsController := controller.NewCollectorAnalyticsController(collectorAnalyticsUsecase)
+	labAnalyticsController := controller.NewLabAnalyticsController(labAnalyticsUsecase)
+	adminAnalyticsController := controller.NewAdminAnalyticsController(adminAnalyticsUsecase)
+
+	// 5. Initialize Router
+	r := router.SetupRouter(userController, jwtService, campaignController, donationController, labController, inventoryController, campaignAnalyticsController, collectorAnalyticsController,labAnalyticsController,adminAnalyticsController)
 
 	// 7. Start the Server
 	log.Println("Starting server on :8080")
