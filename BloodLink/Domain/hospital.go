@@ -64,17 +64,18 @@ type HospitalContract struct {
 
 // Request and Response DTOs
 type RegisterHospitalRequestDTO struct {
-	HospitalName  string `json:"hospital_name" binding:"required"`
-	Address       string `json:"address" binding:"required"`
-	Phone         string `json:"phone" binding:"required"`
-	AdminFullName string `json:"admin_full_name" binding:"required"`
-	AdminEmail    string `json:"admin_email" binding:"required,email"`
-	AdminPhone    string `json:"admin_phone" binding:"required"`
-	AdminPassword string `json:"admin_password" binding:"required,min=8"`
+	HospitalName    string `json:"hospital_name" binding:"required"`
+	Address         string `json:"address" binding:"required"`
+	Phone           string `json:"phone" binding:"required"`
+	LicenseDocument string `json:"license_document" binding:"required"`
+	AdminFullName   string `json:"admin_full_name" binding:"required"`
+	AdminEmail      string `json:"admin_email" binding:"required,email"`
+	AdminPhone      string `json:"admin_phone" binding:"required"`
+	AdminPassword   string `json:"admin_password" binding:"required,min=8"`
 }
 
 type SignContractRequestDTO struct {
-	SignatureBase64 string `json:"signature_base64" binding:"required"`
+	SignatureURL string `json:"signature_url" binding:"required"`
 }
 
 type ApproveHospitalRequestDTO struct {

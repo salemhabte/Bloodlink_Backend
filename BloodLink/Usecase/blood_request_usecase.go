@@ -32,6 +32,24 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 		return err
 	}
 
+	// CHECK FOR FINALIZED CONTRACT
+	contracts, err := u.hospitalRepo.GetContractsByHospitalID(hospital_id)
+	if err != nil {
+		return err
+	}
+
+	hasFinalizedContract := false
+	for _, c := range contracts {
+		if c.Status == Domain.ContractStatusFinalized {
+			hasFinalizedContract = true
+			break
+		}
+	}
+
+	if !hasFinalizedContract {
+		return errors.New("cannot create blood request: hospital does not have a finalized contract")
+	}
+
 	requestID := uuid.New().String()
 	br := &Domain.BloodRequest{
 		RequestID:    requestID,

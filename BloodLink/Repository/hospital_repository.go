@@ -109,6 +109,27 @@ func (r *hospitalRepository) GetContractByID(contractID string) (*Domain.Hospita
 	return contract, err
 }
 
+func (r *hospitalRepository) GetContractsByHospitalID(hospitalID string) ([]Domain.HospitalContract, error) {
+	query := `SELECT contract_id, hospital_id, blood_bank_admin_id, document, status, contract_start, contract_end, created_at, hospital_signature_path, admin_signature_path, template_id
+			  FROM hospital_contracts WHERE hospital_id = $1 ORDER BY created_at DESC`
+	rows, err := r.db.Query(query, hospitalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var contracts []Domain.HospitalContract
+	for rows.Next() {
+		var c Domain.HospitalContract
+		err := rows.Scan(&c.ContractID, &c.HospitalID, &c.BloodBankAdminID, &c.Document, &c.Status, &c.ContractStart, &c.ContractEnd, &c.CreatedAt, &c.HospitalSignaturePath, &c.AdminSignaturePath, &c.TemplateID)
+		if err != nil {
+			return nil, err
+		}
+		contracts = append(contracts, c)
+	}
+	return contracts, nil
+}
+
 func (r *hospitalRepository) GetHospitalByID(hospitalID string) (*Domain.Hospital, error) {
 	query := `SELECT hospital_id, name, address, phone, created_at FROM hospitals WHERE hospital_id = $1`
 	hospital := &Domain.Hospital{}

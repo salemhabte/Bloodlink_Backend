@@ -15,6 +15,7 @@ type IHospitalRepository interface {
 	CreateContract(contract *Domain.HospitalContract) error
 
 	GetContractByID(contractID string) (*Domain.HospitalContract, error)
+	GetContractsByHospitalID(hospitalID string) ([]Domain.HospitalContract, error)
 	GetHospitalByID(hospitalID string) (*Domain.Hospital, error)
 	UpdateContract(contract *Domain.HospitalContract) error
 
@@ -33,6 +34,9 @@ type IHospitalUsecase interface {
 	HospitalSignContract(contractID string, req *Domain.SignContractRequestDTO, hospitalAdminID string) error
 	AdminSignContract(contractID string, req *Domain.SignContractRequestDTO, bloodBankAdminID string) error
 	RejectContract(contractID string, userID string, role string) error
+	GetContractByID(contractID string) (*Domain.HospitalContract, error)
+	GetHospitalContracts(userID string) ([]Domain.HospitalContract, error)
+	GetLatestHospitalContract(userID string) (*Domain.HospitalContract, error)
 
 	CreateContractTemplate(req *Domain.CreateTemplateRequestDTO, adminID string) error
 	GetContractTemplates() ([]Domain.ContractTemplate, error)

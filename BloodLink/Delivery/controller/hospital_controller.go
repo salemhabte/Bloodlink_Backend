@@ -3,6 +3,7 @@ package controller
 import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
+	"database/sql"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -42,7 +43,7 @@ func (c *HospitalController) GetPendingRequests(ctx *gin.Context) {
 
 func (c *HospitalController) ApproveRequest(ctx *gin.Context) {
 	requestID := ctx.Param("id")
-	bloodBankAdminID := ctx.GetString("user_id")
+	bloodBankAdminID := ctx.GetString("userID")
 
 	var payload Domain.ApproveHospitalRequestDTO
 	if err := ctx.ShouldBindJSON(&payload); err != nil {
@@ -70,7 +71,7 @@ func (c *HospitalController) RejectRequest(ctx *gin.Context) {
 
 func (c *HospitalController) HospitalSignContract(ctx *gin.Context) {
 	contractID := ctx.Param("id")
-	adminID := ctx.GetString("user_id")
+	adminID := ctx.GetString("userID")
 
 	var req Domain.SignContractRequestDTO
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -87,7 +88,7 @@ func (c *HospitalController) HospitalSignContract(ctx *gin.Context) {
 
 func (c *HospitalController) AdminSignContract(ctx *gin.Context) {
 	contractID := ctx.Param("id")
-	adminID := ctx.GetString("user_id")
+	adminID := ctx.GetString("userID")
 
 	var req Domain.SignContractRequestDTO
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -104,7 +105,7 @@ func (c *HospitalController) AdminSignContract(ctx *gin.Context) {
 
 func (c *HospitalController) RejectContract(ctx *gin.Context) {
 	contractID := ctx.Param("id")
-	userID := ctx.GetString("user_id")
+	userID := ctx.GetString("userID")
 	role := ctx.GetString("role")
 
 	if err := c.Usecase.RejectContract(contractID, userID, role); err != nil {
@@ -114,8 +115,63 @@ func (c *HospitalController) RejectContract(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract rejected"})
 }
 
+func (c *HospitalController) GetContractByID(ctx *gin.Context) {
+	contractID := ctx.Param("id")
+	contract, err := c.Usecase.GetContractByID(contractID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "Contract not found"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, contract)
+}
+
+func (c *HospitalController) GetMyContracts(ctx *gin.Context) {
+	userID := ctx.GetString("userID")
+	contracts, err := c.Usecase.GetHospitalContracts(userID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, contracts)
+}
+
+func (c *HospitalController) GetMyLatestContract(ctx *gin.Context) {
+	userID := ctx.GetString("userID")
+	contract, err := c.Usecase.GetLatestHospitalContract(userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "No contracts found for this hospital"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, contract)
+}
+
+func (c *HospitalController) DownloadContract(ctx *gin.Context) {
+	contractID := ctx.Param("id")
+	contract, err := c.Usecase.GetContractByID(contractID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if contract.Document == nil || *contract.Document == "" {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Contract document not found"})
+		return
+	}
+
+	filePath := *contract.Document
+	ctx.FileAttachment(filePath, "contract.pdf")
+}
+
 func (c *HospitalController) CreateContractTemplate(ctx *gin.Context) {
-	adminID := ctx.GetString("user_id")
+	adminID := ctx.GetString("userID")
 	var req Domain.CreateTemplateRequestDTO
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

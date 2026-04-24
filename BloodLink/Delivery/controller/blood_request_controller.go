@@ -17,7 +17,7 @@ func NewBloodRequestController(u Interfaces.IBloodRequestUsecase) *BloodRequestC
 }
 
 func (c *BloodRequestController) CreateBloodRequest(ctx *gin.Context) {
-	hospitalAdminID := ctx.GetString("user_id")
+	hospitalAdminID := ctx.GetString("userID")
 
 	var req Domain.CreateBloodRequestDTO
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -34,7 +34,7 @@ func (c *BloodRequestController) CreateBloodRequest(ctx *gin.Context) {
 }
 
 func (c *BloodRequestController) GetHospitalRequests(ctx *gin.Context) {
-	hospitalAdminID := ctx.GetString("user_id")
+	hospitalAdminID := ctx.GetString("userID")
 
 	reqs, err := c.Usecase.GetHospitalRequests(hospitalAdminID)
 	if err != nil {

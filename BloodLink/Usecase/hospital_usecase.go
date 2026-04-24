@@ -4,11 +4,9 @@ import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
 	"context"
-	"encoding/base64"
+	"database/sql"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -42,12 +40,13 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 
 	requestID := uuid.New().String()
 	hospitalReq := &Domain.HospitalRequest{
-		RequestID:    requestID,
-		HospitalName: req.HospitalName,
-		Address:      req.Address,
-		Phone:        req.Phone,
-		Status:       Domain.RequestStatusPending,
-		CreatedAt:    time.Now(),
+		RequestID:       requestID,
+		HospitalName:    req.HospitalName,
+		Address:         req.Address,
+		Phone:           req.Phone,
+		LicenseDocument: req.LicenseDocument,
+		Status:          Domain.RequestStatusPending,
+		CreatedAt:       time.Now(),
 	}
 
 	err = u.repo.CreateHospitalRequest(hospitalReq)
@@ -131,7 +130,7 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 	contractID := uuid.New().String()
 	now := time.Now()
 	oneYearLater := now.AddDate(1, 0, 0)
-	
+
 	renderedText := strings.ReplaceAll(template.Content, "{{hospital_name}}", req.HospitalName)
 	renderedText = strings.ReplaceAll(renderedText, "{{contract_start_date}}", now.Format("2006-01-02"))
 	renderedText = strings.ReplaceAll(renderedText, "{{contract_end_date}}", oneYearLater.Format("2006-01-02"))
@@ -165,28 +164,6 @@ func (u *hospitalUsecase) RejectRequest(requestID string) error {
 	return u.repo.UpdateHospitalRequestStatus(requestID, Domain.RequestStatusRejected)
 }
 
-// decodeBase64ToImage saves base64 string to a file and returns the path
-func decodeBase64ToImage(base64Str, prefix, id string) (string, error) {
-	// Simple stripping of prefix if data:image/... metadata is included
-	b64data := base64Str
-	if strings.Contains(base64Str, ",") {
-		parts := strings.SplitN(base64Str, ",", 2)
-		b64data = parts[1]
-	}
-
-	data, err := base64.StdEncoding.DecodeString(b64data)
-	if err != nil {
-		return "", err
-	}
-
-	uploadsDir := "uploads/signatures"
-	os.MkdirAll(uploadsDir, 0755)
-
-	filePath := filepath.Join(uploadsDir, fmt.Sprintf("%s_%s.png", prefix, id))
-	err = os.WriteFile(filePath, data, 0644)
-	return filePath, err
-}
-
 func (u *hospitalUsecase) HospitalSignContract(contractID string, req *Domain.SignContractRequestDTO, hospitalAdminID string) error {
 	contract, err := u.repo.GetContractByID(contractID)
 	if err != nil {
@@ -197,13 +174,7 @@ func (u *hospitalUsecase) HospitalSignContract(contractID string, req *Domain.Si
 		return errors.New("contract is not in pending state")
 	}
 
-	// Save signature image
-	sigPath, err := decodeBase64ToImage(req.SignatureBase64, "hospital", contractID)
-	if err != nil {
-		return err
-	}
-
-	contract.HospitalSignaturePath = &sigPath
+	contract.HospitalSignaturePath = &req.SignatureURL
 	contract.Status = Domain.ContractStatusApprovedByHospital
 
 	return u.repo.UpdateContract(contract)
@@ -219,13 +190,7 @@ func (u *hospitalUsecase) AdminSignContract(contractID string, req *Domain.SignC
 		return errors.New("contract has not been approved by hospital yet")
 	}
 
-	// Save signature image
-	sigPath, err := decodeBase64ToImage(req.SignatureBase64, "admin", contractID)
-	if err != nil {
-		return err
-	}
-
-	contract.AdminSignaturePath = &sigPath
+	contract.AdminSignaturePath = &req.SignatureURL
 
 	// Get Hospital Name
 	hospital, err := u.repo.GetHospitalByID(contract.HospitalID)
@@ -276,6 +241,33 @@ func (u *hospitalUsecase) RejectContract(contractID string, userID string, role 
 
 	contract.Status = Domain.ContractStatusRejected
 	return u.repo.UpdateContract(contract)
+}
+
+func (u *hospitalUsecase) GetContractByID(contractID string) (*Domain.HospitalContract, error) {
+	return u.repo.GetContractByID(contractID)
+}
+
+func (u *hospitalUsecase) GetHospitalContracts(userID string) ([]Domain.HospitalContract, error) {
+	admin, err := u.repo.GetHospitalAdminByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+	return u.repo.GetContractsByHospitalID(admin.HospitalID)
+}
+
+func (u *hospitalUsecase) GetLatestHospitalContract(userID string) (*Domain.HospitalContract, error) {
+	admin, err := u.repo.GetHospitalAdminByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+	contracts, err := u.repo.GetContractsByHospitalID(admin.HospitalID)
+	if err != nil {
+		return nil, err
+	}
+	if len(contracts) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return &contracts[0], nil
 }
 
 func (u *hospitalUsecase) CreateContractTemplate(req *Domain.CreateTemplateRequestDTO, adminID string) error {

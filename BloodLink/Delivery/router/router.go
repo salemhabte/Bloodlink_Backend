@@ -98,6 +98,8 @@ func SetupRouter(
 
 		adminContracts := admin.Group("/contracts")
 		{
+			adminContracts.GET("/:id", hospitalController.GetContractByID)
+			adminContracts.GET("/:id/download", hospitalController.DownloadContract)
 			adminContracts.POST("/:id/sign", hospitalController.AdminSignContract)
 			adminContracts.POST("/:id/reject", hospitalController.RejectContract)
 		}
@@ -177,6 +179,10 @@ hospitalGrp.Use(Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin))
 {
 	hContracts := hospitalGrp.Group("/contracts")
 	{
+		hContracts.GET("/", hospitalController.GetMyContracts)
+		hContracts.GET("/latest", hospitalController.GetMyLatestContract)
+		hContracts.GET("/:id", hospitalController.GetContractByID)
+		hContracts.GET("/:id/download", hospitalController.DownloadContract)
 		hContracts.POST("/:id/sign", hospitalController.HospitalSignContract)
 		hContracts.POST("/:id/reject", hospitalController.RejectContract)
 	}
@@ -187,6 +193,8 @@ hospitalGrp.Use(Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin))
 		hBloodReqs.GET("/", bloodReqController.GetHospitalRequests)
 	}
 }
+
+	r.Static("/uploads", "./uploads")
 
 	return r
 }
