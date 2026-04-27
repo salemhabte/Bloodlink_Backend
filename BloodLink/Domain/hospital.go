@@ -104,3 +104,17 @@ type HospitalRequestResponse struct {
 	AdminName    string `json:"admin_name"`
 	AdminEmail   string `json:"admin_email"`
 }
+
+type HospitalContractResponse struct {
+	ContractID            string     `json:"contract_id"`
+	HospitalID            string     `json:"hospital_id"`
+	HospitalName          string     `json:"hospital_name"`
+	BloodBankAdminID      string     `json:"blood_bank_admin_id"`
+	Document              *string    `json:"document"`
+	Status                string     `json:"status"`
+	ContractStart         *time.Time `json:"contract_start"`
+	ContractEnd           *time.Time `json:"contract_end"`
+	CreatedAt             time.Time  `json:"created_at"`
+	HospitalSignaturePath *string    `json:"hospital_signature_path"`
+	AdminSignaturePath    *string    `json:"admin_signature_path"`
+}

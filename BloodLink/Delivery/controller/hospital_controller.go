@@ -4,7 +4,9 @@ import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
 	"database/sql"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -216,4 +218,15 @@ func (c *HospitalController) DeleteContractTemplate(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract template deleted"})
+}
+
+func (c *HospitalController) GetSignedContracts(ctx *gin.Context) {
+	status := strings.ToUpper(strings.TrimSpace(ctx.Query("status")))
+	fmt.Printf("GetSignedContracts - Received status: '%s'\n", status)
+	contracts, err := c.Usecase.GetSignedContracts(status)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, contracts)
 }

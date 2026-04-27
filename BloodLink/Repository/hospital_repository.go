@@ -186,3 +186,46 @@ func (r *hospitalRepository) DeleteContractTemplate(templateID string) error {
 	_, err := r.db.Exec(query, templateID)
 	return err
 }
+
+func (r *hospitalRepository) GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error) {
+	var query string
+	var args []interface{}
+
+	if status != "" {
+		query = `SELECT c.contract_id, c.hospital_id, h.name as hospital_name, c.blood_bank_admin_id, c.document, 
+		                 c.status, c.contract_start, c.contract_end, c.created_at, c.hospital_signature_path, c.admin_signature_path
+				  FROM hospital_contracts c
+				  JOIN hospitals h ON c.hospital_id = h.hospital_id
+				  WHERE c.status = $1
+				  ORDER BY c.created_at DESC`
+		args = append(args, status)
+	} else {
+		query = `SELECT c.contract_id, c.hospital_id, h.name as hospital_name, c.blood_bank_admin_id, c.document, 
+		                 c.status, c.contract_start, c.contract_end, c.created_at, c.hospital_signature_path, c.admin_signature_path
+				  FROM hospital_contracts c
+				  JOIN hospitals h ON c.hospital_id = h.hospital_id
+				  WHERE c.status IN ($1, $2)
+				  ORDER BY c.created_at DESC`
+		args = append(args, Domain.ContractStatusApprovedByHospital, Domain.ContractStatusFinalized)
+	}
+	
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var contracts []Domain.HospitalContractResponse
+	for rows.Next() {
+		var c Domain.HospitalContractResponse
+		err := rows.Scan(
+			&c.ContractID, &c.HospitalID, &c.HospitalName, &c.BloodBankAdminID, &c.Document,
+			&c.Status, &c.ContractStart, &c.ContractEnd, &c.CreatedAt, &c.HospitalSignaturePath, &c.AdminSignaturePath,
+		)
+		if err != nil {
+			return nil, err
+		}
+		contracts = append(contracts, c)
+	}
+	return contracts, nil
+}

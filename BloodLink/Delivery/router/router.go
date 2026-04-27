@@ -102,6 +102,7 @@ func SetupRouter(
 
 		adminContracts := admin.Group("/contracts")
 		{
+			adminContracts.GET("/signed", hospitalController.GetSignedContracts)
 			adminContracts.GET("/:id", hospitalController.GetContractByID)
 			adminContracts.GET("/:id/download", hospitalController.DownloadContract)
 			adminContracts.POST("/:id/sign", hospitalController.AdminSignContract)

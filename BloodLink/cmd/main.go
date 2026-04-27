@@ -46,7 +46,7 @@ func main() {
 	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo)
 	labUsecase := Usecase.NewLabUsecase(labRepo)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
-	
+
 	pdfService := Usecase.NewPDFGeneratorService("./uploads")
 	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo)
 
@@ -64,25 +64,26 @@ func main() {
 	inventoryController := controller.NewBloodInventoryController(inventoryUsecase)
 	hospitalController := controller.NewHospitalController(hospitalUsecase)
 	bloodReqController := controller.NewBloodRequestController(bloodReqUsecase)
-
-	// 5. Initialize Router
-	r := router.SetupRouter(
-		userController, 
-		jwtService, 
-		campaignController, 
-		donationController, 
-		labController, 
-		inventoryController, 
-		hospitalController,
-		bloodReqController,
-	)
 	campaignAnalyticsController := controller.NewCampaignAnalyticsController(campaignAnalyticsUsecase)
 	collectorAnalyticsController := controller.NewCollectorAnalyticsController(collectorAnalyticsUsecase)
 	labAnalyticsController := controller.NewLabAnalyticsController(labAnalyticsUsecase)
 	adminAnalyticsController := controller.NewAdminAnalyticsController(adminAnalyticsUsecase)
 
 	// 5. Initialize Router
-	r := router.SetupRouter(userController, jwtService, campaignController, donationController, labController, inventoryController, campaignAnalyticsController, collectorAnalyticsController,labAnalyticsController,adminAnalyticsController)
+	r := router.SetupRouter(
+		userController,
+		jwtService,
+		campaignController,
+		donationController,
+		labController,
+		inventoryController,
+		hospitalController,
+		bloodReqController,
+		campaignAnalyticsController,
+		collectorAnalyticsController,
+		labAnalyticsController,
+		adminAnalyticsController,
+	)
 
 	// 7. Start the Server
 	log.Println("Starting server on :8080")

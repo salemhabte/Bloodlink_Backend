@@ -24,6 +24,7 @@ type IHospitalRepository interface {
 	GetContractTemplateByID(templateID string) (*Domain.ContractTemplate, error)
 	UpdateContractTemplate(template *Domain.ContractTemplate) error
 	DeleteContractTemplate(templateID string) error
+	GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error)
 }
 
 type IHospitalUsecase interface {
@@ -42,4 +43,5 @@ type IHospitalUsecase interface {
 	GetContractTemplates() ([]Domain.ContractTemplate, error)
 	UpdateContractTemplate(templateID string, req *Domain.CreateTemplateRequestDTO) error
 	DeleteContractTemplate(templateID string) error
+	GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error)
 }

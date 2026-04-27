@@ -298,3 +298,7 @@ func (u *hospitalUsecase) UpdateContractTemplate(templateID string, req *Domain.
 func (u *hospitalUsecase) DeleteContractTemplate(templateID string) error {
 	return u.repo.DeleteContractTemplate(templateID)
 }
+
+func (u *hospitalUsecase) GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error) {
+	return u.repo.GetSignedContracts(status)
+}
