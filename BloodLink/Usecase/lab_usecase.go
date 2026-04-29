@@ -226,3 +226,7 @@ func (u *LabUsecase) RejectBlood(donationID string) error {
 func (u *LabUsecase) GetDonation(donationID string) (*Domain.DonationRecord, error) {
 	return u.repo.GetDonationByID(donationID)
 }
+
+func (u *LabUsecase) GetLatestTestResultByDonor(donorID string) (*Domain.DonorTestResult, error) {
+	return u.repo.GetLatestTestResultByDonor(donorID)
+}

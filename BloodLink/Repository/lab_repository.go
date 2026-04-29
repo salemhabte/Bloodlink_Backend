@@ -376,3 +376,40 @@ func (r *LabRepository) UpdateBloodUnit(unit *Domain.BloodUnit) error {
 	_, err := r.DB.Exec(query, unit.BloodType, unit.Status, unit.DonationID)
 	return err
 }
+
+func (r *LabRepository) GetLatestTestResultByDonor(donorID string) (*Domain.DonorTestResult, error) {
+	var result Domain.DonorTestResult
+
+	query := `
+	SELECT 
+		test_id, 
+		donation_id, 
+		donor_id, 
+		tested_by, 
+		hiv_result, 
+		hepatitis_result, 
+		syphilis_result, 
+		blood_type, 
+		overall_status, 
+		created_at 
+	FROM donor_test_results 
+	WHERE donor_id = $1 
+	ORDER BY created_at DESC 
+	LIMIT 1
+	`
+
+	err := r.DB.QueryRow(query, donorID).Scan(
+		&result.TestID, &result.DonationID, &result.DonorID, &result.TestedBy,
+		&result.HIVResult, &result.HepatitisResult, &result.SyphilisResult,
+		&result.BloodType, &result.OverallStatus, &result.CreatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Return nil, nil if no test results are found
+		}
+		return nil, err
+	}
+
+	return &result, nil
+}

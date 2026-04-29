@@ -16,5 +16,6 @@ type ILabRepository interface {
 	DeleteBloodUnit(donationID string) error
 	 GetBloodUnitByDonationID(donationID string) (*Domain.BloodUnit, error)
     UpdateBloodUnit(unit *Domain.BloodUnit) error
+    GetLatestTestResultByDonor(donorID string) (*Domain.DonorTestResult, error)
 	
 }
