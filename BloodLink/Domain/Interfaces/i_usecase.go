@@ -21,4 +21,5 @@ type IUserUseCase interface {
 	Logout(ctx context.Context, userID string) error
 	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 	GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error)
+	GetDonorIDByUserID(ctx context.Context, userID string) (string, error)
 }

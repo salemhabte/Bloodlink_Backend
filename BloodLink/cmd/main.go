@@ -59,8 +59,8 @@ func main() {
 
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
-	donationController := controller.NewDonationController(donationUsecase)
-	labController := controller.NewLabController(labUsecase)
+	donationController := controller.NewDonationController(donationUsecase, userUseCase)
+	labController := controller.NewLabController(labUsecase, userUseCase)
 	inventoryController := controller.NewBloodInventoryController(inventoryUsecase)
 	hospitalController := controller.NewHospitalController(hospitalUsecase)
 	bloodReqController := controller.NewBloodRequestController(bloodReqUsecase)
