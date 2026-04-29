@@ -226,6 +226,8 @@ func SetupRouter(
 	hospitalGrp := r.Group("/api/hospitaladmin")
 	hospitalGrp.Use(Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin))
 	{
+		hospitalGrp.GET("/dashboard", hospitalController.GetHospitalDashboard)
+
 		hContracts := hospitalGrp.Group("/contracts")
 		{
 			hContracts.GET("/", hospitalController.GetMyContracts)

@@ -230,3 +230,13 @@ func (c *HospitalController) GetSignedContracts(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, contracts)
 }
+
+func (c *HospitalController) GetHospitalDashboard(ctx *gin.Context) {
+	userID := ctx.GetString("userID")
+	dashboard, err := c.Usecase.GetHospitalDashboard(userID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, dashboard)
+}

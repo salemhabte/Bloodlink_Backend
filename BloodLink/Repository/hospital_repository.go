@@ -208,7 +208,7 @@ func (r *hospitalRepository) GetSignedContracts(status string) ([]Domain.Hospita
 				  ORDER BY c.created_at DESC`
 		args = append(args, Domain.ContractStatusApprovedByHospital, Domain.ContractStatusFinalized)
 	}
-	
+
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -228,4 +228,84 @@ func (r *hospitalRepository) GetSignedContracts(status string) ([]Domain.Hospita
 		contracts = append(contracts, c)
 	}
 	return contracts, nil
+}
+
+func (r *hospitalRepository) GetHospitalDashboard(hospitalID string) (*Domain.HospitalDashboard, error) {
+	dashboard := &Domain.HospitalDashboard{}
+
+	// 1. Get Request counts
+	err := r.db.QueryRow(`
+		SELECT 
+			COUNT(*),
+			COUNT(*) FILTER (WHERE status = 'FULFILLED'),
+			COUNT(*) FILTER (WHERE status = 'APPROVED_PARTIALLY_FULFILLED'),
+			COUNT(*) FILTER (WHERE status = 'REJECTED'),
+			COUNT(*) FILTER (WHERE status = 'PENDING'),
+			COALESCE(SUM(quantity), 0)
+		FROM blood_requests 
+		WHERE hospital_id = $1`, hospitalID).Scan(
+		&dashboard.TotalRequests,
+		&dashboard.ApprovedRequests,
+		&dashboard.PartiallyFulfilled,
+		&dashboard.RejectedRequests,
+		&dashboard.PendingRequests,
+		&dashboard.TotalUnitsRequested,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Get Most Requested Blood Type
+	var mostType sql.NullString
+	_ = r.db.QueryRow(`
+		SELECT blood_type 
+		FROM blood_requests 
+		WHERE hospital_id = $1 
+		GROUP BY blood_type 
+		ORDER BY COUNT(*) DESC 
+		LIMIT 1`, hospitalID).Scan(&mostType)
+	dashboard.MostRequestedBloodType = mostType.String
+
+	// 3. Get Contract Info
+	_ = r.db.QueryRow(`
+		SELECT status, contract_end 
+		FROM hospital_contracts 
+		WHERE hospital_id = $1 
+		ORDER BY created_at DESC 
+		LIMIT 1`, hospitalID).Scan(&dashboard.ContractStatus, &dashboard.ContractEndDate)
+
+	// 4. Get Recent Requests
+	rows, err := r.db.Query(`
+		SELECT br.request_id, br.hospital_id, h.name, br.blood_type, br.quantity, br.urgency_level, br.status, br.created_at, br.approved_at 
+		FROM blood_requests br
+		JOIN hospitals h ON br.hospital_id = h.hospital_id
+		WHERE br.hospital_id = $1 
+		ORDER BY br.created_at DESC 
+		LIMIT 5`, hospitalID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var req Domain.BloodRequestResponse
+			_ = rows.Scan(&req.RequestID, &req.HospitalID, &req.HospitalName, &req.BloodType, &req.Quantity, &req.UrgencyLevel, &req.Status, &req.CreatedAt, &req.ApprovedAt)
+			dashboard.RecentRequests = append(dashboard.RecentRequests, req)
+		}
+	}
+
+	// 5. Monthly Trends (Last 6 months)
+	trendRows, err := r.db.Query(`
+		SELECT TO_CHAR(created_at, 'Mon'), COUNT(*) 
+		FROM blood_requests 
+		WHERE hospital_id = $1 AND created_at > NOW() - INTERVAL '6 months'
+		GROUP BY TO_CHAR(created_at, 'Mon'), DATE_TRUNC('month', created_at)
+		ORDER BY DATE_TRUNC('month', created_at)`)
+	if err == nil {
+		defer trendRows.Close()
+		for trendRows.Next() {
+			var trend Domain.MonthlyTrend
+			_ = trendRows.Scan(&trend.Month, &trend.Count)
+			dashboard.MonthlyRequestTrends = append(dashboard.MonthlyRequestTrends, trend)
+		}
+	}
+
+	return dashboard, nil
 }

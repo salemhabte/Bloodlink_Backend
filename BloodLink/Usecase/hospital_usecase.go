@@ -302,3 +302,11 @@ func (u *hospitalUsecase) DeleteContractTemplate(templateID string) error {
 func (u *hospitalUsecase) GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error) {
 	return u.repo.GetSignedContracts(status)
 }
+
+func (u *hospitalUsecase) GetHospitalDashboard(userID string) (*Domain.HospitalDashboard, error) {
+	admin, err := u.repo.GetHospitalAdminByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+	return u.repo.GetHospitalDashboard(admin.HospitalID)
+}
