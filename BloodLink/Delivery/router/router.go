@@ -135,8 +135,8 @@ func SetupRouter(
 	{
 		donor.Use(Infrastructure.AuthMiddleware(auth, domain.RoleDonor))
 		{
-			donor.GET("/:id/donations", donationController.GetAllDonationsByDonor)
-			donor.GET("/:id/test-result/latest", labController.GetLatestTestResultByDonor)
+			donor.GET("/donations", donationController.GetAllDonationsByDonor)
+			donor.GET("/test-result/latest", labController.GetLatestTestResultByDonor)
 		}
 	}
 
@@ -226,6 +226,8 @@ func SetupRouter(
 	hospitalGrp := r.Group("/api/hospitaladmin")
 	hospitalGrp.Use(Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin))
 	{
+		hospitalGrp.GET("/dashboard", hospitalController.GetHospitalDashboard)
+
 		hContracts := hospitalGrp.Group("/contracts")
 		{
 			hContracts.GET("/", hospitalController.GetMyContracts)

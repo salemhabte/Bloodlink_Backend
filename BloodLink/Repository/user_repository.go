@@ -89,6 +89,27 @@ func (r *UserRepository) CreateDonor(ctx context.Context, donor *domain.Donor) e
 	return err
 }
 
+func (r *UserRepository) GetDonorByUserID(ctx context.Context, userID string) (*domain.Donor, error) {
+	query := `SELECT donor_id, user_id, overall_status, date_of_birth, blood_type FROM donors WHERE user_id = $1`
+	donor := &domain.Donor{}
+	var dob sql.NullTime
+	var bt sql.NullString
+
+	err := r.DB.QueryRowContext(ctx, query, userID).Scan(&donor.DonorID, &donor.UserID, &donor.OverallStatus, &dob, &bt)
+	if err != nil {
+		return nil, err
+	}
+
+	if dob.Valid {
+		donor.DateOfBirth = dob.Time
+	}
+	if bt.Valid {
+		donor.BloodType = bt.String
+	}
+
+	return donor, nil
+}
+
 // DeleteUser removes a user from the database.
 // Due to ON DELETE CASCADE, this will also remove their Profile and Donor record.
 func (r *UserRepository) DeleteUser(ctx context.Context, userID string) error {

@@ -27,6 +27,7 @@ type IUserRepository interface {
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
 	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 	UpdateRefreshToken(ctx context.Context, userID, refreshToken string) error
+	GetDonorByUserID(ctx context.Context, userID string) (*domain.Donor, error)
 }
 
 type IProfileRepository interface {
@@ -393,4 +394,12 @@ func (u *UserUseCaseBase) RefreshToken(ctx context.Context, refreshTokenStr stri
 func (u *UserUseCaseBase) Logout(ctx context.Context, userID string) error {
 	// Simple revocation: clear the refresh token in the database
 	return u.userRepo.UpdateRefreshToken(ctx, userID, "")
+}
+
+func (u *UserUseCaseBase) GetDonorIDByUserID(ctx context.Context, userID string) (string, error) {
+	donor, err := u.userRepo.GetDonorByUserID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	return donor.DonorID, nil
 }

@@ -4,6 +4,7 @@ import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,7 +37,20 @@ func (c *BloodRequestController) CreateBloodRequest(ctx *gin.Context) {
 func (c *BloodRequestController) GetHospitalRequests(ctx *gin.Context) {
 	hospitalAdminID := ctx.GetString("userID")
 
-	reqs, err := c.Usecase.GetHospitalRequests(hospitalAdminID)
+	bloodType := ctx.Query("blood_type")
+	// Handle URL encoding where '+' might be converted to ' '
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
+	filter := Domain.BloodRequestFilter{
+		HospitalID:   hospitalAdminID,
+		BloodType:    bloodType,
+		Status:       ctx.Query("status"),
+		UrgencyLevel: ctx.Query("urgency_level"),
+	}
+
+	reqs, err := c.Usecase.GetHospitalRequests(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

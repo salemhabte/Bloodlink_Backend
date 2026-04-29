@@ -4,6 +4,7 @@ import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
 	"database/sql"
+	"fmt"
 )
 
 type bloodRequestRepository struct {
@@ -21,13 +22,34 @@ func (r *bloodRequestRepository) CreateRequest(req *Domain.BloodRequest) error {
 	return err
 }
 
-func (r *bloodRequestRepository) GetRequestsByHospital(hospitalID string) ([]Domain.BloodRequestResponse, error) {
+func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error) {
 	query := `SELECT br.request_id, br.hospital_id, h.name as hospital_name, br.blood_type, br.quantity, br.urgency_level, br.status, br.created_at, br.approved_at 
 			  FROM blood_requests br
 			  JOIN hospitals h ON br.hospital_id = h.hospital_id
-			  WHERE br.hospital_id = $1 ORDER BY br.created_at DESC`
+			  WHERE br.hospital_id = $1`
+	
+	args := []interface{}{filter.HospitalID}
+	placeholderID := 2
 
-	rows, err := r.db.Query(query, hospitalID)
+	if filter.BloodType != "" {
+		query += " AND br.blood_type = $" + fmt.Sprint(placeholderID)
+		args = append(args, filter.BloodType)
+		placeholderID++
+	}
+	if filter.Status != "" {
+		query += " AND br.status = $" + fmt.Sprint(placeholderID)
+		args = append(args, filter.Status)
+		placeholderID++
+	}
+	if filter.UrgencyLevel != "" {
+		query += " AND br.urgency_level = $" + fmt.Sprint(placeholderID)
+		args = append(args, filter.UrgencyLevel)
+		placeholderID++
+	}
+
+	query += " ORDER BY br.created_at DESC"
+
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
