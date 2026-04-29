@@ -273,6 +273,22 @@ func (c *DonationController) GetAllDonations(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, donations)
 }
+
+func (c *DonationController) GetAllDonationsByDonor(ctx *gin.Context) {
+	donorID := ctx.Param("id")
+	if donorID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+		return
+	}
+
+	donations, err := c.usecase.GetAllDonationsByDonor(donorID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donations)
+}
 func (c *DonationController) UpdateDonation(ctx *gin.Context) {
 
 	id := ctx.Param("id")
@@ -435,6 +451,27 @@ func (c *LabController) RejectBlood(ctx *gin.Context) {
 	}
 
 	ctx.JSON(200, gin.H{"message": "blood rejected"})
+}
+
+func (c *LabController) GetLatestTestResultByDonor(ctx *gin.Context) {
+	donorID := ctx.Param("id")
+	if donorID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
+		return
+	}
+
+	result, err := c.usecase.GetLatestTestResultByDonor(donorID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if result == nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "no test results found for this donor"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, result)
 }
 func (c *LabController) GetDonation(ctx *gin.Context) {
 	donationID := ctx.Param("donation_id")

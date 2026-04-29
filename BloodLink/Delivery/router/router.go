@@ -129,109 +129,119 @@ func SetupRouter(
 			adminBloodRequests.PUT("/:id/status", bloodReqController.UpdateStatus)
 		}
 	}
+
+	// Donor Routes
+	donor := r.Group("/api/donor")
+	{
+		donor.Use(Infrastructure.AuthMiddleware(auth, domain.RoleDonor))
+		{
+			donor.GET("/:id/donations", donationController.GetAllDonationsByDonor)
+			donor.GET("/:id/test-result/latest", labController.GetLatestTestResultByDonor)
+		}
+	}
+
 	// Blood Collector Routes
-bloodCollector := r.Group("/api/bloodcollector")
-bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
-{
-	bloodCollector.GET("/donors", donationController.GetPendingDonors)
-bloodCollector.GET("/donor/:id", donationController.GetDonorByID)
-bloodCollector.GET("/donor/search/pending", donationController.SearchPendingDonor)
-    bloodCollector.GET("/donor/search", donationController.SearchDonor)
-    bloodCollector.POST("/donation", donationController.CreateDonation)
-    bloodCollector.GET("/donation", donationController.GetAllDonations)
-    bloodCollector.GET("/donation/:id", donationController.GetDonationByID)
-    bloodCollector.PUT("/donation/:id", donationController.UpdateDonation)
-    bloodCollector.PUT("/donation/:id/status", donationController.UpdateDonationStatus)
-}
-
-lab := r.Group("/api/lab")
- lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
-{
-	lab.POST("/tests", labController.SubmitTestResult)
-	lab.GET("/tests/:donation_id", labController.GetTestResult)
-
-	lab.GET("/donations/:donation_id", labController.GetDonation)
-
-	lab.GET("/pending-tests", labController.GetPendingTests)
-	lab.GET("/tests/history", labController.GetHistory)
-	lab.GET("/tests", labController.FilterTests)
-
-	lab.PUT("/tests/:donation_id", labController.UpdateTest)
-	lab.POST("/tests/:donation_id/reject", labController.RejectBlood)
-}
-adminInventory := r.Group("/api/inventory")
-adminInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
-{
-	adminInventory.GET("/", inventoryController.GetAll)
-	adminInventory.GET("/stats", inventoryController.GetStats)
-	adminInventory.GET("/filter", inventoryController.Filter)
-	adminInventory.GET("/export/csv", inventoryController.ExportCSV)
-	adminInventory.GET("/export/pdf", inventoryController.ExportPDF)
-	adminInventory.GET("/:id/details", inventoryController.GetFullDetails)
-
-	adminInventory.PUT("/:id/status", inventoryController.UpdateStatus)
-	adminInventory.DELETE("/:id", inventoryController.Delete)
-}
-labInventory := r.Group("/api/lab/inventory")
-labInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
-{
-	labInventory.GET("/", inventoryController.GetAll)
-	labInventory.GET("/filter", inventoryController.Filter)
-	labInventory.GET("/:id/details", inventoryController.GetFullDetails)
-}
-analytics := r.Group("/api/analytics/campaigns")
-
-analytics.GET("/dashboard", campaignAnalyticsController.GetDashboard)
-analytics.GET("/:id", campaignAnalyticsController.GetCampaignReport)
-analytics.GET("/", campaignAnalyticsController.GetAllReports)
-
-
-collectorAnalytics := r.Group("/api/analytics/collector")
- collectorAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
-{
-	collectorAnalytics.GET("/kpi", collectorAnalyticsController.GetKPI)
-	collectorAnalytics.GET("/today", collectorAnalyticsController.GetTodayStats)
-	collectorAnalytics.GET("/donor-insights", collectorAnalyticsController.GetDonorInsights)
-}
-
-labAnalytics := r.Group("/api/analytics/lab")
-labAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
-{
-	labAnalytics.GET("/dashboard", labAnalyticsController.GetDashboard)
-}
-adminAnalytics := r.Group("/api/analytics/admin")
-adminAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
-{
-	// FULL DASHBOARD
-	adminAnalytics.GET("/dashboard", adminAnalyticsController.GetDashboard)
-
-	// OPTIONAL SPLIT ENDPOINTS
-	adminAnalytics.GET("/donors", adminAnalyticsController.GetDonorSummary)
-	adminAnalytics.GET("/screening", adminAnalyticsController.GetScreeningSummary)
-	adminAnalytics.GET("/collectors", adminAnalyticsController.GetCollectorSummary)
-	adminAnalytics.GET("/lab", adminAnalyticsController.GetLabSummary)
-	adminAnalytics.GET("/inventory", adminAnalyticsController.GetInventorySummary)
-}
-
-hospitalGrp := r.Group("/api/hospitaladmin")
-hospitalGrp.Use(Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin))
-{
-	hContracts := hospitalGrp.Group("/contracts")
+	bloodCollector := r.Group("/api/bloodcollector")
+	bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
 	{
-		hContracts.GET("/", hospitalController.GetMyContracts)
-		hContracts.GET("/latest", hospitalController.GetMyLatestContract)
-		hContracts.GET("/:id", hospitalController.GetContractByID)
-		hContracts.GET("/:id/download", hospitalController.DownloadContract)
-		hContracts.POST("/:id/sign", hospitalController.HospitalSignContract)
-		hContracts.POST("/:id/reject", hospitalController.RejectContract)
+		bloodCollector.GET("/donors", donationController.GetPendingDonors)
+		bloodCollector.GET("/donor/:id", donationController.GetDonorByID)
+		bloodCollector.GET("/donor/search/pending", donationController.SearchPendingDonor)
+		bloodCollector.GET("/donor/search", donationController.SearchDonor)
+		bloodCollector.POST("/donation", donationController.CreateDonation)
+		bloodCollector.GET("/donation", donationController.GetAllDonations)
+		bloodCollector.GET("/donation/:id", donationController.GetDonationByID)
+		bloodCollector.PUT("/donation/:id", donationController.UpdateDonation)
+		bloodCollector.PUT("/donation/:id/status", donationController.UpdateDonationStatus)
 	}
 
-	hBloodReqs := hospitalGrp.Group("/blood-requests")
+	lab := r.Group("/api/lab")
+	lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 	{
-		hBloodReqs.POST("/", bloodReqController.CreateBloodRequest)
-		hBloodReqs.GET("/", bloodReqController.GetHospitalRequests)
+		lab.POST("/tests", labController.SubmitTestResult)
+		lab.GET("/tests/:donation_id", labController.GetTestResult)
+
+		lab.GET("/donations/:donation_id", labController.GetDonation)
+
+		lab.GET("/pending-tests", labController.GetPendingTests)
+		lab.GET("/tests/history", labController.GetHistory)
+		lab.GET("/tests", labController.FilterTests)
+
+		lab.PUT("/tests/:donation_id", labController.UpdateTest)
+		lab.POST("/tests/:donation_id/reject", labController.RejectBlood)
 	}
-}
+	adminInventory := r.Group("/api/inventory")
+	adminInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
+	{
+		adminInventory.GET("/", inventoryController.GetAll)
+		adminInventory.GET("/stats", inventoryController.GetStats)
+		adminInventory.GET("/filter", inventoryController.Filter)
+		adminInventory.GET("/export/csv", inventoryController.ExportCSV)
+		adminInventory.GET("/export/pdf", inventoryController.ExportPDF)
+		adminInventory.GET("/:id/details", inventoryController.GetFullDetails)
+
+		adminInventory.PUT("/:id/status", inventoryController.UpdateStatus)
+		adminInventory.DELETE("/:id", inventoryController.Delete)
+	}
+	labInventory := r.Group("/api/lab/inventory")
+	labInventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+	{
+		labInventory.GET("/", inventoryController.GetAll)
+		labInventory.GET("/filter", inventoryController.Filter)
+		labInventory.GET("/:id/details", inventoryController.GetFullDetails)
+	}
+	analytics := r.Group("/api/analytics/campaigns")
+
+	analytics.GET("/dashboard", campaignAnalyticsController.GetDashboard)
+	analytics.GET("/:id", campaignAnalyticsController.GetCampaignReport)
+	analytics.GET("/", campaignAnalyticsController.GetAllReports)
+
+	collectorAnalytics := r.Group("/api/analytics/collector")
+	collectorAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
+	{
+		collectorAnalytics.GET("/kpi", collectorAnalyticsController.GetKPI)
+		collectorAnalytics.GET("/today", collectorAnalyticsController.GetTodayStats)
+		collectorAnalytics.GET("/donor-insights", collectorAnalyticsController.GetDonorInsights)
+	}
+
+	labAnalytics := r.Group("/api/analytics/lab")
+	labAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+	{
+		labAnalytics.GET("/dashboard", labAnalyticsController.GetDashboard)
+	}
+	adminAnalytics := r.Group("/api/analytics/admin")
+	adminAnalytics.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
+	{
+		// FULL DASHBOARD
+		adminAnalytics.GET("/dashboard", adminAnalyticsController.GetDashboard)
+
+		// OPTIONAL SPLIT ENDPOINTS
+		adminAnalytics.GET("/donors", adminAnalyticsController.GetDonorSummary)
+		adminAnalytics.GET("/screening", adminAnalyticsController.GetScreeningSummary)
+		adminAnalytics.GET("/collectors", adminAnalyticsController.GetCollectorSummary)
+		adminAnalytics.GET("/lab", adminAnalyticsController.GetLabSummary)
+		adminAnalytics.GET("/inventory", adminAnalyticsController.GetInventorySummary)
+	}
+
+	hospitalGrp := r.Group("/api/hospitaladmin")
+	hospitalGrp.Use(Infrastructure.AuthMiddleware(auth, domain.RoleHospitalAdmin))
+	{
+		hContracts := hospitalGrp.Group("/contracts")
+		{
+			hContracts.GET("/", hospitalController.GetMyContracts)
+			hContracts.GET("/latest", hospitalController.GetMyLatestContract)
+			hContracts.GET("/:id", hospitalController.GetContractByID)
+			hContracts.GET("/:id/download", hospitalController.DownloadContract)
+			hContracts.POST("/:id/sign", hospitalController.HospitalSignContract)
+			hContracts.POST("/:id/reject", hospitalController.RejectContract)
+		}
+
+		hBloodReqs := hospitalGrp.Group("/blood-requests")
+		{
+			hBloodReqs.POST("/", bloodReqController.CreateBloodRequest)
+			hBloodReqs.GET("/", bloodReqController.GetHospitalRequests)
+		}
+	}
 
 	r.Static("/uploads", "./uploads")
 
