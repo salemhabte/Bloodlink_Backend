@@ -46,3 +46,10 @@ type BloodRequestResponse struct {
 	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
 	ApprovedAt   *time.Time `json:"approved_at" db:"approved_at"`
 }
+
+type BloodRequestFilter struct {
+	HospitalID   string `json:"hospital_id"`
+	BloodType    string `json:"blood_type"`
+	Status       string `json:"status"`
+	UrgencyLevel string `json:"urgency_level"`
+}

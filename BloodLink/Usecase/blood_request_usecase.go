@@ -92,12 +92,13 @@ func (u *bloodRequestUsecase) getHospitalIDForAdmin(userID string) (string, erro
 	return admin.HospitalID, nil
 }
 
-func (u *bloodRequestUsecase) GetHospitalRequests(hospitalAdminID string) ([]Domain.BloodRequestResponse, error) {
-	hospital_id, err := u.getHospitalIDForAdmin(hospitalAdminID)
+func (u *bloodRequestUsecase) GetHospitalRequests(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error) {
+	hospital_id, err := u.getHospitalIDForAdmin(filter.HospitalID)
 	if err != nil {
 		return nil, err
 	}
-	return u.repo.GetRequestsByHospital(hospital_id)
+	filter.HospitalID = hospital_id
+	return u.repo.GetRequestsByHospital(filter)
 }
 
 func (u *bloodRequestUsecase) GetAllRequests() ([]Domain.BloodRequestResponse, error) {
