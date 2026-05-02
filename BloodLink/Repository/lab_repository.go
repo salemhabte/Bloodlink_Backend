@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"strings"
 )
 
 type LabRepository struct {
@@ -30,9 +31,11 @@ func (r *LabRepository) CreateTestResult(result *Domain.DonorTestResult) error {
 	// Insert new test result
 	query := `
 	INSERT INTO donor_test_results
-	(test_id, donation_id, donor_id, tested_by, hiv_result, hepatitis_result, syphilis_result, blood_type, overall_status, created_at)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	(test_id, donation_id, donor_id, tested_by, hiv_result, hepatitis_result, syphilis_result, blood_type, component_type, overall_status, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
+	bloodType := strings.ToUpper(strings.TrimSpace(result.BloodType))
+	componentType := strings.ToUpper(strings.TrimSpace(result.ComponentType))
 	_, err = r.DB.Exec(query,
 		result.TestID,
 		result.DonationID,
@@ -41,7 +44,8 @@ func (r *LabRepository) CreateTestResult(result *Domain.DonorTestResult) error {
 		result.HIVResult,
 		result.HepatitisResult,
 		result.SyphilisResult,
-		result.BloodType,
+		bloodType,
+		componentType,
 		result.OverallStatus,
 		time.Now(),
 	)
@@ -51,13 +55,14 @@ func (r *LabRepository) CreateTestResult(result *Domain.DonorTestResult) error {
 func (r *LabRepository) CreateBloodUnit(unit *Domain.BloodUnit) error {
 	query := `
 	INSERT INTO blood_units
-	(blood_unit_id, donation_id, blood_type, volume_ml, collection_date, expiration_date, status)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)
+	(blood_unit_id, donation_id, blood_type, component_type, volume_ml, collection_date, expiration_date, status)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	_, err := r.DB.Exec(query,
 		unit.BloodUnitID,
 		unit.DonationID,
 		unit.BloodType,
+		unit.ComponentType,
 		unit.VolumeML,
 		unit.CollectionDate,
 		unit.ExpirationDate,
@@ -140,12 +145,12 @@ func (r *LabRepository) GetDonationByID(donationID string) (*Domain.DonationReco
 func (r *LabRepository) GetTestResult(donationID string) (*Domain.DonorTestResult, error) {
 	var result Domain.DonorTestResult
 	
-	query := `SELECT test_id, donation_id, donor_id, tested_by, hiv_result, hepatitis_result, syphilis_result, blood_type, overall_status, created_at FROM donor_test_results WHERE donation_id=$1`
+	query := `SELECT test_id, donation_id, donor_id, tested_by, hiv_result, hepatitis_result, syphilis_result, blood_type, COALESCE(component_type, ''), overall_status, created_at FROM donor_test_results WHERE donation_id=$1`
 	
 	err := r.DB.QueryRow(query, donationID).Scan(
 		&result.TestID, &result.DonationID, &result.DonorID, &result.TestedBy,
 		&result.HIVResult, &result.HepatitisResult, &result.SyphilisResult,
-		&result.BloodType, &result.OverallStatus, &result.CreatedAt,
+		&result.BloodType, &result.ComponentType, &result.OverallStatus, &result.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -228,6 +233,7 @@ func (r *LabRepository) GetAllTestResults() ([]Domain.DonorTestResult, error) {
 		hepatitis_result,
 		syphilis_result,
 		blood_type,
+		COALESCE(component_type, ''),
 		overall_status,
 		created_at
 	FROM donor_test_results
@@ -253,6 +259,7 @@ func (r *LabRepository) GetAllTestResults() ([]Domain.DonorTestResult, error) {
 			&rlt.HepatitisResult,
 			&rlt.SyphilisResult,
 			&rlt.BloodType,
+			&rlt.ComponentType,
 			&rlt.OverallStatus,
 			&rlt.CreatedAt,
 		)
@@ -276,6 +283,7 @@ func (r *LabRepository) GetTestResultsByStatus(status string) ([]Domain.DonorTes
 		hepatitis_result,
 		syphilis_result,
 		blood_type,
+		COALESCE(component_type, ''),
 		overall_status,
 		created_at
 	FROM donor_test_results
@@ -296,7 +304,7 @@ func (r *LabRepository) GetTestResultsByStatus(status string) ([]Domain.DonorTes
 		err := rows.Scan(
 			&rlt.TestID, &rlt.DonationID, &rlt.DonorID, &rlt.TestedBy,
 			&rlt.HIVResult, &rlt.HepatitisResult, &rlt.SyphilisResult,
-			&rlt.BloodType, &rlt.OverallStatus, &rlt.CreatedAt,
+			&rlt.BloodType, &rlt.ComponentType, &rlt.OverallStatus, &rlt.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -313,19 +321,21 @@ func (r *LabRepository) GetTestResultsByStatus(status string) ([]Domain.DonorTes
 func (r *LabRepository) UpdateTestResult(result *Domain.DonorTestResult) error {
 	// Update test result only if donation_id exists
 	query := `
-UPDATE donor_test_results
-SET hiv_result=$1, hepatitis_result=$2, syphilis_result=$3, overall_status=$4, blood_type=$5
-WHERE donation_id=$6
-`
-
-res, err := r.DB.Exec(query,
-	result.HIVResult,
-	result.HepatitisResult,
-	result.SyphilisResult,
-	result.OverallStatus,
-	result.BloodType,
-	result.DonationID,
-)
+	UPDATE donor_test_results
+	SET hiv_result=$1, hepatitis_result=$2, syphilis_result=$3, overall_status=$4, blood_type=$5, component_type=$6
+	WHERE donation_id=$7
+	`
+	bloodType := strings.ToUpper(strings.TrimSpace(result.BloodType))
+	componentType := strings.ToUpper(strings.TrimSpace(result.ComponentType))
+	res, err := r.DB.Exec(query,
+		result.HIVResult,
+		result.HepatitisResult,
+		result.SyphilisResult,
+		result.OverallStatus,
+		bloodType,
+		componentType,
+		result.DonationID,
+	)
 	if err != nil {
 		return err
 	}
@@ -337,9 +347,9 @@ res, err := r.DB.Exec(query,
 	fmt.Println("Rows affected:", rowsAffected)
 
 	if rowsAffected == 0 {
-	fmt.Println("No change detected, but update is valid")
-	return nil
-}
+		fmt.Println("No change detected, but update is valid")
+		return nil
+	}
 
 	return nil
 }
@@ -375,4 +385,199 @@ func (r *LabRepository) UpdateBloodUnit(unit *Domain.BloodUnit) error {
 	`
 	_, err := r.DB.Exec(query, unit.BloodType, unit.Status, unit.DonationID)
 	return err
+}
+func (r *LabRepository) GetTestResultsByLabTech(labTechID string) ([]Domain.DonorTestResult, error) {
+	query := `
+	SELECT 
+		test_id,
+		donation_id,
+		donor_id,
+		tested_by,
+		hiv_result,
+		hepatitis_result,
+		syphilis_result,
+		blood_type,
+		COALESCE(component_type, ''),
+		overall_status,
+		created_at
+	FROM donor_test_results
+	WHERE tested_by = $1
+	`
+
+	rows, err := r.DB.Query(query, labTechID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []Domain.DonorTestResult
+
+	for rows.Next() {
+		var rlt Domain.DonorTestResult
+		err := rows.Scan(
+			&rlt.TestID,
+			&rlt.DonationID,
+			&rlt.DonorID,
+			&rlt.TestedBy,
+			&rlt.HIVResult,
+			&rlt.HepatitisResult,
+			&rlt.SyphilisResult,
+			&rlt.BloodType,
+			&rlt.ComponentType,
+			&rlt.OverallStatus,
+			&rlt.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, rlt)
+	}
+
+	return results, nil
+}
+func (r *LabRepository) FilterTestResults(overallStatus, bloodType, componentType string) ([]Domain.DonorTestResult, error) {
+
+	query := `
+	SELECT 
+		test_id,
+		donation_id,
+		donor_id,
+		tested_by,
+		hiv_result,
+		hepatitis_result,
+		syphilis_result,
+		blood_type,
+		COALESCE(component_type,''),
+		overall_status,
+		created_at
+	FROM donor_test_results
+	WHERE 1=1
+	`
+
+	args := []interface{}{}
+	i := 1
+
+	if overallStatus != "" {
+	query += fmt.Sprintf(" AND UPPER(overall_status) = UPPER($%d)", i)
+	args = append(args, overallStatus)
+	i++
+}
+	if bloodType != "" {
+	query += fmt.Sprintf(" AND UPPER(blood_type) = UPPER($%d)", i)
+	args = append(args, bloodType)
+	i++
+}
+
+if componentType != "" {
+	query += fmt.Sprintf(" AND UPPER(COALESCE(component_type,'')) = UPPER($%d)", i)
+	args = append(args, componentType)
+	i++
+}
+	rows, err := r.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []Domain.DonorTestResult
+
+	for rows.Next() {
+		var rlt Domain.DonorTestResult
+		err := rows.Scan(
+			&rlt.TestID,
+			&rlt.DonationID,
+			&rlt.DonorID,
+			&rlt.TestedBy,
+			&rlt.HIVResult,
+			&rlt.HepatitisResult,
+			&rlt.SyphilisResult,
+			&rlt.BloodType,
+			&rlt.ComponentType,
+			&rlt.OverallStatus,
+			&rlt.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, rlt)
+	}
+
+	return results, nil
+}
+func (r *LabRepository) GetMyTestResultsFiltered(
+	labTechID, overallStatus, bloodType, componentType string,
+) ([]Domain.DonorTestResult, error) {
+
+	query := `
+	SELECT 
+		test_id,
+		donation_id,
+		donor_id,
+		tested_by,
+		hiv_result,
+		hepatitis_result,
+		syphilis_result,
+		blood_type,
+		COALESCE(component_type, ''),
+		overall_status,
+		created_at
+	FROM donor_test_results
+	WHERE tested_by = $1
+	`
+
+	args := []interface{}{labTechID}
+	i := 2
+
+	if overallStatus != "" {
+	query += fmt.Sprintf(" AND UPPER(overall_status) = UPPER($%d)", i)
+	args = append(args, overallStatus)
+	i++
+}
+
+if bloodType != "" {
+	query += fmt.Sprintf(" AND UPPER(blood_type) = UPPER($%d)", i)
+	args = append(args, bloodType)
+	i++
+}
+
+if componentType != "" {
+	query += fmt.Sprintf(" AND UPPER(COALESCE(component_type,'')) = UPPER($%d)", i)
+	args = append(args, componentType)
+	i++
+}
+
+	rows, err := r.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []Domain.DonorTestResult
+
+	for rows.Next() {
+		var rlt Domain.DonorTestResult
+
+		err := rows.Scan(
+			&rlt.TestID,
+			&rlt.DonationID,
+			&rlt.DonorID,
+			&rlt.TestedBy,
+			&rlt.HIVResult,
+			&rlt.HepatitisResult,
+			&rlt.SyphilisResult,
+			&rlt.BloodType,
+			&rlt.ComponentType,
+			&rlt.OverallStatus,
+			&rlt.CreatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, rlt)
+	}
+
+	return results, nil
 }

@@ -23,3 +23,11 @@ type DonationRecord struct {
     OverallStatus  string    `json:"overall_status"`
     CreatedAt      time.Time `json:"created_at"`
 }
+type DonationFilter struct {
+	CollectorID string
+	DonorID     string
+	Status      string
+
+	StartDate   string
+	EndDate     string
+}

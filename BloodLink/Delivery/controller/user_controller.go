@@ -65,7 +65,7 @@ func (c *UserController) HandleLogin(ctx *gin.Context) {
 	cCtx, cancel := context.WithCancel(ctx.Request.Context())
 	defer cancel()
 
-	accessToken, refreshToken, role, err := c.UserUseCase.Login(cCtx, req.Email, req.Password)
+	accessToken, refreshToken, role, userID, err := c.UserUseCase.Login(cCtx, req.Email, req.Password)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -76,6 +76,7 @@ func (c *UserController) HandleLogin(ctx *gin.Context) {
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"role":          role,
+		"user_id":       userID,
 	})
 }
 

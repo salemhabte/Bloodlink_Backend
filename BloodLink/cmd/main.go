@@ -6,6 +6,7 @@ import (
 	"bloodlink/Infrastructure"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
+	"bloodlink/Jobs"
 
 	"bloodlink/config"
 	"log"
@@ -45,6 +46,7 @@ func main() {
 	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo)
 	labUsecase := Usecase.NewLabUsecase(labRepo)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
+	go Jobs.StartExpirationJob(inventoryUsecase)
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
 	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)

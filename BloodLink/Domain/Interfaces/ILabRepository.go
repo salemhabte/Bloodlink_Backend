@@ -14,7 +14,9 @@ type ILabRepository interface {
     GetTestResultsByStatus(status string) ([]Domain.DonorTestResult, error)
     UpdateTestResult(result *Domain.DonorTestResult) error
 	DeleteBloodUnit(donationID string) error
-	 GetBloodUnitByDonationID(donationID string) (*Domain.BloodUnit, error)
+	GetBloodUnitByDonationID(donationID string) (*Domain.BloodUnit, error)
     UpdateBloodUnit(unit *Domain.BloodUnit) error
-	
+	GetTestResultsByLabTech(labTechID string) ([]Domain.DonorTestResult, error)
+	FilterTestResults(status, bloodType, componentType string) ([]Domain.DonorTestResult, error)
+	GetMyTestResultsFiltered(labTechID, overallStatus, bloodType, componentType string) ([]Domain.DonorTestResult, error)
 }

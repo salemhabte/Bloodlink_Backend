@@ -104,19 +104,26 @@ bloodCollector.GET("/donor/search/pending", donationController.SearchPendingDono
     bloodCollector.GET("/donation/:id", donationController.GetDonationByID)
     bloodCollector.PUT("/donation/:id", donationController.UpdateDonation)
     bloodCollector.PUT("/donation/:id/status", donationController.UpdateDonationStatus)
+	bloodCollector.GET("/donation/my", donationController.GetMyDonations)
 }
 
 lab := r.Group("/api/lab")
- lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 {
 	lab.POST("/tests", labController.SubmitTestResult)
+
+	// SINGLE test
 	lab.GET("/tests/:donation_id", labController.GetTestResult)
 
-	lab.GET("/donations/:donation_id", labController.GetDonation)
+	//  HISTORY (all)
+	lab.GET("/tests/all", labController.GetHistory)
 
+	// MY tests
+	lab.GET("/tests/my", labController.GetMyTests)
+
+	//  donations
+	lab.GET("/donations/:donation_id", labController.GetDonation)
 	lab.GET("/pending-tests", labController.GetPendingTests)
-	lab.GET("/tests/history", labController.GetHistory)
-	lab.GET("/tests", labController.FilterTests)
 
 	lab.PUT("/tests/:donation_id", labController.UpdateTest)
 	lab.POST("/tests/:donation_id/reject", labController.RejectBlood)

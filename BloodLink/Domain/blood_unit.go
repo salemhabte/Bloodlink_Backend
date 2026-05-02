@@ -10,5 +10,6 @@ type BloodUnit struct {
 	CollectionDate  time.Time `json:"collection_date"`
 	ExpirationDate  time.Time `json:"expiration_date"`
 	Status          string    `json:"status"`
+	ComponentType string `json:"component_type"`
 	CreatedAt       time.Time `json:"created_at"`
 }
