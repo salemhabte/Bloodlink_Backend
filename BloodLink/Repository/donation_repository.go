@@ -22,7 +22,7 @@ func (r *donationRepository) CreateDonation(record *Domain.DonationRecord) error
 INSERT INTO donation_records (
     donation_id, donor_id, campaign_id, collected_by, collection_date,
     weight, blood_pressure, hemoglobin, temperature, pulse,
-    quantity_ml, status,
+    quantity_ml, status
 )
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 `
@@ -48,7 +48,7 @@ _, err := r.db.Exec(
     record.Pulse,          // $10
     record.QuantityML,     // $11
     record.Status,         // $12
-    record.CreatedAt,      // $14
+    // record.CreatedAt,      // $13
 )
 	
 
