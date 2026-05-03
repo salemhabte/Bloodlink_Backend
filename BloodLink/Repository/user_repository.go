@@ -313,3 +313,45 @@ func (r *UserRepository) UpdateRefreshToken(ctx context.Context, userID, refresh
 	_, err := r.DB.ExecContext(ctx, query, refreshToken, userID)
 	return err
 }
+
+func (r *UserRepository) GetDonorsByBloodTypeAndAddress(ctx context.Context, bloodType, address string) ([]domain.DonorResponse, error) {
+	query := `
+		SELECT 
+			d.donor_id, 
+			d.user_id, 
+			u.full_name, 
+			u.email, 
+			u.phone, 
+			COALESCE(p.address, ''), 
+			COALESCE(d.blood_type, ''), 
+			d.overall_status 
+		FROM donors d
+		JOIN users u ON d.user_id = u.user_id
+		LEFT JOIN user_profiles p ON u.user_id = p.user_id
+		WHERE d.blood_type = $1 AND p.address ILIKE $2
+	`
+	rows, err := r.DB.QueryContext(ctx, query, bloodType, "%"+address+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var donors []domain.DonorResponse
+	for rows.Next() {
+		var donor domain.DonorResponse
+		if err := rows.Scan(
+			&donor.DonorID,
+			&donor.UserID,
+			&donor.FullName,
+			&donor.Email,
+			&donor.Phone,
+			&donor.Address,
+			&donor.BloodType,
+			&donor.OverallStatus,
+		); err != nil {
+			return nil, err
+		}
+		donors = append(donors, donor)
+	}
+	return donors, nil
+}
