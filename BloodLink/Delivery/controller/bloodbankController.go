@@ -237,7 +237,9 @@ func (c *DonationController) SearchPendingDonor(ctx *gin.Context) {
 
 // UpdateDonationStatus handles PUT /bloodcollector/donation/:id/status
 func (c *DonationController) UpdateDonationStatus(ctx *gin.Context) {
+
 	donationID := ctx.Param("id")
+
 	var body struct {
 		Status string `json:"status"`
 	}
@@ -247,8 +249,12 @@ func (c *DonationController) UpdateDonationStatus(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.usecase.UpdateDonationStatus(donationID, body.Status); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	//  GET LOGGED IN COLLECTOR
+	collectorID := ctx.GetString("userID")
+
+	// SECURE CALL
+	if err := c.usecase.UpdateDonationStatus(donationID, body.Status, collectorID); err != nil {
+		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -267,17 +273,6 @@ func (c *DonationController) GetDonationByID(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, donation)
-}
-func (c *DonationController) GetAllDonations(ctx *gin.Context) {
-
-	donations, err := c.usecase.GetAllDonations()
-
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, donations)
 }
 
 func (c *DonationController) GetAllDonationsByDonor(ctx *gin.Context) {
@@ -313,6 +308,12 @@ func (c *DonationController) UpdateDonation(ctx *gin.Context) {
 	}
 
 	record.DonationID = id
+	// Get logged-in collector from JWT middleware
+	// ==========================================================
+	collectorID := ctx.GetString("userID")
+
+	//  attach collector ID to request object
+	record.CollectedBy = collectorID
 
 	if err := c.usecase.UpdateDonation(&record); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -320,6 +321,44 @@ func (c *DonationController) UpdateDonation(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Donation updated successfully"})
+	
+}
+
+func (c *DonationController) GetAllDonations(ctx *gin.Context) {
+
+	filter := Domain.DonationFilter{
+		DonorID:     ctx.Query("donor_id"),
+		CollectorID: ctx.Query("collector_id"),
+		Status:      ctx.Query("status"),
+		StartDate:   ctx.Query("start_date"),
+		EndDate:     ctx.Query("end_date"),
+	}
+
+	data, err := c.usecase.GetAllDonations(filter)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, data)
+}
+func (c *DonationController) GetMyDonations(ctx *gin.Context) {
+
+	collectorID := ctx.GetString("userID")
+
+	filter := Domain.DonationFilter{
+		Status:    ctx.Query("status"),
+		StartDate: ctx.Query("start_date"),
+		EndDate:   ctx.Query("end_date"),
+	}
+
+	data, err := c.usecase.GetMyDonations(collectorID, filter)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, data)
 }
 
 // LabController handles lab technician requests
@@ -425,9 +464,11 @@ func (c *LabController) GetHistory(ctx *gin.Context) {
 	ctx.JSON(200, data)
 }
 func (c *LabController) FilterTests(ctx *gin.Context) {
-	status := ctx.Query("status")
+	overallStatus := ctx.Query("overall_status")
+	bloodType := normalizeBloodType(ctx.Query("blood_type"))
+	componentType := ctx.Query("component_type")
 
-	data, err := c.usecase.GetTestResultsByStatus(status)
+	data, err := c.usecase.FilterTestResults(overallStatus, bloodType, componentType)
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -435,17 +476,31 @@ func (c *LabController) FilterTests(ctx *gin.Context) {
 
 	ctx.JSON(200, data)
 }
+
 func (c *LabController) UpdateTest(ctx *gin.Context) {
 	donationID := ctx.Param("donation_id")
+
 	var input Domain.DonorTestResult
 
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		ctx.JSON(400, gin.H{"error": "invalid input"})
 		return
 	}
+
 	input.DonationID = donationID
 
-	err := c.usecase.UpdateTestResult(&input)
+	// 🔐 GET LOGGED-IN LAB TECH ID (IMPORTANT FIX)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(401, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	// FORCE ownership from JWT (DO NOT TRUST BODY)
+	input.TestedBy = userID.(string)
+
+	// CALL USECASE
+	err := c.usecase.UpdateTestResult(&input, userID.(string))
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -454,9 +509,16 @@ func (c *LabController) UpdateTest(ctx *gin.Context) {
 	ctx.JSON(200, gin.H{"message": "updated"})
 }
 func (c *LabController) RejectBlood(ctx *gin.Context) {
+
 	id := ctx.Param("donation_id")
 
-	err := c.usecase.RejectBlood(id)
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(401, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	err := c.usecase.RejectBlood(id, userID.(string))
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -502,6 +564,64 @@ func (c *LabController) GetDonation(ctx *gin.Context) {
 	data, err := c.usecase.GetDonation(donationID)
 	if err != nil {
 		ctx.JSON(404, gin.H{"error": "donation not found"})
+		return
+	}
+
+	ctx.JSON(200, data)
+}
+func (c *LabController) GetMyTests(ctx *gin.Context) {
+
+	// 🔐 get logged-in lab tech
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(401, gin.H{"error": "unauthorized"})
+		return
+	}
+	labTechID := userID.(string)
+
+	// 🔎 filters (ONLY read query params here)
+	overallStatus := strings.ToUpper(strings.TrimSpace(ctx.Query("overall_status")))
+bloodType := normalizeBloodType(ctx.Query("blood_type"))
+componentType := strings.ToUpper(strings.TrimSpace(ctx.Query("component_type")))
+
+	// call usecase
+	data, err := c.usecase.GetMyTestResultsFiltered(
+		labTechID,
+		overallStatus,
+		bloodType,
+		componentType,
+	)
+
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, data)
+}
+// ✅ FIXED: safe normalization (DO NOT touch encoding)
+func normalizeBloodType(input string) string {
+	return strings.ToUpper(strings.TrimSpace(input))
+}
+func (c *LabController) GetAllTests(ctx *gin.Context) {
+
+	overallStatus := strings.ToUpper(strings.TrimSpace(ctx.Query("overall_status")))
+	// FIX: do NOT modify HTTP input unnecessarily
+bloodType := strings.ToUpper(strings.TrimSpace(ctx.Query("blood_type")))
+	componentType := strings.ToUpper(strings.TrimSpace(ctx.Query("component_type")))
+	// DEBUG: verify request input
+fmt.Println("overallStatus:", overallStatus)
+fmt.Println("bloodType:", bloodType)
+fmt.Println("componentType:", componentType)
+
+	data, err := c.usecase.GetAllTestsFiltered(
+		overallStatus,
+		bloodType,
+		componentType,
+	)
+
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 

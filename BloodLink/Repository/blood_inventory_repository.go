@@ -247,3 +247,13 @@ func (r *BloodInventoryRepository) FilterBloodUnits(
 
 	return units, nil
 }
+func (r *BloodInventoryRepository) MarkExpiredUnits() error {
+	query := `
+	UPDATE blood_units
+	SET status = 'EXPIRED'
+	WHERE expiration_date < NOW()
+	AND status != 'EXPIRED'
+	`
+	_, err := r.DB.Exec(query)
+	return err
+}

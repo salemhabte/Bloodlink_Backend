@@ -13,6 +13,7 @@ type DonorTestResult struct {
 	SyphilisResult   string    `json:"syphilis_result"`
 
 	BloodType        string    `json:"blood_type"`
+	ComponentType string `json:"component_type"`
 
 	OverallStatus    string    `json:"overall_status"`
 
