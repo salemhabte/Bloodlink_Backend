@@ -257,3 +257,10 @@ func (r *BloodInventoryRepository) MarkExpiredUnits() error {
 	_, err := r.DB.Exec(query)
 	return err
 }
+
+func (r *BloodInventoryRepository) CountAvailableUnitsByBloodType(bloodType string) (int, error) {
+	query := `SELECT COUNT(*) FROM blood_units WHERE blood_type = $1 AND status = 'AVAILABLE' AND expiration_date > NOW()`
+	var count int
+	err := r.DB.QueryRow(query, bloodType).Scan(&count)
+	return count, err
+}

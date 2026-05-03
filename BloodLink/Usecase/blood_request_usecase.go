@@ -13,12 +13,24 @@ import (
 )
 
 type bloodRequestUsecase struct {
-	repo         Interfaces.IBloodRequestRepository
-	hospitalRepo Interfaces.IHospitalRepository
+	repo          Interfaces.IBloodRequestRepository
+	hospitalRepo  Interfaces.IHospitalRepository
+	inventoryRepo Interfaces.IBloodInventoryRepository
+	emergencyUC   Interfaces.IEmergencyRequestUsecase
 }
 
-func NewBloodRequestUsecase(repo Interfaces.IBloodRequestRepository, hospitalRepo Interfaces.IHospitalRepository) Interfaces.IBloodRequestUsecase {
-	return &bloodRequestUsecase{repo: repo, hospitalRepo: hospitalRepo}
+func NewBloodRequestUsecase(
+	repo Interfaces.IBloodRequestRepository,
+	hospitalRepo Interfaces.IHospitalRepository,
+	inventoryRepo Interfaces.IBloodInventoryRepository,
+	emergencyUC Interfaces.IEmergencyRequestUsecase,
+) Interfaces.IBloodRequestUsecase {
+	return &bloodRequestUsecase{
+		repo:          repo,
+		hospitalRepo:  hospitalRepo,
+		inventoryRepo: inventoryRepo,
+		emergencyUC:   emergencyUC,
+	}
 }
 
 func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestDTO, hospitalAdminUserID string) error {
@@ -66,18 +78,29 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 		return err
 	}
 
-	// Notify blood bank admins
+	// Get hospital info for emergency and notification
 	hospital, err := u.hospitalRepo.GetHospitalByID(hospital_id)
 	hospitalName := "A hospital"
+	hospitalLocation := "Unknown"
 	if err == nil {
 		hospitalName = hospital.Name
+		hospitalLocation = hospital.Address
+	}
+
+	// CHECK INVENTORY FOR EMERGENCY TRIGGER
+	available, err := u.inventoryRepo.CountAvailableUnitsByBloodType(req.BloodType)
+	if err == nil {
+		if available < req.Quantity {
+			// Trigger emergency
+			_ = u.emergencyUC.TriggerEmergency(requestID, req.BloodType, req.Quantity, req.UrgencyLevel, hospitalName, hospitalLocation)
+		}
 	}
 
 	// Send Notification to Blood Bank Admin (Assuming static admin email for now)
 	adminEmail := "admin@bloodlink.com"
 	go func() {
 		subject := fmt.Sprintf("New %s Blood Request from %s", req.UrgencyLevel, hospitalName)
-		content := fmt.Sprintf("Hospital <b>%s</b> has requested %d units of %s blood.<br><br>Urgency: <b>%s</b>.<br>Please review this request on the admin dashboard.", hospitalName, req.Quantity, req.BloodType, req.UrgencyLevel)
+		content := fmt.Sprintf("Hospital <b>%s</b> has requested %d units of %s blood.<br><br>Urgency: <b>%s</b>.<br>Location: <b>%s</b>.<br>Please review this request on the admin dashboard.", hospitalName, req.Quantity, req.BloodType, req.UrgencyLevel, hospitalLocation)
 		_ = Infrastructure.SendBloodRequestNotification(adminEmail, subject, content)
 	}()
 

@@ -23,6 +23,7 @@ func SetupRouter(
 	collectorAnalyticsController *controller.CollectorAnalyticsController,
 	labAnalyticsController *controller.LabAnalyticsController,
 	adminAnalyticsController *controller.AdminAnalyticsController,
+	emergencyController *controller.EmergencyRequestController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -64,6 +65,8 @@ func SetupRouter(
 			protectedRoutes.DELETE("/user", userCtrl.DeleteUser)
 			protectedRoutes.GET("/donors/filter", userCtrl.GetDonors)
 		}
+
+		api.GET("/emergencies/published", emergencyController.GetPublishedEmergencies)
 	}
 
 	campaigns := r.Group("/api/campaigns")
@@ -128,6 +131,14 @@ func SetupRouter(
 			adminBloodRequests.GET("/", bloodReqController.GetAllRequests)
 			adminBloodRequests.PUT("/:id/status", bloodReqController.UpdateStatus)
 		}
+
+		adminEmergencies := admin.Group("/emergencies")
+		{
+			adminEmergencies.GET("/", emergencyController.GetAllEmergencies)
+			adminEmergencies.POST("/manual", emergencyController.CreateManualEmergency)
+			adminEmergencies.POST("/:id/publish", emergencyController.PublishEmergency)
+			adminEmergencies.POST("/:id/reject", emergencyController.RejectEmergency)
+		}
 	}
 
 	// Donor Routes
@@ -137,6 +148,7 @@ func SetupRouter(
 		{
 			donor.GET("/donations", donationController.GetAllDonationsByDonor)
 			donor.GET("/test-result/latest", labController.GetLatestTestResultByDonor)
+			donor.GET("/emergencies", emergencyController.GetEmergenciesForDonor)
 		}
 	}
 

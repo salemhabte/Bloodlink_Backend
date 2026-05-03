@@ -28,6 +28,7 @@ type IUserRepository interface {
 	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 	UpdateRefreshToken(ctx context.Context, userID, refreshToken string) error
 	GetDonorByUserID(ctx context.Context, userID string) (*domain.Donor, error)
+	GetDonorsByBloodTypeAndAddress(ctx context.Context, bloodType, address string) ([]domain.DonorResponse, error)
 }
 
 type IProfileRepository interface {
