@@ -94,7 +94,7 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 		return errors.New("donor not found")
 	}
 
-	// ❌ BLOCK permanently deferred donors (e.g HIV positive)
+	//  BLOCK permanently deferred donors (e.g HIV positive)
 	if overallStatus == "PERMANENTLY_DEFERRED" {
 		return errors.New("donor is permanently deferred and cannot donate")
 	}
@@ -168,7 +168,27 @@ func (u *DonationUsecase) SearchDonor(query string) (*Domain.DonorResponse, erro
 }
 
 // Update donation status manually by blood collector
-func (u *DonationUsecase) UpdateDonationStatus(donationID string, status string) error {
+func (u *DonationUsecase) UpdateDonationStatus(donationID string, status string, collectorID string) error {
+
+	// ================================
+	// 1. Get existing donation
+	// ================================
+	existing, err := u.repo.GetDonationByID(donationID)
+	if err != nil {
+		return errors.New("donation not found")
+	}
+
+	// ==========================================================
+	//  SECURITY CHECK (IMPORTANT)
+	// Only creator collector can update status
+	// ==========================================================
+	if existing.CollectedBy != collectorID {
+		return errors.New("you are not allowed to update this donation status")
+	}
+
+	// ================================
+	// 2. Update status in DB
+	// ================================
 	return u.repo.UpdateDonationStatus(donationID, status)
 }
 
@@ -177,10 +197,7 @@ func (u *DonationUsecase) GetDonationByID(id string) (*Domain.DonationRecord, er
 	return u.repo.GetDonationByID(id)
 }
 
-// NEW: Get all donations
-func (u *DonationUsecase) GetAllDonations() ([]Domain.DonationRecord, error) {
-	return u.repo.GetAllDonations()
-}
+
 
 // NEW: Get all donations by donor ID
 func (u *DonationUsecase) GetAllDonationsByDonor(donorID string) ([]Domain.DonationRecord, error) {
@@ -195,6 +212,10 @@ func (u *DonationUsecase) UpdateDonation(record *Domain.DonationRecord) error {
     if err != nil {
         return errors.New("donation not found")
     }
+	// Only the collector who created this donation can update it
+	if existing.CollectedBy != record.CollectedBy {
+		return errors.New("you are not allowed to update this donation")
+	}
 
     // Prevent wrong donor update
     if existing.DonorID != record.DonorID {
@@ -215,6 +236,15 @@ func (u *DonationUsecase) UpdateDonation(record *Domain.DonationRecord) error {
     }
 
     return nil
+}
+
+
+func (u *DonationUsecase) GetAllDonations(filter Domain.DonationFilter) ([]Domain.DonationRecord, error) {
+	return u.repo.GetDonations(filter)
+}
+func (u *DonationUsecase) GetMyDonations(collectorID string, filter Domain.DonationFilter) ([]Domain.DonationRecord, error) {
+    filter.CollectorID = collectorID
+    return u.repo.GetDonations(filter)
 }
 //BloodInventoryUsecase
 
@@ -310,4 +340,7 @@ func (u *BloodInventoryUsecase) FilterUnits(
 ) ([]Domain.BloodUnit, error) {
 
 	return u.repo.FilterBloodUnits(unitID, bloodType, status, startDate, endDate)
+}
+func (u *BloodInventoryUsecase) UpdateExpiredUnits() error {
+	return u.repo.MarkExpiredUnits()
 }

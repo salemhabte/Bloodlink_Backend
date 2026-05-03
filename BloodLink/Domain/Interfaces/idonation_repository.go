@@ -16,8 +16,6 @@ type IDonationRepository interface {
 	UpdateDonation(record *domain.DonationRecord) error
 
 	GetDonationByID(id string) (*domain.DonationRecord, error)
-	// Get all donations
-	GetAllDonations() ([]domain.DonationRecord, error)
 	// Get last donation for 3 month rule
 	GetLastDonationByDonor(donorID string) (*domain.DonationRecord, error)
 	UpdateDonorWeight(donorID string, weight float64) error
@@ -25,5 +23,7 @@ GetPendingDonors() ([]domain.DonorResponse, error)
 GetPendingDonorByID(donorID string) (*domain.DonorResponse, error)
 SearchPendingDonor(query string) (*domain.DonorResponse, error)
 GetAllDonationsByDonor(donorID string) ([]domain.DonationRecord, error)
-GetDonorOverallStatus(donorID string) (string, error)
+	GetDonorOverallStatus(donorID string) (string, error)
+	GetDonationsByCollector(collectorID string) ([]domain.DonationRecord, error)
+	GetDonations(filter domain.DonationFilter) ([]domain.DonationRecord, error)
 }

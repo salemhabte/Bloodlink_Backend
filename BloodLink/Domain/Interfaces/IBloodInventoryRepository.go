@@ -9,4 +9,5 @@ type IBloodInventoryRepository interface {
 	DeleteBloodUnitByID(id string) error
 	GetFullBloodUnitDetails(id string) (map[string]interface{}, error)
 	FilterBloodUnits(unitID, bloodType, status, startDate, endDate string) ([]Domain.BloodUnit, error)
+	MarkExpiredUnits() error
 }

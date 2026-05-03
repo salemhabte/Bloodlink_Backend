@@ -72,7 +72,8 @@ func (u *LabUsecase) ProcessTestResult(result *Domain.DonorTestResult) error {
 			BloodType:      result.BloodType,
 			VolumeML:       donation.QuantityML,
 			CollectionDate: donation.CollectionDate,
-			ExpirationDate: donation.CollectionDate.AddDate(0, 0, 42),
+			ExpirationDate: calculateExpiration(donation.CollectionDate, result.ComponentType),
+ComponentType: result.ComponentType,
 			Status:         "AVAILABLE",
 			CreatedAt:      time.Now(),
 		}
@@ -117,7 +118,7 @@ func (u *LabUsecase) GetAllTestResults() ([]Domain.DonorTestResult, error) {
 func (u *LabUsecase) GetTestResultsByStatus(status string) ([]Domain.DonorTestResult, error) {
 	return u.repo.GetTestResultsByStatus(status)
 }
-func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult) error {
+func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult, currentLabTechID string) error {
 
 	// Normalize input
 	result.HIVResult = strings.ToUpper(result.HIVResult)
@@ -133,9 +134,14 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult) error {
 	if err != nil {
 		return err
 	}
+	if existing == nil {
+	return errors.New("test result not found")
+}
 
-	result.DonorID = existing.DonorID
-
+	// SECURITY CHECK — ensure same lab tech owns the test
+	if existing.TestedBy != currentLabTechID {
+		return errors.New("you are not allowed to edit another lab tech's test result")
+	}
 	// 2. Validate overall status (no override)
 	suggested, conflict := SuggestOverallStatus(
 		result.HIVResult,
@@ -189,7 +195,7 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult) error {
 				BloodType:      result.BloodType,
 				VolumeML:       donation.QuantityML,
 				CollectionDate: donation.CollectionDate,
-				ExpirationDate: donation.CollectionDate.AddDate(0, 0, 42),
+				ExpirationDate: calculateExpiration(donation.CollectionDate, result.ComponentType),
 				Status:         "AVAILABLE",
 				CreatedAt:      time.Now(),
 			}
@@ -209,10 +215,16 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult) error {
 
 	return nil
 }
-func (u *LabUsecase) RejectBlood(donationID string) error {
+func (u *LabUsecase) RejectBlood(donationID string, currentLabTechID string) error {
+
 	result, err := u.repo.GetTestResult(donationID)
 	if err != nil {
 		return err
+	}
+
+	// 🔐 SECURITY CHECK
+	if result.TestedBy != currentLabTechID {
+		return errors.New("you are not allowed to reject another lab tech's test")
 	}
 
 	result.OverallStatus = "PERMANENTLY_DEFERRED"
@@ -226,6 +238,44 @@ func (u *LabUsecase) RejectBlood(donationID string) error {
 func (u *LabUsecase) GetDonation(donationID string) (*Domain.DonationRecord, error) {
 	return u.repo.GetDonationByID(donationID)
 }
+func calculateExpiration(collectionDate time.Time, component string) time.Time {
+	switch component {
+	case "WHOLE_BLOOD":
+		return collectionDate.AddDate(0, 0, 42)
+	case "PLATELETS":
+		return collectionDate.AddDate(0, 0, 5)
+	case "PLASMA":
+		return collectionDate.AddDate(1, 0, 0)
+	default:
+		return collectionDate.AddDate(0, 0, 35) // safer fallback
+	}
+}
+func (u *LabUsecase) GetMyTestResults(labTechID string) ([]Domain.DonorTestResult, error) {
+	return u.repo.GetTestResultsByLabTech(labTechID)
+}
+func (u *LabUsecase) FilterTestResults(overallStatus, bloodType, componentType string) ([]Domain.DonorTestResult, error) {
+	return u.repo.FilterTestResults(overallStatus, bloodType, componentType)
+}
+func (u *LabUsecase) GetMyTestResultsFiltered(
+	labTechID, overallStatus, bloodType, componentType string,
+) ([]Domain.DonorTestResult, error) {
+
+	return u.repo.GetMyTestResultsFiltered(
+		labTechID,
+		overallStatus,
+		bloodType,
+		componentType,
+	)
+}
+func (u *LabUsecase) GetAllTestsFiltered(
+	overallStatus, bloodType, componentType string,
+) ([]Domain.DonorTestResult, error) {
+
+	return u.repo.FilterTestResults(
+		overallStatus,
+		bloodType,
+		componentType,
+	)
 
 func (u *LabUsecase) GetLatestTestResultByDonor(donorID string) (*Domain.DonorTestResult, error) {
 	return u.repo.GetLatestTestResultByDonor(donorID)
