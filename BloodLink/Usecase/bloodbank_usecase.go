@@ -199,6 +199,11 @@ func (u *DonationUsecase) GetDonationByID(id string) (*Domain.DonationRecord, er
 
 
 
+// NEW: Get all donations by donor ID
+func (u *DonationUsecase) GetAllDonationsByDonor(donorID string) ([]Domain.DonationRecord, error) {
+	return u.repo.GetAllDonationsByDonor(donorID)
+}
+
 // NEW: Update donation medical information
 func (u *DonationUsecase) UpdateDonation(record *Domain.DonationRecord) error {
 

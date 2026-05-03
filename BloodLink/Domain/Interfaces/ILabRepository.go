@@ -19,4 +19,6 @@ type ILabRepository interface {
 	GetTestResultsByLabTech(labTechID string) ([]Domain.DonorTestResult, error)
 	FilterTestResults(status, bloodType, componentType string) ([]Domain.DonorTestResult, error)
 	GetMyTestResultsFiltered(labTechID, overallStatus, bloodType, componentType string) ([]Domain.DonorTestResult, error)
+    GetLatestTestResultByDonor(donorID string) (*Domain.DonorTestResult, error)
+	
 }

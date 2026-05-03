@@ -82,11 +82,32 @@ func (r *UserRepository) ActivateUser(ctx context.Context, userID string) error 
 	return err
 }
 
-// CreateDonor inserts a minimal donor record into the database
+// CreateDonor inserts a donor record into the database
 func (r *UserRepository) CreateDonor(ctx context.Context, donor *domain.Donor) error {
-	query := `INSERT INTO donors (donor_id, user_id, overall_status) VALUES ($1, $2, $3)`
-	_, err := r.DB.ExecContext(ctx, query, donor.DonorID, donor.UserID, donor.OverallStatus)
+	query := `INSERT INTO donors (donor_id, user_id, overall_status, date_of_birth) VALUES ($1, $2, $3, $4)`
+	_, err := r.DB.ExecContext(ctx, query, donor.DonorID, donor.UserID, donor.OverallStatus, donor.DateOfBirth)
 	return err
+}
+
+func (r *UserRepository) GetDonorByUserID(ctx context.Context, userID string) (*domain.Donor, error) {
+	query := `SELECT donor_id, user_id, overall_status, date_of_birth, blood_type FROM donors WHERE user_id = $1`
+	donor := &domain.Donor{}
+	var dob sql.NullTime
+	var bt sql.NullString
+
+	err := r.DB.QueryRowContext(ctx, query, userID).Scan(&donor.DonorID, &donor.UserID, &donor.OverallStatus, &dob, &bt)
+	if err != nil {
+		return nil, err
+	}
+
+	if dob.Valid {
+		donor.DateOfBirth = dob.Time
+	}
+	if bt.Valid {
+		donor.BloodType = bt.String
+	}
+
+	return donor, nil
 }
 
 // DeleteUser removes a user from the database.

@@ -8,6 +8,7 @@ import (
 type IUserUseCase interface {
 	RegisterUser(ctx context.Context, user *domain.User) error
 	Login(ctx context.Context, email, password string) (string, string, string, string, error)
+	RegisterDonor(ctx context.Context, req *domain.RegisterDonorRequest) error
 	VerifyOTP(ctx context.Context, email, otp string) error
 	GetProfile(ctx context.Context, userID string) (*domain.UserProfile, error)
 	UpdateProfile(ctx context.Context, profile *domain.UserProfile) error
@@ -20,4 +21,5 @@ type IUserUseCase interface {
 	Logout(ctx context.Context, userID string) error
 	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 	GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error)
+	GetDonorIDByUserID(ctx context.Context, userID string) (string, error)
 }

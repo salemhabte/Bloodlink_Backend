@@ -52,11 +52,12 @@ type UserProfile struct {
 }
 
 type Donor struct {
-	DonorID          string `json:"donor_id" db:"donor_id"`
-	UserID           string `json:"user_id" db:"user_id"`
-	BloodType        string `json:"blood_type" db:"blood_type"`
-	OverallStatus           string `json:"overall_status" db:"overall_status"`
-	LastDonationDate string `json:"last_donation_date" db:"last_donation_date"`
+	DonorID          string    `json:"donor_id" db:"donor_id"`
+	UserID           string    `json:"user_id" db:"user_id"`
+	BloodType        string    `json:"blood_type" db:"blood_type"`
+	OverallStatus    string    `json:"overall_status" db:"overall_status"`
+	DateOfBirth      time.Time `json:"date_of_birth" db:"date_of_birth"`
+	LastDonationDate string    `json:"last_donation_date" db:"last_donation_date"`
 }
 
 type DonorResponse struct {
@@ -97,6 +98,15 @@ type RegisterRequest struct {
 	Phone    string `json:"phone" binding:"required"`
 	Password string `json:"password" binding:"required,min=8"`
 	Role     string `json:"role" binding:"required"`
+}
+
+type RegisterDonorRequest struct {
+	FullName  string    `json:"full_name" binding:"required"`
+	Email     string    `json:"email" binding:"required"`
+	Phone     string    `json:"phone" binding:"required"`
+	Password  string    `json:"password" binding:"required,min=8"`
+	Address   string    `json:"address" binding:"required"`
+	BirthDate time.Time `json:"birth_date" binding:"required"`
 }
 
 // LoginRequest represents the payload for user login

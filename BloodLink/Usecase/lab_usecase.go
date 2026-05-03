@@ -276,4 +276,7 @@ func (u *LabUsecase) GetAllTestsFiltered(
 		bloodType,
 		componentType,
 	)
+
+func (u *LabUsecase) GetLatestTestResultByDonor(donorID string) (*Domain.DonorTestResult, error) {
+	return u.repo.GetLatestTestResultByDonor(donorID)
 }

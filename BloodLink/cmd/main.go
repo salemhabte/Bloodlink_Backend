@@ -36,6 +36,7 @@ func main() {
 	donationRepo := Repository.NewDonationRepository(db)
 	labRepo := Repository.NewLabRepository(db)
 	inventoryRepo := Repository.NewBloodInventoryRepository(db)
+	hospitalRepo := Repository.NewHospitalRepository(db)
 	campaignAnalyticsRepo := Repository.NewCampaignAnalyticsRepository(db)
 	collectorAnalyticsRepo := Repository.NewCollectorAnalyticsRepository(db)
 	labAnalyticsRepo := Repository.NewLabAnalyticsRepository(db)
@@ -47,6 +48,12 @@ func main() {
 	labUsecase := Usecase.NewLabUsecase(labRepo)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
 	go Jobs.StartExpirationJob(inventoryUsecase)
+
+	pdfService := Usecase.NewPDFGeneratorService("./uploads")
+	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo)
+
+	bloodReqRepo := Repository.NewBloodRequestRepository(db)
+	bloodReqUsecase := Usecase.NewBloodRequestUsecase(bloodReqRepo, hospitalRepo)
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
 	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)
@@ -54,16 +61,31 @@ func main() {
 
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
-	donationController := controller.NewDonationController(donationUsecase)
-	labController := controller.NewLabController(labUsecase)
+	donationController := controller.NewDonationController(donationUsecase, userUseCase)
+	labController := controller.NewLabController(labUsecase, userUseCase)
 	inventoryController := controller.NewBloodInventoryController(inventoryUsecase)
+	hospitalController := controller.NewHospitalController(hospitalUsecase)
+	bloodReqController := controller.NewBloodRequestController(bloodReqUsecase)
 	campaignAnalyticsController := controller.NewCampaignAnalyticsController(campaignAnalyticsUsecase)
 	collectorAnalyticsController := controller.NewCollectorAnalyticsController(collectorAnalyticsUsecase)
 	labAnalyticsController := controller.NewLabAnalyticsController(labAnalyticsUsecase)
 	adminAnalyticsController := controller.NewAdminAnalyticsController(adminAnalyticsUsecase)
 
 	// 5. Initialize Router
-	r := router.SetupRouter(userController, jwtService, campaignController, donationController, labController, inventoryController, campaignAnalyticsController, collectorAnalyticsController,labAnalyticsController,adminAnalyticsController)
+	r := router.SetupRouter(
+		userController,
+		jwtService,
+		campaignController,
+		donationController,
+		labController,
+		inventoryController,
+		hospitalController,
+		bloodReqController,
+		campaignAnalyticsController,
+		collectorAnalyticsController,
+		labAnalyticsController,
+		adminAnalyticsController,
+	)
 
 	// 7. Start the Server
 	log.Println("Starting server on :8080")

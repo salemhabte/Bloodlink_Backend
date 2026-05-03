@@ -351,10 +351,28 @@ func (r *donationRepository) SearchPendingDonor(query string) (*Domain.DonorResp
 func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.DonationRecord, error) {
 
 	query := `
-	SELECT donation_id, donor_id, status, collection_date
-	FROM donation_records
-	WHERE donor_id = $1
-	ORDER BY collection_date DESC
+	SELECT 
+		d.donation_id,
+		d.donor_id,
+		d.campaign_id,
+		d.collected_by,
+		u1.full_name AS donor_name,
+		u2.full_name AS collector_name,
+		d.collection_date,
+		d.weight,
+		d.blood_pressure,
+		d.hemoglobin,
+		d.temperature,
+		d.pulse,
+		d.quantity_ml,
+		d.status,
+		d.created_at
+	FROM donation_records d
+	JOIN donors dn ON d.donor_id = dn.donor_id
+	JOIN users u1 ON dn.user_id = u1.user_id
+	JOIN users u2 ON d.collected_by = u2.user_id
+	WHERE d.donor_id = $1
+	ORDER BY d.collection_date DESC
 	`
 
 	rows, err := r.db.Query(query, donorID)
@@ -371,8 +389,19 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 		err := rows.Scan(
 			&d.DonationID,
 			&d.DonorID,
-			&d.Status,
+			&d.CampaignID,
+			&d.CollectedBy,
+			&d.DonorName,
+			&d.CollectorName,
 			&d.CollectionDate,
+			&d.Weight,
+			&d.BloodPressure,
+			&d.Hemoglobin,
+			&d.Temperature,
+			&d.Pulse,
+			&d.QuantityML,
+			&d.Status,
+			&d.CreatedAt,
 		)
 		if err != nil {
 			return nil, err

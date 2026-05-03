@@ -55,6 +55,26 @@ func (c *UserController) RegisterUser(ctx *gin.Context) {
 	})
 }
 
+func (c *UserController) RegisterDonor(ctx *gin.Context) {
+	var req domain.RegisterDonorRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	if err := c.UserUseCase.RegisterDonor(cCtx, &req); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, gin.H{
+		"message": "Donor registered successfully. You can now login.",
+	})
+}
+
 func (c *UserController) HandleLogin(ctx *gin.Context) {
 	var req domain.LoginRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
