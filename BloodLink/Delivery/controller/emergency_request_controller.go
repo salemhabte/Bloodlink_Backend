@@ -68,9 +68,9 @@ func (c *EmergencyRequestController) GetPublishedEmergencies(ctx *gin.Context) {
 }
 
 func (c *EmergencyRequestController) GetEmergenciesForDonor(ctx *gin.Context) {
-	userID := ctx.GetString("user_id")
+	userID := ctx.GetString("userID")
 	if userID == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "user_id not found in context"})
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "userID not found in context"})
 		return
 	}
 
