@@ -264,3 +264,40 @@ func (r *BloodInventoryRepository) CountAvailableUnitsByBloodType(bloodType stri
 	err := r.DB.QueryRow(query, bloodType).Scan(&count)
 	return count, err
 }
+
+func (r *BloodInventoryRepository) ConsumeUnits(bloodType string, quantity int) error {
+	tx, err := r.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Find available units, ordered by expiration date (FIFO)
+	query := `
+		UPDATE blood_units
+		SET status = 'FULFILLED'
+		WHERE blood_unit_id IN (
+			SELECT blood_unit_id
+			FROM blood_units
+			WHERE blood_type = $1 AND status = 'AVAILABLE' AND expiration_date > NOW()
+			ORDER BY expiration_date ASC
+			LIMIT $2
+			FOR UPDATE
+		)
+	`
+	res, err := tx.Exec(query, bloodType, quantity)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if int(rowsAffected) < quantity {
+		return fmt.Errorf("insufficient inventory: requested %d, but only %d available", quantity, rowsAffected)
+	}
+
+	return tx.Commit()
+}
