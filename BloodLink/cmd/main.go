@@ -42,6 +42,7 @@ func main() {
 	labAnalyticsRepo := Repository.NewLabAnalyticsRepository(db)
 	adminAnalyticsRepo := Repository.NewAdminAnalyticsRepository(db)
 	badgeRepo := Repository.NewDonorBadgeRepository(db)
+	emergencyRepo := Repository.NewEmergencyRequestRepository(db)
 
 	// --- Usecases ---
 	badgeUsecase := Usecase.NewDonorBadgeUsecase(badgeRepo)
@@ -55,11 +56,12 @@ func main() {
 	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo)
 
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)
-	bloodReqUsecase := Usecase.NewBloodRequestUsecase(bloodReqRepo, hospitalRepo)
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
 	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)
 	adminAnalyticsUsecase := Usecase.NewAdminAnalyticsUsecase(adminAnalyticsRepo)
+	emergencyUsecase := Usecase.NewEmergencyRequestUsecase(emergencyRepo, inventoryRepo, hospitalRepo, bloodReqRepo, userRepo, profileRepo)
+	bloodReqUsecase := Usecase.NewBloodRequestUsecase(bloodReqRepo, hospitalRepo, inventoryRepo, emergencyUsecase)
 
 	// --- Controllers ---
 	campaignController := controller.NewCampaignController(campaignUsecase)
@@ -73,6 +75,7 @@ func main() {
 	labAnalyticsController := controller.NewLabAnalyticsController(labAnalyticsUsecase)
 	adminAnalyticsController := controller.NewAdminAnalyticsController(adminAnalyticsUsecase)
 	badgeController := controller.NewDonorBadgeController(badgeUsecase, userUseCase)
+	emergencyController := controller.NewEmergencyRequestController(emergencyUsecase)
 
 	// 5. Initialize Router
 	r := router.SetupRouter(
@@ -89,6 +92,7 @@ func main() {
 		labAnalyticsController,
 		adminAnalyticsController,
 		badgeController,
+		emergencyController,
 	)
 
 	// 7. Start the Server

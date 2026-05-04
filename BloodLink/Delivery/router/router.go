@@ -24,6 +24,7 @@ func SetupRouter(
 	labAnalyticsController *controller.LabAnalyticsController,
 	adminAnalyticsController *controller.AdminAnalyticsController,
 	badgeController *controller.DonorBadgeController,
+	emergencyController *controller.EmergencyRequestController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -65,6 +66,8 @@ func SetupRouter(
 			protectedRoutes.DELETE("/user", userCtrl.DeleteUser)
 			protectedRoutes.GET("/donors/filter", userCtrl.GetDonors)
 		}
+
+		api.GET("/emergencies/published", emergencyController.GetPublishedEmergencies)
 	}
 
 	campaigns := r.Group("/api/campaigns")
@@ -131,6 +134,14 @@ admin.GET("/badges", badgeController.GetAllBadges)
 			adminBloodRequests.GET("/", bloodReqController.GetAllRequests)
 			adminBloodRequests.PUT("/:id/status", bloodReqController.UpdateStatus)
 		}
+
+		adminEmergencies := admin.Group("/emergencies")
+		{
+			adminEmergencies.GET("/", emergencyController.GetAllEmergencies)
+			adminEmergencies.POST("/manual", emergencyController.CreateManualEmergency)
+			adminEmergencies.POST("/:id/publish", emergencyController.PublishEmergency)
+			adminEmergencies.POST("/:id/reject", emergencyController.RejectEmergency)
+		}
 	}
 
 	// Donor Routes
@@ -142,6 +153,7 @@ admin.GET("/badges", badgeController.GetAllBadges)
 			donor.GET("/test-result/latest", labController.GetLatestTestResultByDonor)
 			donor.GET("/badges", badgeController.GetMyBadges)
 			donor.GET("/leaderboard", badgeController.GetLeaderboard)
+			donor.GET("/emergencies", emergencyController.GetEmergenciesForDonor)
 		}
 	}
 
