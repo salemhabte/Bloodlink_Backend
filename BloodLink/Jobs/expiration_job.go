@@ -1,4 +1,4 @@
-package jobs
+package Jobs
 
 import (
 	"time"
