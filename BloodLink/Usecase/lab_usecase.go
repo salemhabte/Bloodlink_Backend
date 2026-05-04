@@ -12,11 +12,18 @@ import (
 )
 
 type LabUsecase struct {
-	repo Interface.ILabRepository
+	repo          Interface.ILabRepository
+	badgeUsecase  *DonorBadgeUsecase
 }
 
-func NewLabUsecase(repo Interface.ILabRepository) *LabUsecase {
-	return &LabUsecase{repo: repo}
+func NewLabUsecase(
+	repo Interface.ILabRepository,
+	badgeUsecase *DonorBadgeUsecase,
+) *LabUsecase {
+	return &LabUsecase{
+		repo:         repo,
+		badgeUsecase: badgeUsecase,
+	}
 }
 
 func (u *LabUsecase) ProcessTestResult(result *Domain.DonorTestResult) error {
@@ -81,6 +88,7 @@ ComponentType: result.ComponentType,
 		if err := u.repo.CreateBloodUnit(bloodUnit); err != nil {
 			return err
 		}
+		_ = u.badgeUsecase.EvaluateBadges(donation.DonorID)
 	}
 
 	return nil

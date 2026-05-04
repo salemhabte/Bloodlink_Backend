@@ -23,6 +23,7 @@ func SetupRouter(
 	collectorAnalyticsController *controller.CollectorAnalyticsController,
 	labAnalyticsController *controller.LabAnalyticsController,
 	adminAnalyticsController *controller.AdminAnalyticsController,
+	badgeController *controller.DonorBadgeController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -77,6 +78,8 @@ func SetupRouter(
 	admin := r.Group("/api/bloodbankadmin")
 	admin.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
 	{
+		admin.GET("/leaderboard", badgeController.GetLeaderboard)
+admin.GET("/badges", badgeController.GetAllBadges)
 		adminCampaigns := admin.Group("/campaigns")
 		{
 			adminCampaigns.POST("/", campaignController.CreateCampaign)
@@ -137,6 +140,8 @@ func SetupRouter(
 		{
 			donor.GET("/donations", donationController.GetAllDonationsByDonor)
 			donor.GET("/test-result/latest", labController.GetLatestTestResultByDonor)
+			donor.GET("/badges", badgeController.GetMyBadges)
+			donor.GET("/leaderboard", badgeController.GetLeaderboard)
 		}
 	}
 
