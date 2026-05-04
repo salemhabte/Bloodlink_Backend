@@ -11,4 +11,5 @@ type IBloodInventoryRepository interface {
 	FilterBloodUnits(unitID, bloodType, status, startDate, endDate string) ([]Domain.BloodUnit, error)
 	MarkExpiredUnits() error
 	CountAvailableUnitsByBloodType(bloodType string) (int, error)
+	ConsumeUnits(bloodType string, quantity int) error
 }

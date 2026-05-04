@@ -134,9 +134,49 @@ func (u *bloodRequestUsecase) UpdateStatus(requestID string, req *Domain.UpdateB
 		return err
 	}
 
+	// Status Locking: Once changed from PENDING, it shouldn't change again
+	if br.Status != Domain.BloodRequestStatusPending {
+		return fmt.Errorf("cannot update status: request is already %s", br.Status)
+	}
+
 	var approvedAtStr *string
-	// If it transitions to APPROVED_PARTIALLY_FULFILLED or FULFILLED
-	if req.Status == Domain.BloodRequestStatusPartiallyFulfilled || req.Status == Domain.BloodRequestStatusFulfilled {
+	// If it transitions to FULFILLED
+	if req.Status == Domain.BloodRequestStatusFulfilled {
+		// 1. Check Inventory
+		available, err := u.inventoryRepo.CountAvailableUnitsByBloodType(br.BloodType)
+		if err != nil {
+			return fmt.Errorf("failed to check inventory: %v", err)
+		}
+
+		if available < br.Quantity {
+			return fmt.Errorf("insufficient inventory: only %d units of %s available, but %d requested", available, br.BloodType, br.Quantity)
+		}
+
+		// 2. Decrease Inventory
+		err = u.inventoryRepo.ConsumeUnits(br.BloodType, br.Quantity)
+		if err != nil {
+			return fmt.Errorf("failed to fulfill inventory: %v", err)
+		}
+
+		now := time.Now().Format("2006-01-02 15:04:05")
+		approvedAtStr = &now
+	} else if req.Status == Domain.BloodRequestStatusPartiallyFulfilled {
+		available, err := u.inventoryRepo.CountAvailableUnitsByBloodType(br.BloodType)
+		if err != nil {
+			return fmt.Errorf("failed to check inventory: %v", err)
+		}
+
+		if available > 0 {
+			toConsume := available
+			if toConsume > br.Quantity {
+				toConsume = br.Quantity
+			}
+			err = u.inventoryRepo.ConsumeUnits(br.BloodType, toConsume)
+			if err != nil {
+				return fmt.Errorf("failed to partially fulfill inventory: %v", err)
+			}
+		}
+
 		now := time.Now().Format("2006-01-02 15:04:05")
 		approvedAtStr = &now
 	}
@@ -147,12 +187,8 @@ func (u *bloodRequestUsecase) UpdateStatus(requestID string, req *Domain.UpdateB
 	}
 
 	// Notify Hospital that status changed
-	// We need the admin's email for the hospital.
 	hospital, err := u.hospitalRepo.GetHospitalByID(br.HospitalID)
 	if err == nil {
-		// Ideally we fetch all hospital admins for this hospital, but since we just have one mostly, we just notify an email list.
-		// For simplicity we will notify the admin email.
-		// Since we lack a direct `GetUsersByHospitalID`, we'll assume a dummy or config email here.
 		hospitalAdminEmail := "hospitaladmin@bloodlink.com"
 
 		go func() {

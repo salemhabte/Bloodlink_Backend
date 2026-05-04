@@ -71,6 +71,11 @@ func (u *DonorBloodRequestUsecase) ApproveRequest(requestID string) error {
 		return err
 	}
 
+	// Status Locking
+	if req.Status == "FULFILLED" || req.Status == "REJECTED" {
+		return errors.New("cannot approve: request is already " + req.Status)
+	}
+
 	// check available blood
 	available, err := u.repo.GetAvailableBloodVolume(req.BloodType)
 	if err != nil {
@@ -101,6 +106,16 @@ func (u *DonorBloodRequestUsecase) GetAllRequests() ([]Domain.DonorBloodRequest,
 	return u.repo.GetAll()
 }
 func (u *DonorBloodRequestUsecase) RejectRequest(requestID string) error {
+	req, err := u.repo.GetByID(requestID)
+	if err != nil {
+		return err
+	}
+
+	// Status Locking
+	if req.Status == "FULFILLED" || req.Status == "REJECTED" {
+		return errors.New("cannot reject: request is already " + req.Status)
+	}
+
 	return u.repo.UpdateStatus(requestID, "REJECTED")
 }
 func (u *DonorBloodRequestUsecase) GetMyRequests(donorID string) ([]Domain.DonorBloodRequest, error) {
@@ -114,6 +129,9 @@ func (u *DonorBloodRequestUsecase) FulfillRequest(requestID string) error {
 	}
 
 	//  prevent invalid flow
+	if req.Status == "FULFILLED" || req.Status == "REJECTED" {
+		return errors.New("cannot fulfill: request is already " + req.Status)
+	}
 	if req.Status != "APPROVED" {
 		return errors.New("only approved requests can be fulfilled")
 	}
