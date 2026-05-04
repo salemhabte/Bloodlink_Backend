@@ -25,6 +25,7 @@ func SetupRouter(
 	adminAnalyticsController *controller.AdminAnalyticsController,
 	badgeController *controller.DonorBadgeController,
 	emergencyController *controller.EmergencyRequestController,
+	donorBloodReqController *controller.DonorBloodRequestController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -82,7 +83,11 @@ func SetupRouter(
 	admin.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
 	{
 		admin.GET("/leaderboard", badgeController.GetLeaderboard)
-admin.GET("/badges", badgeController.GetAllBadges)
+		admin.GET("/badges", badgeController.GetAllBadges)
+		admin.GET("/blood-requests", donorBloodReqController.GetAllRequests)
+		admin.PUT("/blood-requests/:id/approve", donorBloodReqController.ApproveRequest)
+		admin.PUT("/blood-requests/:id/fulfill", donorBloodReqController.FulfillRequest)
+		admin.PUT("/blood-requests/:id/reject", donorBloodReqController.RejectRequest)
 		adminCampaigns := admin.Group("/campaigns")
 		{
 			adminCampaigns.POST("/", campaignController.CreateCampaign)
@@ -154,6 +159,10 @@ admin.GET("/badges", badgeController.GetAllBadges)
 			donor.GET("/badges", badgeController.GetMyBadges)
 			donor.GET("/leaderboard", badgeController.GetLeaderboard)
 			donor.GET("/emergencies", emergencyController.GetEmergenciesForDonor)
+			donor.POST("/blood-request", donorBloodReqController.CreateRequest)
+			donor.GET("/blood-requests", donorBloodReqController.GetAllRequests)
+			donor.GET("/my-requests", donorBloodReqController.GetMyRequests)
+
 		}
 	}
 

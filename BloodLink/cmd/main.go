@@ -6,7 +6,7 @@ import (
 	"bloodlink/Infrastructure"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
-	"bloodlink/jobs"
+	"bloodlink/Jobs"
 
 	"bloodlink/config"
 	"log"
@@ -43,6 +43,7 @@ func main() {
 	adminAnalyticsRepo := Repository.NewAdminAnalyticsRepository(db)
 	badgeRepo := Repository.NewDonorBadgeRepository(db)
 	emergencyRepo := Repository.NewEmergencyRequestRepository(db)
+	donorBloodReqRepo := Repository.NewDonorBloodRequestRepository(db)
 
 	// --- Usecases ---
 	badgeUsecase := Usecase.NewDonorBadgeUsecase(badgeRepo)
@@ -50,10 +51,11 @@ func main() {
 	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo)
 	labUsecase := Usecase.NewLabUsecase(labRepo, badgeUsecase)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
-	go jobs.StartExpirationJob(inventoryUsecase)
+	go Jobs.StartExpirationJob(inventoryUsecase)
 
 	pdfService := Usecase.NewPDFGeneratorService("./uploads")
 	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo)
+	donorBloodReqUsecase := Usecase.NewDonorBloodRequestUsecase(donorBloodReqRepo)
 
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
@@ -76,6 +78,7 @@ func main() {
 	adminAnalyticsController := controller.NewAdminAnalyticsController(adminAnalyticsUsecase)
 	badgeController := controller.NewDonorBadgeController(badgeUsecase, userUseCase)
 	emergencyController := controller.NewEmergencyRequestController(emergencyUsecase)
+	donorBloodReqController := controller.NewDonorBloodRequestController(donorBloodReqUsecase, userUseCase)
 
 	// 5. Initialize Router
 	r := router.SetupRouter(
@@ -93,6 +96,7 @@ func main() {
 		adminAnalyticsController,
 		badgeController,
 		emergencyController,
+		donorBloodReqController,
 	)
 
 	// 7. Start the Server
