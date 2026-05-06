@@ -3,6 +3,7 @@ package Usecase
 import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,11 +33,16 @@ func (u *notificationUsecase) SendNotification(userID, notifType, title, message
 func (u *notificationUsecase) SendToRole(role, notifType, title, message string) error {
 	userIDs, err := u.repo.GetUserIDsByRole(role)
 	if err != nil {
+		log.Printf("[NOTIF ERROR] Failed to get user IDs for role %s: %v", role, err)
 		return err
 	}
 
+	log.Printf("[NOTIF] Sending %s notification to %d users with role %s", notifType, len(userIDs), role)
+
 	for _, id := range userIDs {
-		_ = u.SendNotification(id, notifType, title, message)
+		if err := u.SendNotification(id, notifType, title, message); err != nil {
+			log.Printf("[NOTIF ERROR] Failed to send notification to user %s: %v", id, err)
+		}
 	}
 	return nil
 }

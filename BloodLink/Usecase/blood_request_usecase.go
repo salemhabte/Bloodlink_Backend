@@ -94,7 +94,7 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 		subject := fmt.Sprintf("New %s Blood Request from %s", req.UrgencyLevel, hospitalName)
 		content := fmt.Sprintf("Hospital <b>%s</b> has requested %d units of %s blood.<br><br>Urgency: <b>%s</b>.<br>Location: <b>%s</b>.<br>Please review this request on the admin dashboard.", hospitalName, req.Quantity, req.BloodType, req.UrgencyLevel, hospitalLocation)
 		_ = Infrastructure.SendBloodRequestNotification(adminEmail, subject, content)
-		_ = u.notifUC.SendToRole("BLOOD_BANK_ADMIN", "BLOOD_REQUEST", "New Blood Request", fmt.Sprintf("%s has requested %d units of %s", hospitalName, req.Quantity, req.BloodType))
+		_ = u.notifUC.SendToRole(Domain.RoleBloodBankAdmin, "BLOOD_REQUEST", "New Blood Request", fmt.Sprintf("%s has requested %d units of %s", hospitalName, req.Quantity, req.BloodType))
 	}()
 
 	return nil
@@ -155,20 +155,20 @@ func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveR
 	var message string
 	var notes string
 
-	if fulfilledCount == 0 {
+	if totalReservedVolume == 0 {
 		// a. No blood in inventory
 		status = Domain.BloodRequestStatusRejected
 		message = "No blood"
-		notes = "Automatically rejected: No matching blood units available in inventory."
-	} else if fulfilledCount >= br.Quantity {
+		notes = "Automatically rejected: No available units of the requested blood type in inventory."
+	} else if totalReservedVolume >= br.Quantity {
 		// b. Fully fulfilled
 		status = Domain.BloodRequestStatusFulfilled
 		message = "Request fully fulfilled and blood units reserved."
-		notes = fmt.Sprintf("Fulfilled %d units. Total Volume: %dML.", fulfilledCount, totalReservedVolume)
+		notes = fmt.Sprintf("Fully fulfilled. Reserved %d units totaling %dML.", fulfilledCount, totalReservedVolume)
 	} else {
 		// c. Partially fulfilled
 		status = Domain.BloodRequestStatusPartiallyFulfilled
-		message = fmt.Sprintf("Request partially fulfilled. Reserved %d units.", fulfilledCount)
+		message = fmt.Sprintf("Request partially fulfilled. Reserved %d units totaling %dML.", fulfilledCount, totalReservedVolume)
 
 		unitDetails := ""
 		for i, ui := range reservedInfo {

@@ -68,7 +68,7 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 
 	err = u.repo.CreateHospitalRequestAdmin(adminReq)
 	if err == nil {
-		go u.notifUC.SendToRole("BLOOD_BANK_ADMIN", "CONTRACT", "New Hospital Registration", fmt.Sprintf("A new registration request was submitted by %s", req.HospitalName))
+		go u.notifUC.SendToRole(Domain.RoleBloodBankAdmin, "CONTRACT", "New Hospital Registration", fmt.Sprintf("A new registration request was submitted by %s", req.HospitalName))
 	}
 	return err
 }
@@ -185,7 +185,7 @@ func (u *hospitalUsecase) HospitalSignContract(contractID string, req *Domain.Si
 
 	err = u.repo.UpdateContract(contract)
 	if err == nil {
-		go u.notifUC.SendToRole("BLOOD_BANK_ADMIN", "CONTRACT", "Contract Signed by Hospital", "A hospital has signed their contract and is waiting for your signature.")
+		go u.notifUC.SendToRole(Domain.RoleBloodBankAdmin, "CONTRACT", "Contract Signed by Hospital", "A hospital has signed their contract and is waiting for your signature.")
 	}
 	return err
 }

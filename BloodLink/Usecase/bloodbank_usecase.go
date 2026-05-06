@@ -4,6 +4,7 @@ import (
 	"bloodlink/Domain"
 	Interface "bloodlink/Domain/Interfaces"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,7 +24,7 @@ func NewCampaignUsecase(repo Interface.ICampaignRepository, notifUC Interface.IN
 func (u *CampaignUsecase) CreateCampaign(campaign *Domain.Campaign) error {
 	err := u.Repo.CreateCampaign(campaign)
 	if err == nil {
-		go u.NotifUC.SendToRole("DONOR", "CAMPAIGN", "New Blood Drive", "A new campaign '"+campaign.Title+"' has been created at "+campaign.Location)
+		go u.NotifUC.SendToRole(Domain.RoleDonor, "CAMPAIGN", "New Blood Drive", "A new campaign '"+campaign.Title+"' has been created at "+campaign.Location)
 	}
 	return err
 }
@@ -130,7 +131,8 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	}
 	
 	// Notify Lab Techs
-	go u.notifUC.SendToRole("LAB_TECH", "DONATION", "New Donation", "A new donation record is pending lab testing.")
+	log.Printf("[DEBUG] Triggering notification for lab tech...")
+	go u.notifUC.SendToRole(Domain.RoleLabTech, "DONATION", "New Donation", "A new donation record is pending lab testing.")
 
 	// ================================
 	// 9. Update donor weight

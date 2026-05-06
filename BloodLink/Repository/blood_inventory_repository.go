@@ -271,15 +271,16 @@ func (r *BloodInventoryRepository) ReserveUnitsForHospital(bloodType string, qua
 	FROM blood_units
 	WHERE blood_type = $1 AND status = 'AVAILABLE' AND expiration_date > NOW()
 	ORDER BY expiration_date ASC
-	LIMIT $2
 	FOR UPDATE SKIP LOCKED
 	`
-	rows, err := tx.Query(selectQuery, bloodType, quantity)
+	rows, err := tx.Query(selectQuery, bloodType)
 	if err != nil {
 		return nil, err
 	}
 
 	var units []Domain.BloodUnit
+	accumulatedVolume := 0
+	
 	for rows.Next() {
 		var u Domain.BloodUnit
 		if err := rows.Scan(
@@ -289,7 +290,13 @@ func (r *BloodInventoryRepository) ReserveUnitsForHospital(bloodType string, qua
 			rows.Close()
 			return nil, err
 		}
+		
 		units = append(units, u)
+		accumulatedVolume += u.VolumeML
+		
+		if accumulatedVolume >= quantity {
+			break // Stop once we have enough volume
+		}
 	}
 	rows.Close()
 
