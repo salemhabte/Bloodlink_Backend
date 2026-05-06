@@ -51,13 +51,15 @@ func main() {
 	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo)
 	labUsecase := Usecase.NewLabUsecase(labRepo, badgeUsecase)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
-	go Jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo)
-
 	pdfService := Usecase.NewPDFGeneratorService("./uploads")
 	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo)
 	donorBloodReqUsecase := Usecase.NewDonorBloodRequestUsecase(donorBloodReqRepo)
 
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)
+	
+	// Start background jobs after all dependencies are initialized
+	go Jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo)
+
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
 	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)

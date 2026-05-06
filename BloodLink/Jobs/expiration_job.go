@@ -20,7 +20,6 @@ func StartExpirationJob(inventoryUC *Usecase.BloodInventoryUsecase, bloodReqRepo
 		}
 
 		// 2. Cleanup stale reservations (24h rule)
-		cutoff := time.Now().Add(-24 * time.Hour)
 		requestIDs, err := inventoryUC.ExpireReservations() // inventoryUC now has internal repo access
 		if err != nil {
 			log.Printf("[JOB ERROR] Failed to expire stale reservations: %v", err)

@@ -282,23 +282,20 @@ func (u *BloodInventoryUsecase) GetStats() (map[string]int, error) {
 	for _, unit := range units {
 		stats["total"]++
 
-		if unit.Status == "AVAILABLE" {
+		isRealTimeExpired := unit.ExpirationDate.Before(now) && unit.Status != "EXPIRED" && unit.Status != "USED"
+
+		if isRealTimeExpired || unit.Status == "EXPIRED" {
+			stats["expired"]++
+		} else if unit.Status == "AVAILABLE" {
 			stats["available"]++
+			
+			if unit.ExpirationDate.After(now) && unit.ExpirationDate.Before(now.AddDate(0, 0, 7)) {
+				stats["nearExpiry"]++
+			}
 		} else if unit.Status == "RESERVED" {
 			stats["reserved"]++
 		} else if unit.Status == "USED" {
 			stats["used"]++
-		} else if unit.Status == "EXPIRED" {
-			stats["expired"]++
-		}
-
-		if unit.ExpirationDate.Before(now) && unit.Status != "EXPIRED" && unit.Status != "USED" {
-			stats["expired"]++
-		}
-
-		if unit.ExpirationDate.After(now) &&
-			unit.ExpirationDate.Before(now.AddDate(0, 0, 7)) && unit.Status == "AVAILABLE" {
-			stats["nearExpiry"]++
 		}
 	}
 
