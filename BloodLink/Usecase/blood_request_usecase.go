@@ -6,7 +6,6 @@ import (
 	"bloodlink/Infrastructure"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -166,7 +165,7 @@ func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveR
 		// c. Partially fulfilled
 		status = Domain.BloodRequestStatusPartiallyFulfilled
 		message = fmt.Sprintf("Request partially fulfilled. Reserved %d units.", fulfilledCount)
-		
+
 		unitDetails := ""
 		for i, ui := range reservedInfo {
 			unitDetails += fmt.Sprintf("%dML", ui.VolumeML)
