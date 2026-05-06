@@ -38,7 +38,6 @@ func (c *BloodRequestController) GetHospitalRequests(ctx *gin.Context) {
 	hospitalAdminID := ctx.GetString("userID")
 
 	bloodType := ctx.Query("blood_type")
-	// Handle URL encoding where '+' might be converted to ' '
 	if bloodType != "" {
 		bloodType = strings.ReplaceAll(bloodType, " ", "+")
 	}
@@ -67,19 +66,25 @@ func (c *BloodRequestController) GetAllRequests(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, reqs)
 }
 
-func (c *BloodRequestController) UpdateStatus(ctx *gin.Context) {
+func (c *BloodRequestController) ApproveRequest(ctx *gin.Context) {
 	requestID := ctx.Param("id")
 
-	var req Domain.UpdateBloodRequestStatusDTO
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := c.Usecase.UpdateStatus(requestID, &req); err != nil {
+	result, err := c.Usecase.ApproveRequest(requestID)
+	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "Blood request status updated successfully"})
+	ctx.JSON(http.StatusOK, result)
+}
+
+func (c *BloodRequestController) RejectRequest(ctx *gin.Context) {
+	requestID := ctx.Param("id")
+
+	if err := c.Usecase.RejectRequest(requestID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Blood request rejected successfully"})
 }

@@ -137,7 +137,8 @@ func SetupRouter(
 		adminBloodRequests := admin.Group("/blood-requests")
 		{
 			adminBloodRequests.GET("/", bloodReqController.GetAllRequests)
-			adminBloodRequests.PUT("/:id/status", bloodReqController.UpdateStatus)
+			adminBloodRequests.POST("/:id/approve", bloodReqController.ApproveRequest)
+			adminBloodRequests.POST("/:id/reject", bloodReqController.RejectRequest)
 		}
 
 		adminEmergencies := admin.Group("/emergencies")
@@ -216,6 +217,8 @@ lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 		adminInventory.GET("/:id/details", inventoryController.GetFullDetails)
 
 		adminInventory.PUT("/:id/status", inventoryController.UpdateStatus)
+		adminInventory.PUT("/:id/used", inventoryController.MarkUsed)
+		adminInventory.GET("/reserved/:hospital_id", inventoryController.GetReservedByHospital)
 		adminInventory.DELETE("/:id", inventoryController.Delete)
 	}
 	labInventory := r.Group("/api/lab/inventory")

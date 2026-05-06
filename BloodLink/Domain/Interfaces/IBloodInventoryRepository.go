@@ -1,6 +1,9 @@
 package Domain
 
-import "bloodlink/Domain"
+import (
+	"bloodlink/Domain"
+	"time"
+)
 
 type IBloodInventoryRepository interface {
 	GetAllBloodUnits() ([]Domain.BloodUnit, error)
@@ -12,4 +15,13 @@ type IBloodInventoryRepository interface {
 	MarkExpiredUnits() error
 	CountAvailableUnitsByBloodType(bloodType string) (int, error)
 	ConsumeUnits(bloodType string, quantity int) error
+
+	// Reservation workflow
+	ReserveUnitsForHospital(bloodType string, quantity int, hospitalID string, requestID string) ([]Domain.BloodUnit, error)
+	MarkUnitAsUsed(unitID string) error
+	ExpireStaleReservations(cutoff time.Time) ([]string, error) // returns affected request_ids
+	GetReservedUnitsByHospitalID(hospitalID string) ([]Domain.BloodUnit, error)
+
+	// Delete with audit
+	DeleteWithAudit(unitID string) error
 }

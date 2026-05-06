@@ -31,20 +31,19 @@ type CreateBloodRequestDTO struct {
 	UrgencyLevel string `json:"urgency_level" binding:"required,oneof=LOW MEDIUM HIGH CRITICAL"`
 }
 
-type UpdateBloodRequestStatusDTO struct {
-	Status string `json:"status" binding:"required,oneof=PENDING APPROVED_PARTIALLY_FULFILLED REJECTED FULFILLED"`
-}
-
 type BloodRequestResponse struct {
-	RequestID    string     `json:"request_id" db:"request_id"`
-	HospitalID   string     `json:"hospital_id" db:"hospital_id"`
-	HospitalName string     `json:"hospital_name" db:"hospital_name"`
-	BloodType    string     `json:"blood_type" db:"blood_type"`
-	Quantity     int        `json:"quantity" db:"quantity"`
-	UrgencyLevel string     `json:"urgency_level" db:"urgency_level"`
-	Status       string     `json:"status" db:"status"`
-	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
-	ApprovedAt   *time.Time `json:"approved_at" db:"approved_at"`
+	RequestID        string     `json:"request_id" db:"request_id"`
+	HospitalID       string     `json:"hospital_id" db:"hospital_id"`
+	HospitalName     string     `json:"hospital_name" db:"hospital_name"`
+	BloodType        string     `json:"blood_type" db:"blood_type"`
+	Quantity         int        `json:"quantity" db:"quantity"`
+	UrgencyLevel     string     `json:"urgency_level" db:"urgency_level"`
+	Status           string     `json:"status" db:"status"`
+	FulfilledCount   int        `json:"fulfilled_count" db:"fulfilled_count"`
+	FulfilledVolumeMl int       `json:"fulfilled_volume_ml" db:"fulfilled_volume_ml"`
+	Notes            string     `json:"notes" db:"notes"`
+	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
+	ApprovedAt       *time.Time `json:"approved_at" db:"approved_at"`
 }
 
 type BloodRequestFilter struct {
