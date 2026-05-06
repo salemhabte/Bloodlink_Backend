@@ -348,6 +348,9 @@ func (r *donationRepository) SearchPendingDonor(query string) (*Domain.DonorResp
 
 	return &donor, nil
 }
+
+// GetAllDonationsByDonor returns all donation records for a donor,
+// including collector name, campaign title and campaign address.
 func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.DonationRecord, error) {
 
 	query := `
@@ -356,8 +359,10 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 		d.donor_id,
 		d.campaign_id,
 		d.collected_by,
-		u1.full_name AS donor_name,
-		u2.full_name AS collector_name,
+		u1.full_name                AS donor_name,
+		u2.full_name                AS collector_name,
+		COALESCE(c.title, '')       AS campaign_title,
+		COALESCE(c.location, '')    AS campaign_address,
 		d.collection_date,
 		d.weight,
 		d.blood_pressure,
@@ -371,6 +376,7 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 	JOIN donors dn ON d.donor_id = dn.donor_id
 	JOIN users u1 ON dn.user_id = u1.user_id
 	JOIN users u2 ON d.collected_by = u2.user_id
+	LEFT JOIN campaigns c ON d.campaign_id = c.campaign_id
 	WHERE d.donor_id = $1
 	ORDER BY d.collection_date DESC
 	`
@@ -393,6 +399,8 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 			&d.CollectedBy,
 			&d.DonorName,
 			&d.CollectorName,
+			&d.CampaignTitle,
+			&d.CampaignAddress,
 			&d.CollectionDate,
 			&d.Weight,
 			&d.BloodPressure,
