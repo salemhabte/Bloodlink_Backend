@@ -16,6 +16,7 @@ type bloodRequestUsecase struct {
 	hospitalRepo  Interfaces.IHospitalRepository
 	inventoryRepo Interfaces.IBloodInventoryRepository
 	emergencyUC   Interfaces.IEmergencyRequestUsecase
+	notifUC       Interfaces.INotificationUsecase
 }
 
 func NewBloodRequestUsecase(
@@ -23,12 +24,14 @@ func NewBloodRequestUsecase(
 	hospitalRepo Interfaces.IHospitalRepository,
 	inventoryRepo Interfaces.IBloodInventoryRepository,
 	emergencyUC Interfaces.IEmergencyRequestUsecase,
+	notifUC Interfaces.INotificationUsecase,
 ) Interfaces.IBloodRequestUsecase {
 	return &bloodRequestUsecase{
 		repo:          repo,
 		hospitalRepo:  hospitalRepo,
 		inventoryRepo: inventoryRepo,
 		emergencyUC:   emergencyUC,
+		notifUC:       notifUC,
 	}
 }
 
@@ -91,6 +94,7 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 		subject := fmt.Sprintf("New %s Blood Request from %s", req.UrgencyLevel, hospitalName)
 		content := fmt.Sprintf("Hospital <b>%s</b> has requested %d units of %s blood.<br><br>Urgency: <b>%s</b>.<br>Location: <b>%s</b>.<br>Please review this request on the admin dashboard.", hospitalName, req.Quantity, req.BloodType, req.UrgencyLevel, hospitalLocation)
 		_ = Infrastructure.SendBloodRequestNotification(adminEmail, subject, content)
+		_ = u.notifUC.SendToRole("BLOOD_BANK_ADMIN", "BLOOD_REQUEST", "New Blood Request", fmt.Sprintf("%s has requested %d units of %s", hospitalName, req.Quantity, req.BloodType))
 	}()
 
 	return nil
@@ -188,6 +192,7 @@ func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveR
 		subject := fmt.Sprintf("Update on your Blood Request (%s)", br.BloodType)
 		content := fmt.Sprintf("Your request for %d units of %s blood has been updated to: <b>%s</b>.<br>Notes: %s", br.Quantity, br.BloodType, status, notes)
 		_ = Infrastructure.SendBloodRequestNotification(hospitalAdminEmail, subject, content)
+		_ = u.notifUC.SendToHospital(br.HospitalID, "BLOOD_REQUEST", "Blood Request Update", fmt.Sprintf("Your request for %s blood has been %s", br.BloodType, status))
 	}()
 
 	return &Domain.ApproveRequestResult{
@@ -221,6 +226,7 @@ func (u *bloodRequestUsecase) RejectRequest(requestID string) error {
 		subject := fmt.Sprintf("Blood Request Rejected (%s)", br.BloodType)
 		content := fmt.Sprintf("Your request for %d units of %s blood has been rejected by the Blood Bank Admin.", br.Quantity, br.BloodType)
 		_ = Infrastructure.SendBloodRequestNotification(hospitalAdminEmail, subject, content)
+		_ = u.notifUC.SendToHospital(br.HospitalID, "BLOOD_REQUEST", "Blood Request Rejected", fmt.Sprintf("Your request for %s blood was rejected", br.BloodType))
 	}()
 
 	return nil

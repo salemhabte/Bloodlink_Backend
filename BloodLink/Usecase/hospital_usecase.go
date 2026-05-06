@@ -22,13 +22,15 @@ type hospitalUsecase struct {
 	repo       Interfaces.IHospitalRepository
 	pdfService IPDFGeneratorService
 	userRepo   IHospitalUserRepository
+	notifUC    Interfaces.INotificationUsecase
 }
 
-func NewHospitalUsecase(repo Interfaces.IHospitalRepository, pdfService IPDFGeneratorService, userRepo IHospitalUserRepository) Interfaces.IHospitalUsecase {
+func NewHospitalUsecase(repo Interfaces.IHospitalRepository, pdfService IPDFGeneratorService, userRepo IHospitalUserRepository, notifUC Interfaces.INotificationUsecase) Interfaces.IHospitalUsecase {
 	return &hospitalUsecase{
 		repo:       repo,
 		pdfService: pdfService,
 		userRepo:   userRepo,
+		notifUC:    notifUC,
 	}
 }
 
@@ -64,7 +66,11 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 		CreatedAt:         time.Now(),
 	}
 
-	return u.repo.CreateHospitalRequestAdmin(adminReq)
+	err = u.repo.CreateHospitalRequestAdmin(adminReq)
+	if err == nil {
+		go u.notifUC.SendToRole("BLOOD_BANK_ADMIN", "CONTRACT", "New Hospital Registration", fmt.Sprintf("A new registration request was submitted by %s", req.HospitalName))
+	}
+	return err
 }
 
 func (u *hospitalUsecase) GetPendingRequests() ([]Domain.HospitalRequestResponse, error) {
@@ -177,7 +183,11 @@ func (u *hospitalUsecase) HospitalSignContract(contractID string, req *Domain.Si
 	contract.HospitalSignaturePath = &req.SignatureURL
 	contract.Status = Domain.ContractStatusApprovedByHospital
 
-	return u.repo.UpdateContract(contract)
+	err = u.repo.UpdateContract(contract)
+	if err == nil {
+		go u.notifUC.SendToRole("BLOOD_BANK_ADMIN", "CONTRACT", "Contract Signed by Hospital", "A hospital has signed their contract and is waiting for your signature.")
+	}
+	return err
 }
 
 func (u *hospitalUsecase) AdminSignContract(contractID string, req *Domain.SignContractRequestDTO, bloodBankAdminID string) error {
@@ -226,7 +236,11 @@ func (u *hospitalUsecase) AdminSignContract(contractID string, req *Domain.SignC
 	contract.Status = Domain.ContractStatusFinalized
 	contract.Document = &finalPdfPath
 
-	return u.repo.UpdateContract(contract)
+	err = u.repo.UpdateContract(contract)
+	if err == nil {
+		go u.notifUC.SendToHospital(contract.HospitalID, "CONTRACT", "Contract Finalized", "Your hospital contract has been finalized by the Blood Bank Admin.")
+	}
+	return err
 }
 
 func (u *hospitalUsecase) RejectContract(contractID string, userID string, role string) error {
@@ -240,7 +254,11 @@ func (u *hospitalUsecase) RejectContract(contractID string, userID string, role 
 	}
 
 	contract.Status = Domain.ContractStatusRejected
-	return u.repo.UpdateContract(contract)
+	err = u.repo.UpdateContract(contract)
+	if err == nil {
+		go u.notifUC.SendToHospital(contract.HospitalID, "CONTRACT", "Contract Rejected", "Your hospital contract has been rejected.")
+	}
+	return err
 }
 
 func (u *hospitalUsecase) GetContractByID(contractID string) (*Domain.HospitalContract, error) {

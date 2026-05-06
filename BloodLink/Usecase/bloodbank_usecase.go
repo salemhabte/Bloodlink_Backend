@@ -12,15 +12,20 @@ import (
 // ===== CAMPAIGN USECASE =====
 
 type CampaignUsecase struct {
-	Repo Interface.ICampaignRepository
+	Repo    Interface.ICampaignRepository
+	NotifUC Interface.INotificationUsecase
 }
 
-func NewCampaignUsecase(repo Interface.ICampaignRepository) *CampaignUsecase {
-	return &CampaignUsecase{Repo: repo}
+func NewCampaignUsecase(repo Interface.ICampaignRepository, notifUC Interface.INotificationUsecase) *CampaignUsecase {
+	return &CampaignUsecase{Repo: repo, NotifUC: notifUC}
 }
 
 func (u *CampaignUsecase) CreateCampaign(campaign *Domain.Campaign) error {
-	return u.Repo.CreateCampaign(campaign)
+	err := u.Repo.CreateCampaign(campaign)
+	if err == nil {
+		go u.NotifUC.SendToRole("DONOR", "CAMPAIGN", "New Blood Drive", "A new campaign '"+campaign.Title+"' has been created at "+campaign.Location)
+	}
+	return err
 }
 
 func (u *CampaignUsecase) GetAllCampaigns() ([]Domain.Campaign, error) {
@@ -49,11 +54,12 @@ func (u *CampaignUsecase) GetCampaignsByLocation(location string) ([]Domain.Camp
 type DonationUsecase struct {
 	repo         Interface.IDonationRepository
 	campaignRepo Interface.ICampaignRepository
+	notifUC      Interface.INotificationUsecase
 }
 
 // Constructor
-func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interface.ICampaignRepository) *DonationUsecase {
-	return &DonationUsecase{repo: repo, campaignRepo: campaignRepo}
+func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interface.ICampaignRepository, notifUC Interface.INotificationUsecase) *DonationUsecase {
+	return &DonationUsecase{repo: repo, campaignRepo: campaignRepo, notifUC: notifUC}
 }
 
 // CreateDonation handles the business logic for recording a new donation
@@ -122,6 +128,9 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	if err := u.repo.CreateDonation(record); err != nil {
 		return err
 	}
+	
+	// Notify Lab Techs
+	go u.notifUC.SendToRole("LAB_TECH", "DONATION", "New Donation", "A new donation record is pending lab testing.")
 
 	// ================================
 	// 9. Update donor weight

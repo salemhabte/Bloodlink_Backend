@@ -26,6 +26,7 @@ func SetupRouter(
 	badgeController *controller.DonorBadgeController,
 	emergencyController *controller.EmergencyRequestController,
 	donorBloodReqController *controller.DonorBloodRequestController,
+	notifController *controller.NotificationController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -69,6 +70,14 @@ func SetupRouter(
 		}
 
 		api.GET("/emergencies/published", emergencyController.GetPublishedEmergencies)
+	}
+
+	notifications := r.Group("/api/notifications")
+	notifications.Use(Infrastructure.AuthMiddleware(auth)) // All logged in users can see their own notifications
+	{
+		notifications.GET("/", notifController.GetMyNotifications)
+		notifications.PUT("/:id/read", notifController.MarkAsRead)
+		notifications.PUT("/read-all", notifController.MarkAllAsRead)
 	}
 
 	campaigns := r.Group("/api/campaigns")

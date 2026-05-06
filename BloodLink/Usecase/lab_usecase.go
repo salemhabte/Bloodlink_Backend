@@ -14,15 +14,18 @@ import (
 type LabUsecase struct {
 	repo          Interface.ILabRepository
 	badgeUsecase  *DonorBadgeUsecase
+	notifUC       Interface.INotificationUsecase
 }
 
 func NewLabUsecase(
 	repo Interface.ILabRepository,
 	badgeUsecase *DonorBadgeUsecase,
+	notifUC Interface.INotificationUsecase,
 ) *LabUsecase {
 	return &LabUsecase{
 		repo:         repo,
 		badgeUsecase: badgeUsecase,
+		notifUC:      notifUC,
 	}
 }
 
@@ -90,6 +93,9 @@ ComponentType: result.ComponentType,
 		}
 		_ = u.badgeUsecase.EvaluateBadges(donation.DonorID)
 	}
+
+	// Notify Donor
+	go u.notifUC.SendToDonor(donation.DonorID, "TEST_RESULT", "Test Result Available", "Your blood donation test results are now available. Status: " + result.OverallStatus)
 
 	return nil
 }

@@ -1,13 +1,26 @@
 package Domain
 
-// import (
-// 	domain "bloodlink/Domain"
-// 	"context"
-// )
+import "bloodlink/Domain"
 
-// type INotificationRepository interface {
-// 	Create(ctx context.Context, notification *domain.Notification) error
-// 	GetByUserID(ctx context.Context, userID string) ([]domain.Notification, error)
-// 	MarkAsRead(ctx context.Context, notificationID string) error
-// 	Delete(ctx context.Context, notificationID string) error
-// }
+type INotificationRepository interface {
+	CreateNotification(notification *Domain.Notification) error
+	GetNotificationsByUserID(userID string) ([]Domain.Notification, error)
+	MarkAsRead(notificationID string, userID string) error
+	MarkAllAsRead(userID string) error
+
+	// Helper methods to get user IDs by role
+	GetUserIDsByRole(role string) ([]string, error)
+	GetUserIDByHospitalID(hospitalID string) (string, error)
+	GetUserIDByDonorID(donorID string) (string, error)
+}
+
+type INotificationUsecase interface {
+	SendNotification(userID, notifType, title, message string) error
+	SendToRole(role, notifType, title, message string) error
+	SendToHospital(hospitalID, notifType, title, message string) error
+	SendToDonor(donorID, notifType, title, message string) error
+
+	GetMyNotifications(userID string) ([]Domain.Notification, error)
+	MarkAsRead(notificationID string, userID string) error
+	MarkAllAsRead(userID string) error
+}
