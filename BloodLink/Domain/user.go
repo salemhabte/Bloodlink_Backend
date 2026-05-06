@@ -61,19 +61,19 @@ type Donor struct {
 }
 
 type DonorResponse struct {
-	DonorID   string  `json:"donor_id" db:"donor_id"`
-	UserID    string  `json:"user_id" db:"user_id"`
-	FullName  string  `json:"full_name" db:"full_name"`
-	Email     string  `json:"email" db:"email"`
-	Phone     string  `json:"phone" db:"phone"`
-	Address   string  `json:"address" db:"address"`
-	BloodType *string `json:"blood_type" db:"blood_type"`
-	OverallStatus string `json:"overall_status" db:"overall_status"`
+	DonorID       string  `json:"donor_id" db:"donor_id"`
+	UserID        string  `json:"user_id" db:"user_id"`
+	FullName      string  `json:"full_name" db:"full_name"`
+	Email         string  `json:"email" db:"email"`
+	Phone         string  `json:"phone" db:"phone"`
+	Address       string  `json:"address" db:"address"`
+	BloodType     *string `json:"blood_type" db:"blood_type"`
+	OverallStatus string  `json:"overall_status" db:"overall_status"`
 }
 
 type DonorFilter struct {
-	BloodType string `json:"blood_type"`
-	OverallStatus    string `json:"overall_status"`
+	BloodType     string `json:"blood_type"`
+	OverallStatus string `json:"overall_status"`
 }
 
 type EmailOTP struct {

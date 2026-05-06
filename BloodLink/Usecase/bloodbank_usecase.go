@@ -4,6 +4,7 @@ import (
 	"bloodlink/Domain"
 	Interface "bloodlink/Domain/Interfaces"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,15 +13,20 @@ import (
 // ===== CAMPAIGN USECASE =====
 
 type CampaignUsecase struct {
-	Repo Interface.ICampaignRepository
+	Repo    Interface.ICampaignRepository
+	NotifUC Interface.INotificationUsecase
 }
 
-func NewCampaignUsecase(repo Interface.ICampaignRepository) *CampaignUsecase {
-	return &CampaignUsecase{Repo: repo}
+func NewCampaignUsecase(repo Interface.ICampaignRepository, notifUC Interface.INotificationUsecase) *CampaignUsecase {
+	return &CampaignUsecase{Repo: repo, NotifUC: notifUC}
 }
 
 func (u *CampaignUsecase) CreateCampaign(campaign *Domain.Campaign) error {
-	return u.Repo.CreateCampaign(campaign)
+	err := u.Repo.CreateCampaign(campaign)
+	if err == nil {
+		go u.NotifUC.SendToRole(Domain.RoleDonor, "CAMPAIGN", "New Blood Drive", "A new campaign '"+campaign.Title+"' has been created at "+campaign.Location)
+	}
+	return err
 }
 
 func (u *CampaignUsecase) GetAllCampaigns() ([]Domain.Campaign, error) {
@@ -49,11 +55,12 @@ func (u *CampaignUsecase) GetCampaignsByLocation(location string) ([]Domain.Camp
 type DonationUsecase struct {
 	repo         Interface.IDonationRepository
 	campaignRepo Interface.ICampaignRepository
+	notifUC      Interface.INotificationUsecase
 }
 
 // Constructor
-func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interface.ICampaignRepository) *DonationUsecase {
-	return &DonationUsecase{repo: repo, campaignRepo: campaignRepo}
+func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interface.ICampaignRepository, notifUC Interface.INotificationUsecase) *DonationUsecase {
+	return &DonationUsecase{repo: repo, campaignRepo: campaignRepo, notifUC: notifUC}
 }
 
 // CreateDonation handles the business logic for recording a new donation
@@ -122,6 +129,10 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	if err := u.repo.CreateDonation(record); err != nil {
 		return err
 	}
+	
+	// Notify Lab Techs
+	log.Printf("[DEBUG] Triggering notification for lab tech...")
+	go u.notifUC.SendToRole(Domain.RoleLabTech, "DONATION", "New Donation", "A new donation record is pending lab testing.")
 
 	// ================================
 	// 9. Update donor weight
@@ -273,6 +284,8 @@ func (u *BloodInventoryUsecase) GetStats() (map[string]int, error) {
 		"available":  0,
 		"nearExpiry": 0,
 		"expired":    0,
+		"reserved":   0,
+		"used":       0,
 	}
 
 	now := time.Now()
@@ -280,17 +293,20 @@ func (u *BloodInventoryUsecase) GetStats() (map[string]int, error) {
 	for _, unit := range units {
 		stats["total"]++
 
-		if unit.Status == "AVAILABLE" {
-			stats["available"]++
-		}
+		isRealTimeExpired := unit.ExpirationDate.Before(now) && unit.Status != "EXPIRED" && unit.Status != "USED"
 
-		if unit.ExpirationDate.Before(now) {
+		if isRealTimeExpired || unit.Status == "EXPIRED" {
 			stats["expired"]++
-		}
-
-		if unit.ExpirationDate.After(now) &&
-			unit.ExpirationDate.Before(now.AddDate(0, 0, 7)) {
-			stats["nearExpiry"]++
+		} else if unit.Status == "AVAILABLE" {
+			stats["available"]++
+			
+			if unit.ExpirationDate.After(now) && unit.ExpirationDate.Before(now.AddDate(0, 0, 7)) {
+				stats["nearExpiry"]++
+			}
+		} else if unit.Status == "RESERVED" {
+			stats["reserved"]++
+		} else if unit.Status == "USED" {
+			stats["used"]++
 		}
 	}
 
@@ -302,10 +318,16 @@ func (u *BloodInventoryUsecase) UpdateStatus(id, status string) error {
 	return u.repo.UpdateBloodUnitStatus(id, status)
 }
 
-// 🔹 Delete
-func (u *BloodInventoryUsecase) DeleteUnit(id string) error {
-	return u.repo.DeleteBloodUnitByID(id)
+// 🔹 Mark as Used (only if currently reserved)
+func (u *BloodInventoryUsecase) MarkUnitAsUsed(id string) error {
+	return u.repo.MarkUnitAsUsed(id)
 }
+
+// 🔹 Delete with Audit (only if expired or used)
+func (u *BloodInventoryUsecase) DeleteUnit(id string) error {
+	return u.repo.DeleteWithAudit(id)
+}
+
 func (u *BloodInventoryUsecase) GetFullDetails(id string) (map[string]interface{}, error) {
 
 	data, err := u.repo.GetFullBloodUnitDetails(id)
@@ -324,7 +346,7 @@ func (u *BloodInventoryUsecase) GetFullDetails(id string) (map[string]interface{
 	}
 
 	//  AUTO STATUS UPDATE
-	if bu.ExpirationDate.Before(now) && bu.Status != "EXPIRED" {
+	if bu.ExpirationDate.Before(now) && bu.Status != "EXPIRED" && bu.Status != "USED" {
 		u.repo.UpdateBloodUnitStatus(bu.BloodUnitID, "EXPIRED")
 		expiry["expiry_status"] = "EXPIRED"
 	} else {
@@ -343,4 +365,14 @@ func (u *BloodInventoryUsecase) FilterUnits(
 }
 func (u *BloodInventoryUsecase) UpdateExpiredUnits() error {
 	return u.repo.MarkExpiredUnits()
+}
+
+func (u *BloodInventoryUsecase) GetReservedUnitsByHospital(hospitalID string) ([]Domain.BloodUnit, error) {
+	return u.repo.GetReservedUnitsByHospitalID(hospitalID)
+}
+
+func (u *BloodInventoryUsecase) ExpireReservations() ([]string, error) {
+	// Cutoff is 24 hours ago
+	cutoff := time.Now().Add(-24 * time.Hour)
+	return u.repo.ExpireStaleReservations(cutoff)
 }

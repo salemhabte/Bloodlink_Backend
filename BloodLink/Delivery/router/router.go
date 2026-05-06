@@ -26,6 +26,7 @@ func SetupRouter(
 	badgeController *controller.DonorBadgeController,
 	emergencyController *controller.EmergencyRequestController,
 	donorBloodReqController *controller.DonorBloodRequestController,
+	notifController *controller.NotificationController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -69,6 +70,14 @@ func SetupRouter(
 		}
 
 		api.GET("/emergencies/published", emergencyController.GetPublishedEmergencies)
+	}
+
+	notifications := r.Group("/api/notifications")
+	notifications.Use(Infrastructure.AuthMiddleware(auth)) // All logged in users can see their own notifications
+	{
+		notifications.GET("/", notifController.GetMyNotifications)
+		notifications.PUT("/:id/read", notifController.MarkAsRead)
+		notifications.PUT("/read-all", notifController.MarkAllAsRead)
 	}
 
 	campaigns := r.Group("/api/campaigns")
@@ -137,7 +146,8 @@ func SetupRouter(
 		adminBloodRequests := admin.Group("/blood-requests")
 		{
 			adminBloodRequests.GET("/", bloodReqController.GetAllRequests)
-			adminBloodRequests.PUT("/:id/status", bloodReqController.UpdateStatus)
+			adminBloodRequests.POST("/:id/approve", bloodReqController.ApproveRequest)
+			adminBloodRequests.POST("/:id/reject", bloodReqController.RejectRequest)
 		}
 
 		adminEmergencies := admin.Group("/emergencies")
@@ -216,6 +226,8 @@ lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 		adminInventory.GET("/:id/details", inventoryController.GetFullDetails)
 
 		adminInventory.PUT("/:id/status", inventoryController.UpdateStatus)
+		adminInventory.PUT("/:id/used", inventoryController.MarkUsed)
+		adminInventory.GET("/reserved/:hospital_id", inventoryController.GetReservedByHospital)
 		adminInventory.DELETE("/:id", inventoryController.Delete)
 	}
 	labInventory := r.Group("/api/lab/inventory")

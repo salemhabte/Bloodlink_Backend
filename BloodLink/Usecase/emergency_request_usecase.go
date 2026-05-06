@@ -19,6 +19,7 @@ type emergencyRequestUsecase struct {
 	requestRepo   Interfaces.IBloodRequestRepository
 	userRepo      IUserRepository
 	profileRepo   IProfileRepository
+	notifUC       Interfaces.INotificationUsecase
 }
 
 func NewEmergencyRequestUsecase(
@@ -28,6 +29,7 @@ func NewEmergencyRequestUsecase(
 	requestRepo Interfaces.IBloodRequestRepository,
 	userRepo IUserRepository,
 	profileRepo IProfileRepository,
+	notifUC Interfaces.INotificationUsecase,
 ) Interfaces.IEmergencyRequestUsecase {
 	return &emergencyRequestUsecase{
 		repo:          repo,
@@ -36,6 +38,7 @@ func NewEmergencyRequestUsecase(
 		requestRepo:   requestRepo,
 		userRepo:      userRepo,
 		profileRepo:   profileRepo,
+		notifUC:       notifUC,
 	}
 }
 
@@ -47,18 +50,18 @@ func (u *emergencyRequestUsecase) TriggerEmergency(requestID string, bloodType s
 	}
 
 	emergency := &Domain.EmergencyRequest{
-		EmergencyID:      uuid.New().String(),
-		RequestID:        &requestID,
-		BloodType:        bloodType,
-		QuantityRequired: quantity,
+		EmergencyID:       uuid.New().String(),
+		RequestID:         &requestID,
+		BloodType:         bloodType,
+		QuantityRequired:  quantity,
 		QuantityFulfilled: 0,
-		UrgencyLevel:     urgencyLevel,
-		HospitalName:     hospitalName,
-		Location:         location,
-		Status:           Domain.EmergencyStatusPending,
-		IsManual:         false,
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
+		UrgencyLevel:      urgencyLevel,
+		HospitalName:      hospitalName,
+		Location:          location,
+		Status:            Domain.EmergencyStatusPending,
+		IsManual:          false,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	}
 
 	err = u.repo.Create(emergency)
@@ -110,6 +113,7 @@ func (u *emergencyRequestUsecase) PublishEmergency(id string) error {
 					subject := fmt.Sprintf("URGENT: %s Blood Emergency in %s", req.BloodType, hospitalAddress)
 					content := fmt.Sprintf("Hello %s,<br><br><b>%s</b> urgently needs <b>%d units</b> of <b>%s</b> blood.<br>Urgency: <b>%s</b>.<br>Since you are in the same area, your donation could save a life!<br><br>Please visit the hospital at <b>%s</b> or contact us for more details.", donor.FullName, hospitalName, req.QuantityRequired, req.BloodType, req.UrgencyLevel, hospitalAddress)
 					_ = Infrastructure.SendBloodRequestNotification(donor.Email, subject, content)
+					_ = u.notifUC.SendNotification(donor.UserID, "EMERGENCY", "URGENT: Blood Emergency", fmt.Sprintf("%s needs %s blood.", hospitalName, req.BloodType))
 				}
 			}
 		}
@@ -133,17 +137,17 @@ func (u *emergencyRequestUsecase) RejectEmergency(id string) error {
 
 func (u *emergencyRequestUsecase) CreateManualEmergency(dto *Domain.CreateEmergencyRequestDTO) error {
 	emergency := &Domain.EmergencyRequest{
-		EmergencyID:      uuid.New().String(),
-		BloodType:        dto.BloodType,
-		QuantityRequired: dto.QuantityRequired,
+		EmergencyID:       uuid.New().String(),
+		BloodType:         dto.BloodType,
+		QuantityRequired:  dto.QuantityRequired,
 		QuantityFulfilled: 0,
-		UrgencyLevel:     dto.UrgencyLevel,
-		HospitalName:     dto.HospitalName,
-		Location:         dto.Location,
-		Status:           Domain.EmergencyStatusPublished, // Manual ones are published immediately
-		IsManual:         true,
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
+		UrgencyLevel:      dto.UrgencyLevel,
+		HospitalName:      dto.HospitalName,
+		Location:          dto.Location,
+		Status:            Domain.EmergencyStatusPublished, // Manual ones are published immediately
+		IsManual:          true,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	}
 
 	now := time.Now()

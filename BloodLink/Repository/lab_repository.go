@@ -582,31 +582,40 @@ if componentType != "" {
 	return results, nil
 }
 
+// GetLatestTestResultByDonor returns the most recent test result for a donor,
+// including the tester's full name and the campaign address (location) if applicable.
 func (r *LabRepository) GetLatestTestResultByDonor(donorID string) (*Domain.DonorTestResult, error) {
 	var result Domain.DonorTestResult
 
 	query := `
-	SELECT 
-		test_id, 
-		donation_id, 
-		donor_id, 
-		tested_by, 
-		hiv_result, 
-		hepatitis_result, 
-		syphilis_result, 
-		blood_type, 
-		overall_status, 
-		created_at 
-	FROM donor_test_results 
-	WHERE donor_id = $1 
-	ORDER BY created_at DESC 
+	SELECT
+		t.test_id,
+		t.donation_id,
+		t.donor_id,
+		t.tested_by,
+		u.full_name              AS tester_name,
+		COALESCE(c.location, '') AS campaign_address,
+		t.hiv_result,
+		t.hepatitis_result,
+		t.syphilis_result,
+		t.blood_type,
+		COALESCE(t.component_type, ''),
+		t.overall_status,
+		t.created_at
+	FROM donor_test_results t
+	JOIN users u ON t.tested_by = u.user_id
+	JOIN donation_records dr ON t.donation_id = dr.donation_id
+	LEFT JOIN campaigns c ON dr.campaign_id = c.campaign_id
+	WHERE t.donor_id = $1
+	ORDER BY t.created_at DESC
 	LIMIT 1
 	`
 
 	err := r.DB.QueryRow(query, donorID).Scan(
 		&result.TestID, &result.DonationID, &result.DonorID, &result.TestedBy,
+		&result.TesterName, &result.CampaignAddress,
 		&result.HIVResult, &result.HepatitisResult, &result.SyphilisResult,
-		&result.BloodType, &result.OverallStatus, &result.CreatedAt,
+		&result.BloodType, &result.ComponentType, &result.OverallStatus, &result.CreatedAt,
 	)
 
 	if err != nil {

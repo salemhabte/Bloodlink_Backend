@@ -261,6 +261,25 @@ func (c *DonationController) UpdateDonationStatus(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": "Status updated successfully"})
 }
 
+// UpdateDonation medical info
+func (c *DonationController) UpdateDonation(ctx *gin.Context) {
+	id := ctx.Param("id")
+	var record Domain.DonationRecord
+	if err := ctx.ShouldBindJSON(&record); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	record.DonationID = id
+	collectorID := ctx.GetString("userID")
+	record.CollectedBy = collectorID
+
+	if err := c.usecase.UpdateDonation(&record); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "Donation updated successfully"})
+}
+
 func (c *DonationController) GetDonationByID(ctx *gin.Context) {
 
 	id := ctx.Param("id")
@@ -295,33 +314,6 @@ func (c *DonationController) GetAllDonationsByDonor(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, donations)
-}
-func (c *DonationController) UpdateDonation(ctx *gin.Context) {
-
-	id := ctx.Param("id")
-
-	var record Domain.DonationRecord
-
-	if err := ctx.ShouldBindJSON(&record); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	record.DonationID = id
-	// Get logged-in collector from JWT middleware
-	// ==========================================================
-	collectorID := ctx.GetString("userID")
-
-	//  attach collector ID to request object
-	record.CollectedBy = collectorID
-
-	if err := c.usecase.UpdateDonation(&record); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{"message": "Donation updated successfully"})
-	
 }
 
 func (c *DonationController) GetAllDonations(ctx *gin.Context) {
@@ -679,6 +671,19 @@ func (c *BloodInventoryController) UpdateStatus(ctx *gin.Context) {
 	ctx.JSON(200, gin.H{"message": "Status updated"})
 }
 
+// 🔹 PUT /inventory/:id/used
+func (c *BloodInventoryController) MarkUsed(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	err := c.usecase.MarkUnitAsUsed(id)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, gin.H{"message": "Blood unit marked as USED"})
+}
+
 // 🔹 DELETE /inventory/:id
 func (c *BloodInventoryController) Delete(ctx *gin.Context) {
 	id := ctx.Param("id")
@@ -691,6 +696,7 @@ func (c *BloodInventoryController) Delete(ctx *gin.Context) {
 
 	ctx.JSON(200, gin.H{"message": "Deleted successfully"})
 }
+
 func (c *BloodInventoryController) GetFullDetails(ctx *gin.Context) {
 
 	id := ctx.Param("id")
@@ -703,6 +709,19 @@ func (c *BloodInventoryController) GetFullDetails(ctx *gin.Context) {
 
 	ctx.JSON(200, data)
 }
+
+func (c *BloodInventoryController) GetReservedByHospital(ctx *gin.Context) {
+	hospitalID := ctx.Param("hospital_id")
+
+	units, err := c.usecase.GetReservedUnitsByHospital(hospitalID)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, units)
+}
+
 func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 
 	units, _ := c.usecase.GetAllUnits()

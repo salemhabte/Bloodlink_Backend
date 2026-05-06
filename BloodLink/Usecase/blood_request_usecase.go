@@ -6,7 +6,6 @@ import (
 	"bloodlink/Infrastructure"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +16,7 @@ type bloodRequestUsecase struct {
 	hospitalRepo  Interfaces.IHospitalRepository
 	inventoryRepo Interfaces.IBloodInventoryRepository
 	emergencyUC   Interfaces.IEmergencyRequestUsecase
+	notifUC       Interfaces.INotificationUsecase
 }
 
 func NewBloodRequestUsecase(
@@ -24,27 +24,23 @@ func NewBloodRequestUsecase(
 	hospitalRepo Interfaces.IHospitalRepository,
 	inventoryRepo Interfaces.IBloodInventoryRepository,
 	emergencyUC Interfaces.IEmergencyRequestUsecase,
+	notifUC Interfaces.INotificationUsecase,
 ) Interfaces.IBloodRequestUsecase {
 	return &bloodRequestUsecase{
 		repo:          repo,
 		hospitalRepo:  hospitalRepo,
 		inventoryRepo: inventoryRepo,
 		emergencyUC:   emergencyUC,
+		notifUC:       notifUC,
 	}
 }
 
 func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestDTO, hospitalAdminUserID string) error {
-	// Need to find which Hospital this user belongs to
-	// We lack a direct GetHospitalByAdminUserID repo method, but we can assume we'll either make one or we fake it.
-	// Actually, wait, the auth claims might inject hospital_id, but if it only has user_id...
-	// Let's assume there's a way to find hospital via admin. For now, since HospitalAdmin has `user_id` and `hospital_id`,
-	// we would query `hospital_admins` table. Let's do a direct look up if possible.
 	hospital_id, err := u.getHospitalIDForAdmin(hospitalAdminUserID)
 	if err != nil {
 		return err
 	}
 
-	// CHECK FOR FINALIZED CONTRACT
 	contracts, err := u.hospitalRepo.GetContractsByHospitalID(hospital_id)
 	if err != nil {
 		return err
@@ -52,7 +48,7 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 
 	hasFinalizedContract := false
 	for _, c := range contracts {
-		if c.Status == Domain.ContractStatusFinalized {
+		if c.Status == "FINALIZED" {
 			hasFinalizedContract = true
 			break
 		}
@@ -78,7 +74,6 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 		return err
 	}
 
-	// Get hospital info for emergency and notification
 	hospital, err := u.hospitalRepo.GetHospitalByID(hospital_id)
 	hospitalName := "A hospital"
 	hospitalLocation := "Unknown"
@@ -87,21 +82,19 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 		hospitalLocation = hospital.Address
 	}
 
-	// CHECK INVENTORY FOR EMERGENCY TRIGGER
 	available, err := u.inventoryRepo.CountAvailableUnitsByBloodType(req.BloodType)
 	if err == nil {
 		if available < req.Quantity {
-			// Trigger emergency
 			_ = u.emergencyUC.TriggerEmergency(requestID, req.BloodType, req.Quantity, req.UrgencyLevel, hospitalName, hospitalLocation)
 		}
 	}
 
-	// Send Notification to Blood Bank Admin (Assuming static admin email for now)
 	adminEmail := "admin@bloodlink.com"
 	go func() {
 		subject := fmt.Sprintf("New %s Blood Request from %s", req.UrgencyLevel, hospitalName)
 		content := fmt.Sprintf("Hospital <b>%s</b> has requested %d units of %s blood.<br><br>Urgency: <b>%s</b>.<br>Location: <b>%s</b>.<br>Please review this request on the admin dashboard.", hospitalName, req.Quantity, req.BloodType, req.UrgencyLevel, hospitalLocation)
 		_ = Infrastructure.SendBloodRequestNotification(adminEmail, subject, content)
+		_ = u.notifUC.SendToRole(Domain.RoleBloodBankAdmin, "BLOOD_REQUEST", "New Blood Request", fmt.Sprintf("%s has requested %d units of %s", hospitalName, req.Quantity, req.BloodType))
 	}()
 
 	return nil
@@ -128,76 +121,113 @@ func (u *bloodRequestUsecase) GetAllRequests() ([]Domain.BloodRequestResponse, e
 	return u.repo.GetAllRequests()
 }
 
-func (u *bloodRequestUsecase) UpdateStatus(requestID string, req *Domain.UpdateBloodRequestStatusDTO) error {
+func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveRequestResult, error) {
+	br, err := u.repo.GetRequestByID(requestID)
+	if err != nil {
+		return nil, err
+	}
+
+	if br.Status != Domain.BloodRequestStatusPending {
+		return nil, fmt.Errorf("cannot approve: request is already %s", br.Status)
+	}
+
+	// 1. Reserve units (FIFO by expiry is handled in Repo)
+	reservedUnits, err := u.inventoryRepo.ReserveUnitsForHospital(br.BloodType, br.Quantity, br.HospitalID, requestID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reserve blood: %v", err)
+	}
+
+	totalReservedVolume := 0
+	fulfilledCount := len(reservedUnits)
+	var reservedInfo []Domain.ReservedUnitInfo
+
+	for _, unit := range reservedUnits {
+		totalReservedVolume += unit.VolumeML
+		reservedInfo = append(reservedInfo, Domain.ReservedUnitInfo{
+			BloodUnitID:    unit.BloodUnitID,
+			BloodType:      unit.BloodType,
+			VolumeML:       unit.VolumeML,
+			ExpirationDate: unit.ExpirationDate,
+		})
+	}
+
+	var status string
+	var message string
+	var notes string
+
+	if totalReservedVolume == 0 {
+		// a. No blood in inventory
+		status = Domain.BloodRequestStatusRejected
+		message = "No blood"
+		notes = "Automatically rejected: No available units of the requested blood type in inventory."
+	} else if totalReservedVolume >= br.Quantity {
+		// b. Fully fulfilled
+		status = Domain.BloodRequestStatusFulfilled
+		message = "Request fully fulfilled and blood units reserved."
+		notes = fmt.Sprintf("Fully fulfilled. Reserved %d units totaling %dML.", fulfilledCount, totalReservedVolume)
+	} else {
+		// c. Partially fulfilled
+		status = Domain.BloodRequestStatusPartiallyFulfilled
+		message = fmt.Sprintf("Request partially fulfilled. Reserved %d units totaling %dML.", fulfilledCount, totalReservedVolume)
+
+		unitDetails := ""
+		for i, ui := range reservedInfo {
+			unitDetails += fmt.Sprintf("%dML", ui.VolumeML)
+			if i < len(reservedInfo)-1 {
+				unitDetails += " + "
+			}
+		}
+		notes = fmt.Sprintf("Partial fulfillment: %s = %dML total.", unitDetails, totalReservedVolume)
+	}
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+	err = u.repo.UpdateRequestStatusWithDetails(requestID, status, &now, notes, fulfilledCount, totalReservedVolume)
+	if err != nil {
+		return nil, err
+	}
+
+	// Notify Hospital
+	go func() {
+		hospitalAdminEmail := "hospitaladmin@bloodlink.com"
+		subject := fmt.Sprintf("Update on your Blood Request (%s)", br.BloodType)
+		content := fmt.Sprintf("Your request for %d units of %s blood has been updated to: <b>%s</b>.<br>Notes: %s", br.Quantity, br.BloodType, status, notes)
+		_ = Infrastructure.SendBloodRequestNotification(hospitalAdminEmail, subject, content)
+		_ = u.notifUC.SendToHospital(br.HospitalID, "BLOOD_REQUEST", "Blood Request Update", fmt.Sprintf("Your request for %s blood has been %s", br.BloodType, status))
+	}()
+
+	return &Domain.ApproveRequestResult{
+		Status:         status,
+		Message:        message,
+		ReservedUnits:  reservedInfo,
+		TotalVolumeML:  totalReservedVolume,
+		RequestedCount: br.Quantity,
+		FulfilledCount: fulfilledCount,
+	}, nil
+}
+
+func (u *bloodRequestUsecase) RejectRequest(requestID string) error {
 	br, err := u.repo.GetRequestByID(requestID)
 	if err != nil {
 		return err
 	}
 
-	// Status Locking: Once changed from PENDING, it shouldn't change again
 	if br.Status != Domain.BloodRequestStatusPending {
-		return fmt.Errorf("cannot update status: request is already %s", br.Status)
+		return fmt.Errorf("cannot reject: request is already %s", br.Status)
 	}
 
-	var approvedAtStr *string
-	// If it transitions to FULFILLED
-	if req.Status == Domain.BloodRequestStatusFulfilled {
-		// 1. Check Inventory
-		available, err := u.inventoryRepo.CountAvailableUnitsByBloodType(br.BloodType)
-		if err != nil {
-			return fmt.Errorf("failed to check inventory: %v", err)
-		}
-
-		if available < br.Quantity {
-			return fmt.Errorf("insufficient inventory: only %d units of %s available, but %d requested", available, br.BloodType, br.Quantity)
-		}
-
-		// 2. Decrease Inventory
-		err = u.inventoryRepo.ConsumeUnits(br.BloodType, br.Quantity)
-		if err != nil {
-			return fmt.Errorf("failed to fulfill inventory: %v", err)
-		}
-
-		now := time.Now().Format("2006-01-02 15:04:05")
-		approvedAtStr = &now
-	} else if req.Status == Domain.BloodRequestStatusPartiallyFulfilled {
-		available, err := u.inventoryRepo.CountAvailableUnitsByBloodType(br.BloodType)
-		if err != nil {
-			return fmt.Errorf("failed to check inventory: %v", err)
-		}
-
-		if available > 0 {
-			toConsume := available
-			if toConsume > br.Quantity {
-				toConsume = br.Quantity
-			}
-			err = u.inventoryRepo.ConsumeUnits(br.BloodType, toConsume)
-			if err != nil {
-				return fmt.Errorf("failed to partially fulfill inventory: %v", err)
-			}
-		}
-
-		now := time.Now().Format("2006-01-02 15:04:05")
-		approvedAtStr = &now
-	}
-
-	err = u.repo.UpdateRequestStatus(requestID, req.Status, approvedAtStr)
+	err = u.repo.UpdateRequestStatus(requestID, Domain.BloodRequestStatusRejected, nil)
 	if err != nil {
 		return err
 	}
 
-	// Notify Hospital that status changed
-	hospital, err := u.hospitalRepo.GetHospitalByID(br.HospitalID)
-	if err == nil {
+	// Notify Hospital
+	go func() {
 		hospitalAdminEmail := "hospitaladmin@bloodlink.com"
-
-		go func() {
-			subject := fmt.Sprintf("Update on your Blood Request (%s)", br.BloodType)
-			content := fmt.Sprintf("Your request for %d units of %s blood has been updated to: <b>%s</b>.", br.Quantity, br.BloodType, req.Status)
-			log.Printf("Notifying %s: %s", hospital.Name, subject)
-			_ = Infrastructure.SendBloodRequestNotification(hospitalAdminEmail, subject, content)
-		}()
-	}
+		subject := fmt.Sprintf("Blood Request Rejected (%s)", br.BloodType)
+		content := fmt.Sprintf("Your request for %d units of %s blood has been rejected by the Blood Bank Admin.", br.Quantity, br.BloodType)
+		_ = Infrastructure.SendBloodRequestNotification(hospitalAdminEmail, subject, content)
+		_ = u.notifUC.SendToHospital(br.HospitalID, "BLOOD_REQUEST", "Blood Request Rejected", fmt.Sprintf("Your request for %s blood was rejected", br.BloodType))
+	}()
 
 	return nil
 }
