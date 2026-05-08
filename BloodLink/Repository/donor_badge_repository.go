@@ -77,7 +77,7 @@ func (r *DonorBadgeRepository) GetAllBadges() ([]Domain.DonorBadge, error) {
 	return badges, nil
 }
 
-// 🔥 ONLY CLEARED donations
+//  ONLY CLEARED donations
 func (r *DonorBadgeRepository) CountDonationsByDonor(donorID string) (int, error) {
 	query := `
 	SELECT COUNT(*)
@@ -106,14 +106,30 @@ func (r *DonorBadgeRepository) BadgeExists(donorID, badgeName string) (bool, err
 // ================= LEADERBOARD =================
 
 func (r *DonorBadgeRepository) GetLeaderboard(limit int) ([]Domain.LeaderboardEntry, error) {
+
 	query := `
 	SELECT 
-		donor_id,
-		COUNT(*) AS donation_count
-	FROM donor_test_results
-	WHERE overall_status = 'CLEARED'
-	GROUP BY donor_id
+		d.donor_id,
+		u.full_name,
+		COALESCE(up.profile_picture_url, '') AS profile_picture_url,
+		COUNT(dtr.*) AS donation_count
+	FROM donor_test_results dtr
+
+	JOIN donors d 
+		ON dtr.donor_id = d.donor_id
+
+	JOIN users u 
+		ON d.user_id = u.user_id
+
+	LEFT JOIN user_profiles up 
+		ON u.user_id = up.user_id
+
+	WHERE dtr.overall_status = 'CLEARED'
+
+	GROUP BY d.donor_id, u.full_name, up.profile_picture_url
+
 	ORDER BY donation_count DESC
+
 	LIMIT $1
 	`
 
@@ -124,21 +140,55 @@ func (r *DonorBadgeRepository) GetLeaderboard(limit int) ([]Domain.LeaderboardEn
 	defer rows.Close()
 
 	var result []Domain.LeaderboardEntry
+
+	// Competition ranking variables
 	rank := 1
+	position := 1
+	previousDonationCount := -1
 
 	for rows.Next() {
 		var l Domain.LeaderboardEntry
 
-		if err := rows.Scan(&l.DonorID, &l.DonationCount); err != nil {
+		if err := rows.Scan(
+			&l.DonorID,
+			&l.FullName,
+			&l.ProfilePictureURL,
+			&l.DonationCount,
+		); err != nil {
 			return nil, err
 		}
 
-		//  RANK HERE
+		// Same donation count => same rank
+		if l.DonationCount != previousDonationCount {
+			rank = position
+		}
+
 		l.Rank = rank
-		rank++
+
+		previousDonationCount = l.DonationCount
+		position++
 
 		result = append(result, l)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return result, nil
+}
+func (r *DonorBadgeRepository) UpdateBadgeDescription(
+	donorID string,
+	badgeName string,
+	description string,
+) error {
+
+	query := `
+	UPDATE donor_badges
+	SET description = $1
+	WHERE donor_id = $2 AND badge_name = $3
+	`
+
+	_, err := r.db.Exec(query, description, donorID, badgeName)
+	return err
 }
