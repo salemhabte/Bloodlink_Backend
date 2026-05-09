@@ -29,6 +29,7 @@ type IUserRepository interface {
 	UpdateRefreshToken(ctx context.Context, userID, refreshToken string) error
 	GetDonorByUserID(ctx context.Context, userID string) (*domain.Donor, error)
 	GetDonorsByBloodTypeAndAddress(ctx context.Context, bloodType, address string) ([]domain.DonorResponse, error)
+	GetUserByPhone(ctx context.Context, phone string) (*domain.User, error)
 }
 
 type IProfileRepository interface {
@@ -58,6 +59,20 @@ func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) e
 	// Validate email
 	if !u.validation.IsValidEmail(user.Email) {
 		return errors.New("invalid email format")
+	}
+
+	// Check if email already exists
+	existingEmail, _ := u.userRepo.GetUserByEmail(ctx, user.Email)
+	if existingEmail != nil {
+		return errors.New("email already registered")
+	}
+
+	// Check if phone already exists
+	if user.Phone != "" {
+		existingPhone, _ := u.userRepo.GetUserByPhone(ctx, user.Phone)
+		if existingPhone != nil {
+			return errors.New("phone number already registered")
+		}
 	}
 
 	// Validate password
@@ -106,6 +121,20 @@ func (u *UserUseCaseBase) RegisterDonor(ctx context.Context, req *domain.Registe
 	}
 	if !u.validation.IsStrongPassword(req.Password) {
 		return errors.New("password is not strong enough")
+	}
+
+	// Check if email already exists
+	existingEmail, _ := u.userRepo.GetUserByEmail(ctx, req.Email)
+	if existingEmail != nil {
+		return errors.New("email already registered")
+	}
+
+	// Check if phone already exists
+	if req.Phone != "" {
+		existingPhone, _ := u.userRepo.GetUserByPhone(ctx, req.Phone)
+		if existingPhone != nil {
+			return errors.New("phone number already registered")
+		}
 	}
 
 	// 2. Hash password

@@ -26,6 +26,7 @@ type IHospitalRepository interface {
 	DeleteContractTemplate(templateID string) error
 	GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error)
 	GetHospitalDashboard(hospitalID string) (*Domain.HospitalDashboard, error)
+	GetHospitalByPhone(phone string) (*Domain.Hospital, error)
 }
 
 type IHospitalUsecase interface {
