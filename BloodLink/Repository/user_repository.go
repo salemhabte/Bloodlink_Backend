@@ -75,6 +75,33 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 	return &user, nil
 }
 
+// GetUserByPhone retrieves a user by their phone number
+func (r *UserRepository) GetUserByPhone(ctx context.Context, phone string) (*domain.User, error) {
+	query := `SELECT user_id, full_name, email, phone, password_hash, role, is_active, COALESCE(otp, ''), created_at FROM users WHERE phone = $1`
+
+	var user domain.User
+	err := r.DB.QueryRowContext(ctx, query, phone).Scan(
+		&user.ID,
+		&user.FullName,
+		&user.Email,
+		&user.Phone,
+		&user.Password,
+		&user.Role,
+		&user.IsActive,
+		&user.OTP,
+		&user.CreatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &user, nil
+}
+
 // ActivateUser updates the user's status to active and clears the OTP
 func (r *UserRepository) ActivateUser(ctx context.Context, userID string) error {
 	query := `UPDATE users SET is_active = true, otp = NULL WHERE user_id = $1`

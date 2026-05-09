@@ -309,3 +309,16 @@ func (r *hospitalRepository) GetHospitalDashboard(hospitalID string) (*Domain.Ho
 
 	return dashboard, nil
 }
+
+func (r *hospitalRepository) GetHospitalByPhone(phone string) (*Domain.Hospital, error) {
+	query := `SELECT hospital_id, name, address, phone, created_at FROM hospitals WHERE phone = $1`
+	hospital := &Domain.Hospital{}
+	err := r.db.QueryRow(query, phone).Scan(&hospital.HospitalID, &hospital.Name, &hospital.Address, &hospital.Phone, &hospital.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return hospital, nil
+}

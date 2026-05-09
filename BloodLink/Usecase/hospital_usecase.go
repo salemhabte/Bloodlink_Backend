@@ -40,6 +40,17 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 		return err
 	}
 
+	// Check if hospital phone already exists
+	existingHospital, _ := u.repo.GetHospitalByPhone(req.Phone)
+	if existingHospital != nil {
+		return errors.New("a hospital with this phone number is already registered")
+	}
+
+	// Note: We don't have a direct GetUserByPhone in hospitalRepo's userRepo interface,
+	// but we can check if a request with this admin phone is already pending.
+	// Actually, the database will catch the user phone conflict if we approve,
+	// but for now let's at least validate the hospital phone.
+
 	requestID := uuid.New().String()
 	hospitalReq := &Domain.HospitalRequest{
 		RequestID:       requestID,

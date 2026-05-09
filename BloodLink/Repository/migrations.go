@@ -38,7 +38,9 @@ func RunMigrations() {
 
 		// 4. Check if migration was already applied
 		var count int
-		err := DB.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE migration_file = $1", fileName).Scan(&count)
+		// We use a raw string here to avoid prepared statements which fail on some PGBouncer configurations
+		checkSQL := "SELECT COUNT(*) FROM schema_migrations WHERE migration_file = '" + fileName + "'"
+		err := DB.QueryRow(checkSQL).Scan(&count)
 		if err != nil {
 			log.Fatalf("Error checking migration status for %s: %v", fileName, err)
 		}
@@ -82,7 +84,8 @@ func RunMigrations() {
 			}
 		}
 
-		_, err = DB.Exec("INSERT INTO schema_migrations (migration_file) VALUES ($1)", fileName)
+		recordSQL := "INSERT INTO schema_migrations (migration_file) VALUES ('" + fileName + "')"
+		_, err = DB.Exec(recordSQL)
 		if err != nil {
 			log.Fatalf("Error recording migration status for %s: %v", fileName, err)
 		}
