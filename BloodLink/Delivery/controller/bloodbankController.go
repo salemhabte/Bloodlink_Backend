@@ -60,7 +60,13 @@ func (c *CampaignController) CreateCampaign(ctx *gin.Context) {
 }
 
 func (c *CampaignController) GetAllCampaigns(ctx *gin.Context) {
-	campaigns, err := c.Usecase.GetAllCampaigns()
+	filter := Domain.CampaignFilter{
+		Location:  ctx.Query("location"),
+		StartDate: ctx.Query("start_date"),
+		EndDate:   ctx.Query("end_date"),
+	}
+
+	campaigns, err := c.Usecase.GetAllCampaigns(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -125,10 +131,13 @@ func (c *CampaignController) DeleteCampaign(ctx *gin.Context) {
 
 // Search campaigns by location
 func (c *CampaignController) GetCampaignsByLocation(ctx *gin.Context) {
+	filter := Domain.CampaignFilter{
+		Location:  ctx.Query("location"),
+		StartDate: ctx.Query("start_date"),
+		EndDate:   ctx.Query("end_date"),
+	}
 
-	location := ctx.Query("location")
-
-	campaigns, err := c.Usecase.GetCampaignsByLocation(location)
+	campaigns, err := c.Usecase.GetCampaignsByLocation(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -631,12 +640,20 @@ func NewBloodInventoryController(u *Usecase.BloodInventoryUsecase) *BloodInvento
 
 // 🔹 GET /inventory
 func (c *BloodInventoryController) GetAll(ctx *gin.Context) {
-	data, err := c.usecase.GetAllUnits()
+	filter := Domain.BloodUnitFilter{
+		BloodType:     ctx.Query("blood_type"),
+		ComponentType: ctx.Query("component_type"),
+		Status:        ctx.Query("status"),
+		StartDate:     ctx.Query("start_date"),
+		EndDate:       ctx.Query("end_date"),
+	}
+
+	data, err := c.usecase.GetAllUnits(filter)
 	if err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(200, data)
+	ctx.JSON(http.StatusOK, data)
 }
 
 // 🔹 GET /inventory/stats
@@ -723,8 +740,15 @@ func (c *BloodInventoryController) GetReservedByHospital(ctx *gin.Context) {
 }
 
 func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
+	filter := Domain.BloodUnitFilter{
+		BloodType:     ctx.Query("blood_type"),
+		ComponentType: ctx.Query("component_type"),
+		Status:        ctx.Query("status"),
+		StartDate:     ctx.Query("start_date"),
+		EndDate:       ctx.Query("end_date"),
+	}
 
-	units, _ := c.usecase.GetAllUnits()
+	units, _ := c.usecase.GetAllUnits(filter)
 
 	ctx.Header("Content-Disposition", "attachment; filename=blood_units.csv")
 	ctx.Header("Content-Type", "text/csv")
@@ -755,10 +779,17 @@ func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 	}
 }
 func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
+	filter := Domain.BloodUnitFilter{
+		BloodType:     ctx.Query("blood_type"),
+		ComponentType: ctx.Query("component_type"),
+		Status:        ctx.Query("status"),
+		StartDate:     ctx.Query("start_date"),
+		EndDate:       ctx.Query("end_date"),
+	}
 
-	units, err := c.usecase.GetAllUnits()
+	units, err := c.usecase.GetAllUnits(filter)
 	if err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -853,18 +884,19 @@ func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 	}
 }
 func (c *BloodInventoryController) Filter(ctx *gin.Context) {
+	filter := Domain.BloodUnitFilter{
+		BloodType:     ctx.Query("blood_type"),
+		ComponentType: ctx.Query("component_type"),
+		Status:        ctx.Query("status"),
+		StartDate:     ctx.Query("start_date"),
+		EndDate:       ctx.Query("end_date"),
+	}
 
-	unitID := ctx.Query("unit_id")
-	bloodType := ctx.Query("blood_type")
-	status := ctx.Query("status")
-	startDate := ctx.Query("start_date")
-	endDate := ctx.Query("end_date")
-
-	data, err := c.usecase.FilterUnits(unitID, bloodType, status, startDate, endDate)
+	data, err := c.usecase.FilterUnits(filter)
 	if err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(200, data)
+	ctx.JSON(http.StatusOK, data)
 }

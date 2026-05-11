@@ -20,6 +20,14 @@ type BloodUnit struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type BloodUnitFilter struct {
+	BloodType     string `json:"blood_type"`
+	ComponentType string `json:"component_type"`
+	Status        string `json:"status"`
+	StartDate     string `json:"start_date"`
+	EndDate       string `json:"end_date"`
+}
+
 // ReservedUnitInfo is returned when units are reserved for a hospital request
 type ReservedUnitInfo struct {
 	BloodUnitID    string    `json:"blood_unit_id"`

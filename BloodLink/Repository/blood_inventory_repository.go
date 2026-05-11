@@ -16,14 +16,46 @@ func NewBloodInventoryRepository(db *sql.DB) *BloodInventoryRepository {
 }
 
 // GetAllBloodUnits returns all blood units
-func (r *BloodInventoryRepository) GetAllBloodUnits() ([]Domain.BloodUnit, error) {
+func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilter) ([]Domain.BloodUnit, error) {
 	query := `
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
 	       volume_ml, collection_date, expiration_date, status,
 	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at
 	FROM blood_units
+	WHERE 1=1
 	`
-	rows, err := r.DB.Query(query)
+	args := []interface{}{}
+	placeholderID := 1
+
+	if filter.BloodType != "" {
+		query += fmt.Sprintf(" AND blood_type = $%d", placeholderID)
+		args = append(args, filter.BloodType)
+		placeholderID++
+	}
+	if filter.ComponentType != "" {
+		query += fmt.Sprintf(" AND component_type = $%d", placeholderID)
+		args = append(args, filter.ComponentType)
+		placeholderID++
+	}
+	if filter.Status != "" {
+		query += fmt.Sprintf(" AND status = $%d", placeholderID)
+		args = append(args, filter.Status)
+		placeholderID++
+	}
+	if filter.StartDate != "" {
+		query += fmt.Sprintf(" AND collection_date >= $%d", placeholderID)
+		args = append(args, filter.StartDate)
+		placeholderID++
+	}
+	if filter.EndDate != "" {
+		query += fmt.Sprintf(" AND collection_date <= $%d", placeholderID)
+		args = append(args, filter.EndDate)
+		placeholderID++
+	}
+
+	query += " ORDER BY created_at DESC"
+
+	rows, err := r.DB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -147,10 +179,7 @@ WHERE bu.blood_unit_id = $1
 }
 
 // FilterBloodUnits filters blood units by various criteria
-func (r *BloodInventoryRepository) FilterBloodUnits(
-	unitID, bloodType, status string,
-	startDate, endDate string,
-) ([]Domain.BloodUnit, error) {
+func (r *BloodInventoryRepository) FilterBloodUnits(filter Domain.BloodUnitFilter) ([]Domain.BloodUnit, error) {
 
 	query := `
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
@@ -160,23 +189,35 @@ func (r *BloodInventoryRepository) FilterBloodUnits(
 	WHERE 1=1
 	`
 	args := []interface{}{}
+	placeholderID := 1
 
-	if unitID != "" {
-		args = append(args, "%"+unitID+"%")
-		query += fmt.Sprintf(" AND blood_unit_id LIKE $%d", len(args))
+	if filter.BloodType != "" {
+		query += fmt.Sprintf(" AND blood_type = $%d", placeholderID)
+		args = append(args, filter.BloodType)
+		placeholderID++
 	}
-	if bloodType != "" {
-		args = append(args, bloodType)
-		query += fmt.Sprintf(" AND blood_type = $%d", len(args))
+	if filter.ComponentType != "" {
+		query += fmt.Sprintf(" AND component_type = $%d", placeholderID)
+		args = append(args, filter.ComponentType)
+		placeholderID++
 	}
-	if status != "" {
-		args = append(args, status)
-		query += fmt.Sprintf(" AND status = $%d", len(args))
+	if filter.Status != "" {
+		query += fmt.Sprintf(" AND status = $%d", placeholderID)
+		args = append(args, filter.Status)
+		placeholderID++
 	}
-	if startDate != "" && endDate != "" {
-		args = append(args, startDate, endDate)
-		query += fmt.Sprintf(" AND collection_date BETWEEN $%d AND $%d", len(args)-1, len(args))
+	if filter.StartDate != "" {
+		query += fmt.Sprintf(" AND collection_date >= $%d", placeholderID)
+		args = append(args, filter.StartDate)
+		placeholderID++
 	}
+	if filter.EndDate != "" {
+		query += fmt.Sprintf(" AND collection_date <= $%d", placeholderID)
+		args = append(args, filter.EndDate)
+		placeholderID++
+	}
+
+	query += " ORDER BY collection_date ASC"
 
 	rows, err := r.DB.Query(query, args...)
 	if err != nil {

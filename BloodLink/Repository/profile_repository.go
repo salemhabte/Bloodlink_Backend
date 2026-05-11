@@ -4,6 +4,7 @@ import (
 	domain "bloodlink/Domain"
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 type ProfileRepository struct {
@@ -70,9 +71,39 @@ func (r *ProfileRepository) UpdateProfile(ctx context.Context, profile *domain.U
 	return err
 }
 
-func (r *ProfileRepository) GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error) {
-	query := `SELECT profile_id, user_id, COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(address, ''), COALESCE(profile_picture_url, ''), latitude, longitude FROM user_profiles`
-	rows, err := r.DB.QueryContext(ctx, query)
+func (r *ProfileRepository) GetAllProfiles(ctx context.Context, filter domain.ProfileFilter) ([]domain.UserProfile, error) {
+	query := `
+		SELECT 
+			p.profile_id, 
+			p.user_id, 
+			COALESCE(p.full_name, ''), 
+			COALESCE(p.phone, ''), 
+			COALESCE(p.address, ''), 
+			COALESCE(p.profile_picture_url, ''), 
+			p.latitude, 
+			p.longitude 
+		FROM user_profiles p
+		JOIN users u ON p.user_id = u.user_id
+		WHERE 1=1
+	`
+	args := []interface{}{}
+	placeholderID := 1
+
+	if filter.StartDate != "" {
+		query += fmt.Sprintf(" AND u.created_at >= $%d", placeholderID)
+		args = append(args, filter.StartDate)
+		placeholderID++
+	}
+
+	if filter.EndDate != "" {
+		query += fmt.Sprintf(" AND u.created_at <= $%d", placeholderID)
+		args = append(args, filter.EndDate)
+		placeholderID++
+	}
+
+	query += " ORDER BY u.created_at DESC"
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
