@@ -6,12 +6,12 @@ import (
 )
 
 type IBloodInventoryRepository interface {
-	GetAllBloodUnits() ([]Domain.BloodUnit, error)
+	GetAllBloodUnits(filter Domain.BloodUnitFilter) ([]Domain.BloodUnit, error)
 	GetBloodUnitByID(id string) (*Domain.BloodUnit, error)
 	UpdateBloodUnitStatus(id string, status string) error
 	DeleteBloodUnitByID(id string) error
 	GetFullBloodUnitDetails(id string) (map[string]interface{}, error)
-	FilterBloodUnits(unitID, bloodType, status, startDate, endDate string) ([]Domain.BloodUnit, error)
+	FilterBloodUnits(filter Domain.BloodUnitFilter) ([]Domain.BloodUnit, error)
 	MarkExpiredUnits() error
 	CountAvailableUnitsByBloodType(bloodType string) (int, error)
 	ConsumeUnits(bloodType string, quantity int) error

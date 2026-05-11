@@ -29,8 +29,8 @@ func (u *CampaignUsecase) CreateCampaign(campaign *Domain.Campaign) error {
 	return err
 }
 
-func (u *CampaignUsecase) GetAllCampaigns() ([]Domain.Campaign, error) {
-	return u.Repo.GetAllCampaigns()
+func (u *CampaignUsecase) GetAllCampaigns(filter Domain.CampaignFilter) ([]Domain.Campaign, error) {
+	return u.Repo.GetAllCampaigns(filter)
 }
 
 func (u *CampaignUsecase) GetCampaignByID(id string) (*Domain.Campaign, error) {
@@ -46,8 +46,8 @@ func (u *CampaignUsecase) DeleteCampaign(id string) error {
 }
 
 // Donor Feature
-func (u *CampaignUsecase) GetCampaignsByLocation(location string) ([]Domain.Campaign, error) {
-	return u.Repo.GetCampaignsByLocation(location)
+func (u *CampaignUsecase) GetCampaignsByLocation(filter Domain.CampaignFilter) ([]Domain.Campaign, error) {
+	return u.Repo.GetCampaignsByLocation(filter)
 }
 
 
@@ -276,13 +276,13 @@ func NewBloodInventoryUsecase(r Interface.IBloodInventoryRepository) *BloodInven
 }
 
 // 🔹 Get All
-func (u *BloodInventoryUsecase) GetAllUnits() ([]Domain.BloodUnit, error) {
-	return u.repo.GetAllBloodUnits()
+func (u *BloodInventoryUsecase) GetAllUnits(filter Domain.BloodUnitFilter) ([]Domain.BloodUnit, error) {
+	return u.repo.GetAllBloodUnits(filter)
 }
 
 // 🔹 Get Stats
 func (u *BloodInventoryUsecase) GetStats() (map[string]int, error) {
-	units, err := u.repo.GetAllBloodUnits()
+	units, err := u.repo.GetAllBloodUnits(Domain.BloodUnitFilter{})
 	if err != nil {
 		return nil, err
 	}
@@ -365,11 +365,8 @@ func (u *BloodInventoryUsecase) GetFullDetails(id string) (map[string]interface{
 
 	return data, nil
 }
-func (u *BloodInventoryUsecase) FilterUnits(
-	unitID, bloodType, status, startDate, endDate string,
-) ([]Domain.BloodUnit, error) {
-
-	return u.repo.FilterBloodUnits(unitID, bloodType, status, startDate, endDate)
+func (u *BloodInventoryUsecase) FilterUnits(filter Domain.BloodUnitFilter) ([]Domain.BloodUnit, error) {
+	return u.repo.FilterBloodUnits(filter)
 }
 func (u *BloodInventoryUsecase) UpdateExpiredUnits() error {
 	return u.repo.MarkExpiredUnits()

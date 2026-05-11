@@ -361,7 +361,7 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 }
 
 // GetUsersByRole retrieves all users matching a specific role (or all users if role is empty)
-func (r *UserRepository) GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error) {
+func (r *UserRepository) GetUsersByRole(ctx context.Context, filter domain.UserFilter) ([]domain.UserResponse, error) {
 	query := `
 		SELECT 
 			user_id, 
@@ -372,13 +372,30 @@ func (r *UserRepository) GetUsersByRole(ctx context.Context, role string) ([]dom
 			is_active, 
 			created_at 
 		FROM users 
+		WHERE 1=1
 	`
 	args := []interface{}{}
+	placeholderID := 1
 
-	if role != "" {
-		query += " WHERE role = $1"
-		args = append(args, role)
+	if filter.Role != "" {
+		query += fmt.Sprintf(" AND role = $%d", placeholderID)
+		args = append(args, filter.Role)
+		placeholderID++
 	}
+
+	if filter.StartDate != "" {
+		query += fmt.Sprintf(" AND created_at >= $%d", placeholderID)
+		args = append(args, filter.StartDate)
+		placeholderID++
+	}
+
+	if filter.EndDate != "" {
+		query += fmt.Sprintf(" AND created_at <= $%d", placeholderID)
+		args = append(args, filter.EndDate)
+		placeholderID++
+	}
+
+	query += " ORDER BY created_at DESC"
 
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {

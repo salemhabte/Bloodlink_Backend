@@ -171,10 +171,15 @@ func (c *UserController) GetProfileByID(ctx *gin.Context) {
 
 // GetAllProfiles fetches all user profiles in the system
 func (c *UserController) GetAllProfiles(ctx *gin.Context) {
+	filter := domain.ProfileFilter{
+		StartDate: ctx.Query("start_date"),
+		EndDate:   ctx.Query("end_date"),
+	}
+
 	cCtx, cancel := context.WithCancel(ctx.Request.Context())
 	defer cancel()
 
-	profiles, err := c.UserUseCase.GetAllProfiles(cCtx)
+	profiles, err := c.UserUseCase.GetAllProfiles(cCtx, filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -372,12 +377,16 @@ func (c *UserController) RefreshTokenHandler(ctx *gin.Context) {
 
 // GetUsersByRole handles fetching users filtered by their role
 func (c *UserController) GetUsersByRole(ctx *gin.Context) {
-	role := ctx.Query("role")
+	filter := domain.UserFilter{
+		Role:      ctx.Query("role"),
+		StartDate: ctx.Query("start_date"),
+		EndDate:   ctx.Query("end_date"),
+	}
 
 	cCtx, cancel := context.WithCancel(ctx.Request.Context())
 	defer cancel()
 
-	users, err := c.UserUseCase.GetUsersByRole(cCtx, role)
+	users, err := c.UserUseCase.GetUsersByRole(cCtx, filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

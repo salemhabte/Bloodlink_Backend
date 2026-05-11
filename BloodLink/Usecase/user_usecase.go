@@ -27,7 +27,7 @@ type IUserRepository interface {
 	SetOTP(ctx context.Context, email, otp string) error
 	ResetPassword(ctx context.Context, email, hashedPassword string) error
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
-	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
+	GetUsersByRole(ctx context.Context, filter domain.UserFilter) ([]domain.UserResponse, error)
 	UpdateRefreshToken(ctx context.Context, userID, refreshToken string) error
 	GetDonorByUserID(ctx context.Context, userID string) (*domain.Donor, error)
 	GetDonorsByBloodTypeAndAddress(ctx context.Context, bloodType, address string) ([]domain.DonorResponse, error)
@@ -41,7 +41,7 @@ type IProfileRepository interface {
 	CreateProfile(ctx context.Context, profile *domain.UserProfile) error
 	GetProfileByUserID(ctx context.Context, userID string) (*domain.UserProfile, error)
 	UpdateProfile(ctx context.Context, profile *domain.UserProfile) error
-	GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error)
+	GetAllProfiles(ctx context.Context, filter domain.ProfileFilter) ([]domain.UserProfile, error)
 }
 
 type UserUseCaseBase struct {
@@ -301,8 +301,8 @@ func (u *UserUseCaseBase) CalculateEligibility(ctx context.Context, donorID stri
 	return eligibility
 }
 
-func (u *UserUseCaseBase) GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error) {
-	return u.profileRepo.GetAllProfiles(ctx)
+func (u *UserUseCaseBase) GetAllProfiles(ctx context.Context, filter domain.ProfileFilter) ([]domain.UserProfile, error) {
+	return u.profileRepo.GetAllProfiles(ctx, filter)
 }
 
 func (u *UserUseCaseBase) UpdateProfile(ctx context.Context, profile *domain.UserProfile) error {
@@ -330,8 +330,8 @@ func (u *UserUseCaseBase) UpdateDonorStatus(ctx context.Context, donorID, status
 	return u.userRepo.UpdateDonorStatus(ctx, donorID, status)
 }
 
-func (u *UserUseCaseBase) GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error) {
-	return u.userRepo.GetUsersByRole(ctx, role)
+func (u *UserUseCaseBase) GetUsersByRole(ctx context.Context, filter domain.UserFilter) ([]domain.UserResponse, error) {
+	return u.userRepo.GetUsersByRole(ctx, filter)
 }
 
 func (u *UserUseCaseBase) ForgotPassword(ctx context.Context, email string) error {

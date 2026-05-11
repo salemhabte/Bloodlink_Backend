@@ -12,3 +12,9 @@ type Campaign struct {
     EndDate    time.Time
     CreatedAt  time.Time
 }
+
+type CampaignFilter struct {
+    Location  string `json:"location"`
+    StartDate string `json:"start_date"`
+    EndDate   string `json:"end_date"`
+}

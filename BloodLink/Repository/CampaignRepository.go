@@ -4,6 +4,7 @@ import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,15 +45,36 @@ func (r *CampaignRepository) CreateCampaign(campaign *Domain.Campaign) error {
 }
 
 // GetAllCampaigns returns all active campaigns
-func (r *CampaignRepository) GetAllCampaigns() ([]Domain.Campaign, error) {
-
+func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter) ([]Domain.Campaign, error) {
 	query := `
 	SELECT campaign_id, title, content, location, start_date, end_date, created_at
 	FROM campaigns
-	WHERE end_date >= NOW()
+	WHERE 1=1
 	`
+	args := []interface{}{}
+	placeholderID := 1
 
-	rows, err := r.DB.Query(query)
+	if filter.Location != "" {
+		query += fmt.Sprintf(" AND location LIKE $%d", placeholderID)
+		args = append(args, "%"+filter.Location+"%")
+		placeholderID++
+	}
+
+	if filter.StartDate != "" {
+		query += fmt.Sprintf(" AND start_date >= $%d", placeholderID)
+		args = append(args, filter.StartDate)
+		placeholderID++
+	}
+
+	if filter.EndDate != "" {
+		query += fmt.Sprintf(" AND end_date <= $%d", placeholderID)
+		args = append(args, filter.EndDate)
+		placeholderID++
+	}
+
+	query += " ORDER BY created_at DESC"
+
+	rows, err := r.DB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -172,16 +194,36 @@ func (r *CampaignRepository) DeleteCampaign(id string) error {
 }
 
 // GetCampaignsByLocation finds campaigns by location
-func (r *CampaignRepository) GetCampaignsByLocation(location string) ([]Domain.Campaign, error) {
-
+func (r *CampaignRepository) GetCampaignsByLocation(filter Domain.CampaignFilter) ([]Domain.Campaign, error) {
 	query := `
 	SELECT campaign_id, title, content, location, start_date, end_date, created_at
 	FROM campaigns
-	WHERE location LIKE CONCAT('%', $1, '%')
-	AND end_date >= NOW()
+	WHERE 1=1
 	`
+	args := []interface{}{}
+	placeholderID := 1
 
-	rows, err := r.DB.Query(query, location)
+	if filter.Location != "" {
+		query += fmt.Sprintf(" AND location LIKE $%d", placeholderID)
+		args = append(args, "%"+filter.Location+"%")
+		placeholderID++
+	}
+
+	if filter.StartDate != "" {
+		query += fmt.Sprintf(" AND start_date >= $%d", placeholderID)
+		args = append(args, filter.StartDate)
+		placeholderID++
+	}
+
+	if filter.EndDate != "" {
+		query += fmt.Sprintf(" AND end_date <= $%d", placeholderID)
+		args = append(args, filter.EndDate)
+		placeholderID++
+	}
+
+	query += " ORDER BY start_date ASC"
+
+	rows, err := r.DB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

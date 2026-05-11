@@ -19,8 +19,8 @@ type IUserUseCase interface {
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
 	RefreshToken(ctx context.Context, refreshToken string) (string, string, error)
 	Logout(ctx context.Context, userID string) error
-	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
-	GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error)
+	GetUsersByRole(ctx context.Context, filter domain.UserFilter) ([]domain.UserResponse, error)
+	GetAllProfiles(ctx context.Context, filter domain.ProfileFilter) ([]domain.UserProfile, error)
 	GetDonorIDByUserID(ctx context.Context, userID string) (string, error)
 	GetEligibleDonors(ctx context.Context, query string) ([]domain.DonorResponse, error)
 	NotifyEligibleDonors(ctx context.Context) error

@@ -97,6 +97,17 @@ type DonorFilter struct {
 	IsNewDonor    *bool  `json:"is_new_donor"`
 }
 
+type UserFilter struct {
+	Role      string `json:"role"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}
+
+type ProfileFilter struct {
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}
+
 type EmailOTP struct {
 	Email string `json:"email" bson:"email"`
 	OTP   string `json:"otp" bson:"otp"`
