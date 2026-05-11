@@ -65,19 +65,6 @@ type ProfileResponse struct {
 	Eligibility *DonorEligibility `json:"eligibility,omitempty"`
 }
 
-type DonorEligibility struct {
-	IsEligible         bool   `json:"is_eligible"`
-	EligibilityStatus  string `json:"eligibility_status"` // "Eligible" or "Not Eligible"
-	EligibilityMessage string `json:"eligibility_message"`
-	CountdownDays      int    `json:"countdown_days,omitempty"`
-}
-
-type ProfileResponse struct {
-	UserProfile
-	DonorInfo   *Donor            `json:"donor_info,omitempty"`
-	Eligibility *DonorEligibility `json:"eligibility,omitempty"`
-}
-
 type Donor struct {
 	DonorID          string    `json:"donor_id" db:"donor_id"`
 	UserID           string    `json:"user_id" db:"user_id"`
@@ -108,8 +95,6 @@ type DonorFilter struct {
 	Status        string `json:"status"` // is_active
 	IsEligible    *bool  `json:"is_eligible"`
 	IsNewDonor    *bool  `json:"is_new_donor"`
-	StartDate     string `json:"start_date"`
-	EndDate       string `json:"end_date"`
 }
 
 type EmailOTP struct {

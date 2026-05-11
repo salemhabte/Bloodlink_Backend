@@ -404,6 +404,21 @@ func (c *UserController) Logout(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
+func (c *UserController) GetEligibleDonors(ctx *gin.Context) {
+	query := ctx.Query("q")
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	donors, err := c.UserUseCase.GetEligibleDonors(cCtx, query)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donors)
+}
+
 func (c *UserController) UpdateLocation(ctx *gin.Context) {
 	userID := ctx.GetString("userID")
 	if userID == "" {
