@@ -206,17 +206,18 @@ func (r *emergencyRequestRepository) GetByLocation(location string) ([]Domain.Em
 	return requests, nil
 }
 
-func (r *emergencyRequestRepository) GetNearby(lat float64, lon float64, radiusKm float64) ([]Domain.EmergencyRequest, error) {
+func (r *emergencyRequestRepository) GetNearby(lat float64, lon float64, radiusKm float64, bloodType string) ([]Domain.EmergencyRequest, error) {
 	query := `SELECT 
 				emergency_id, request_id, blood_type, quantity_required, 
 				quantity_fulfilled, urgency_level, hospital_name, location,
 				status, is_manual, created_at, updated_at, published_at, latitude, longitude
 			  FROM emergency_requests 
 			  WHERE status = $1 
+			  AND ($5 = '' OR blood_type = $5)
 			  AND ST_DWithin(location_geo, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, $4 * 1000)
 			  ORDER BY ST_Distance(location_geo, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography) ASC`
 
-	rows, err := r.db.Query(query, Domain.EmergencyStatusPublished, lat, lon, radiusKm)
+	rows, err := r.db.Query(query, Domain.EmergencyStatusPublished, lat, lon, radiusKm, bloodType)
 	if err != nil {
 		return nil, err
 	}

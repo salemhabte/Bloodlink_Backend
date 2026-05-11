@@ -10,7 +10,7 @@ type IEmergencyRequestRepository interface {
 	GetActive() ([]Domain.EmergencyRequest, error)
 	GetByRequestID(requestID string) (*Domain.EmergencyRequest, error)
 	GetByLocation(location string) ([]Domain.EmergencyRequest, error)
-	GetNearby(lat float64, lon float64, radiusKm float64) ([]Domain.EmergencyRequest, error)
+	GetNearby(lat float64, lon float64, radiusKm float64, bloodType string) ([]Domain.EmergencyRequest, error)
 }
 
 type IEmergencyRequestUsecase interface {

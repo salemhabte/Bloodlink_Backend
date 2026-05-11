@@ -169,6 +169,8 @@ func (u *emergencyRequestUsecase) GetPublishedEmergencies() ([]Domain.EmergencyR
 
 func (u *emergencyRequestUsecase) GetEmergenciesForDonor(userID string) ([]Domain.EmergencyRequest, error) {
 	ctx := context.Background()
+
+	// Get profile for location
 	profile, err := u.profileRepo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -177,6 +179,13 @@ func (u *emergencyRequestUsecase) GetEmergenciesForDonor(userID string) ([]Domai
 		return nil, errors.New("donor profile or location not found")
 	}
 
-	// Find emergencies within 20km
-	return u.repo.GetNearby(*profile.Latitude, *profile.Longitude, 20.0)
+	// Get donor's confirmed blood type
+	bloodType := ""
+	donor, err := u.userRepo.GetDonorByUserID(ctx, userID)
+	if err == nil && donor != nil {
+		bloodType = donor.BloodType // if empty string, GetNearby returns all blood types
+	}
+
+	// Find emergencies within 20km, filtered by blood type if known
+	return u.repo.GetNearby(*profile.Latitude, *profile.Longitude, 20.0, bloodType)
 }
