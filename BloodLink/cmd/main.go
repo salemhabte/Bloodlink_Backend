@@ -27,13 +27,12 @@ func main() {
 	passwordService := Infrastructure.NewPasswordService()
 	jwtService := Infrastructure.NewJWTAuthentication(config.JWTSECRET)
 
-	// 4. Initialize Auth System
+	// 4. Initialize Repository and Usecases
 	userRepo := Repository.NewUserRepository(db)
 	profileRepo := Repository.NewProfileRepository(db)
-	userUseCase := Usecase.NewUserUseCase(userRepo, profileRepo, jwtService, passwordService)
-	userController := controller.NewUserController(userUseCase)
-	campaignRepo := Repository.NewCampaignRepository(db)
 	donationRepo := Repository.NewDonationRepository(db)
+
+	campaignRepo := Repository.NewCampaignRepository(db)
 	labRepo := Repository.NewLabRepository(db)
 	inventoryRepo := Repository.NewBloodInventoryRepository(db)
 	hospitalRepo := Repository.NewHospitalRepository(db)
@@ -48,6 +47,9 @@ func main() {
 
 	// --- Usecases ---
 	notifUsecase := Usecase.NewNotificationUsecase(notifRepo)
+	userUseCase := Usecase.NewUserUseCase(userRepo, profileRepo, donationRepo, jwtService, passwordService, notifUsecase)
+	userController := controller.NewUserController(userUseCase)
+
 	badgeUsecase := Usecase.NewDonorBadgeUsecase(badgeRepo)
 	campaignUsecase := Usecase.NewCampaignUsecase(campaignRepo, notifUsecase)
 	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo, notifUsecase)
@@ -60,7 +62,7 @@ func main() {
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)
 	
 	// Start background jobs after all dependencies are initialized
-	go Jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo)
+	go Jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo, notifUsecase, donorBloodReqUsecase, userUseCase)
 
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
@@ -82,7 +84,7 @@ func main() {
 	adminAnalyticsController := controller.NewAdminAnalyticsController(adminAnalyticsUsecase)
 	badgeController := controller.NewDonorBadgeController(badgeUsecase, userUseCase)
 	emergencyController := controller.NewEmergencyRequestController(emergencyUsecase)
-	donorBloodReqController := controller.NewDonorBloodRequestController(donorBloodReqUsecase, userUseCase)
+	donorBloodReqController := controller.NewDonorBloodRequestController(donorBloodReqUsecase)
 	notifController := controller.NewNotificationController(notifUsecase)
 
 	// 5. Initialize Router

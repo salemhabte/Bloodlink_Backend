@@ -10,6 +10,8 @@ import (
 	domainInterface "bloodlink/Domain/Interfaces"
 	"bloodlink/Infrastructure"
 
+	"fmt"
+
 	"github.com/google/uuid"
 )
 
@@ -31,6 +33,8 @@ type IUserRepository interface {
 	GetDonorsByBloodTypeAndAddress(ctx context.Context, bloodType, address string) ([]domain.DonorResponse, error)
 	GetDonorsNearby(ctx context.Context, bloodType string, lat, lon, radiusKm float64) ([]domain.DonorResponse, error)
 	GetUserByPhone(ctx context.Context, phone string) (*domain.User, error)
+	GetEligibleDonors(ctx context.Context, query string) ([]domain.DonorResponse, error)
+	GetDonorsBecomingEligibleToday(ctx context.Context) ([]domain.DonorResponse, error)
 }
 
 type IProfileRepository interface {
@@ -41,18 +45,29 @@ type IProfileRepository interface {
 }
 
 type UserUseCaseBase struct {
-	userRepo    IUserRepository
-	profileRepo IProfileRepository
-	auth        domainInterface.IAuthentication
-	validation  domainInterface.IUserValidation
+	userRepo     IUserRepository
+	profileRepo  IProfileRepository
+	donationRepo domainInterface.IDonationRepository
+	auth         domainInterface.IAuthentication
+	validation   domainInterface.IUserValidation
+	notifUC      domainInterface.INotificationUsecase
 }
 
-func NewUserUseCase(userRepo IUserRepository, profileRepo IProfileRepository, auth domainInterface.IAuthentication, validation domainInterface.IUserValidation) *UserUseCaseBase {
+func NewUserUseCase(
+	userRepo IUserRepository,
+	profileRepo IProfileRepository,
+	donationRepo domainInterface.IDonationRepository,
+	auth domainInterface.IAuthentication,
+	validation domainInterface.IUserValidation,
+	notifUC domainInterface.INotificationUsecase,
+) *UserUseCaseBase {
 	return &UserUseCaseBase{
-		userRepo:    userRepo,
-		profileRepo: profileRepo,
-		auth:        auth,
-		validation:  validation,
+		userRepo:     userRepo,
+		profileRepo:  profileRepo,
+		donationRepo: donationRepo,
+		auth:         auth,
+		validation:   validation,
+		notifUC:      notifUC,
 	}
 }
 
@@ -217,8 +232,73 @@ func (u *UserUseCaseBase) VerifyOTP(ctx context.Context, email, otp string) erro
 	return nil
 }
 
-func (u *UserUseCaseBase) GetProfile(ctx context.Context, userID string) (*domain.UserProfile, error) {
-	return u.profileRepo.GetProfileByUserID(ctx, userID)
+func (u *UserUseCaseBase) GetProfile(ctx context.Context, userID string) (*domain.ProfileResponse, error) {
+	profile, err := u.profileRepo.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if profile == nil {
+		return nil, nil
+	}
+
+	response := &domain.ProfileResponse{
+		UserProfile: *profile,
+	}
+
+	// Check if user is a donor
+	donor, err := u.userRepo.GetDonorByUserID(ctx, userID)
+	if err == nil && donor != nil {
+		// It's a donor, calculate eligibility
+		eligibility := u.CalculateEligibility(ctx, donor.DonorID, donor.OverallStatus)
+		response.DonorInfo = donor
+		response.Eligibility = eligibility
+	}
+
+	return response, nil
+}
+
+func (u *UserUseCaseBase) CalculateEligibility(ctx context.Context, donorID string, overallStatus string) *domain.DonorEligibility {
+	eligibility := &domain.DonorEligibility{
+		IsEligible:        false,
+		EligibilityStatus: "Not Eligible",
+	}
+
+	// 1. Check Permanent Deferral
+	if overallStatus == "PERMANENTLY_DEFERRED" {
+		eligibility.EligibilityMessage = "Not Eligible — You are permanently deferred from donating blood and cannot donate again. Thank you for your willingness and your past contribution to saving lives."
+		return eligibility
+	}
+
+	// 2. Check 3-month rule
+	lastDonation, err := u.donationRepo.GetLastDonationByDonor(donorID)
+	if err != nil || lastDonation == nil {
+		// Never donated before
+		eligibility.IsEligible = true
+		eligibility.EligibilityStatus = "Eligible"
+		eligibility.EligibilityMessage = "Eligible — You can come and donate at any time. Thank you for your willingness to save lives."
+		return eligibility
+	}
+
+	// Calculate days since last donation
+	daysSince := int(time.Since(lastDonation.CollectionDate).Hours() / 24)
+	remainingDays := 90 - daysSince
+
+	if daysSince >= 90 {
+		// More than 3 months passed
+		eligibility.IsEligible = true
+		eligibility.EligibilityStatus = "Eligible"
+		eligibility.EligibilityMessage = "Eligible — You can come and donate at any time. Thank you for your willingness to save lives."
+	} else {
+		// Within 3 months
+		eligibility.CountdownDays = remainingDays
+		if overallStatus == "Pending" {
+			eligibility.EligibilityMessage = fmt.Sprintf("Not Eligible — Your overall lab status is pending. Please wait %d more days before your next donation.", remainingDays)
+		} else {
+			eligibility.EligibilityMessage = fmt.Sprintf("Not Eligible — You donated recently. Please wait %d more days before donating again.", remainingDays)
+		}
+	}
+
+	return eligibility
 }
 
 func (u *UserUseCaseBase) GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error) {
@@ -238,9 +318,14 @@ func (u *UserUseCaseBase) FilterDonors(ctx context.Context, filter domain.DonorF
 }
 
 func (u *UserUseCaseBase) UpdateDonorStatus(ctx context.Context, donorID, status string) error {
-	validStatuses := map[string]bool{"Pending": true, "Approved": true, "Rejected": true}
+	validStatuses := map[string]bool{
+		"Pending":              true,
+		"CLEARED":              true,
+		"TEMPORARILY_DEFERRED": true,
+		"PERMANENTLY_DEFERRED": true,
+	}
 	if !validStatuses[status] {
-		return errors.New("invalid status: must be Pending, Approved, or Rejected")
+		return errors.New("invalid status: must be Pending, CLEARED, TEMPORARILY_DEFERRED, or PERMANENTLY_DEFERRED")
 	}
 	return u.userRepo.UpdateDonorStatus(ctx, donorID, status)
 }
@@ -435,6 +520,24 @@ func (u *UserUseCaseBase) GetDonorIDByUserID(ctx context.Context, userID string)
 		return "", err
 	}
 	return donor.DonorID, nil
+}
+
+func (u *UserUseCaseBase) GetEligibleDonors(ctx context.Context, query string) ([]domain.DonorResponse, error) {
+	return u.userRepo.GetEligibleDonors(ctx, query)
+}
+
+func (u *UserUseCaseBase) NotifyEligibleDonors(ctx context.Context) error {
+	donors, err := u.userRepo.GetDonorsBecomingEligibleToday(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, d := range donors {
+		subject := "You are Eligible to Donate Again!"
+		content := "Eligible — You can come and donate at any time. Thank you for your willingness to save lives."
+		go u.notifUC.SendNotification(d.UserID, "ELIGIBILITY", subject, content)
+	}
+	return nil
 }
 func (u *UserUseCaseBase) UpdateLocation(ctx context.Context, userID string, lat, lon float64) error {
 	profile, err := u.profileRepo.GetProfileByUserID(ctx, userID)

@@ -41,16 +41,41 @@ type User struct {
 	RefreshToken string    `json:"-" db:"refresh_token"`
 }
 
-// UserProfile stores common display information for all roles
 type UserProfile struct {
-	ProfileID         string `json:"profile_id" db:"profile_id"`
-	UserID            string `json:"user_id" db:"user_id"`
-	FullName          string `json:"full_name" db:"full_name"`
-	Phone             string `json:"phone" db:"phone"`
-	Address           string `json:"address" db:"address"`
-	ProfilePictureURL string `json:"profile_picture_url" db:"profile_picture_url"`
+	ProfileID         string   `json:"profile_id" db:"profile_id"`
+	UserID            string   `json:"user_id" db:"user_id"`
+	FullName          string   `json:"full_name" db:"full_name"`
+	Phone             string   `json:"phone" db:"phone"`
+	Address           string   `json:"address" db:"address"`
+	ProfilePictureURL string   `json:"profile_picture_url" db:"profile_picture_url"`
 	Latitude          *float64 `json:"latitude" db:"latitude"`
 	Longitude         *float64 `json:"longitude" db:"longitude"`
+}
+
+type DonorEligibility struct {
+	IsEligible         bool   `json:"is_eligible"`
+	EligibilityStatus  string `json:"eligibility_status"` // "Eligible" or "Not Eligible"
+	EligibilityMessage string `json:"eligibility_message"`
+	CountdownDays      int    `json:"countdown_days,omitempty"`
+}
+
+type ProfileResponse struct {
+	UserProfile
+	DonorInfo   *Donor            `json:"donor_info,omitempty"`
+	Eligibility *DonorEligibility `json:"eligibility,omitempty"`
+}
+
+type DonorEligibility struct {
+	IsEligible         bool   `json:"is_eligible"`
+	EligibilityStatus  string `json:"eligibility_status"` // "Eligible" or "Not Eligible"
+	EligibilityMessage string `json:"eligibility_message"`
+	CountdownDays      int    `json:"countdown_days,omitempty"`
+}
+
+type ProfileResponse struct {
+	UserProfile
+	DonorInfo   *Donor            `json:"donor_info,omitempty"`
+	Eligibility *DonorEligibility `json:"eligibility,omitempty"`
 }
 
 type Donor struct {
@@ -63,19 +88,26 @@ type Donor struct {
 }
 
 type DonorResponse struct {
-	DonorID       string  `json:"donor_id" db:"donor_id"`
-	UserID        string  `json:"user_id" db:"user_id"`
-	FullName      string  `json:"full_name" db:"full_name"`
-	Email         string  `json:"email" db:"email"`
-	Phone         string  `json:"phone" db:"phone"`
-	Address       string  `json:"address" db:"address"`
-	BloodType     *string `json:"blood_type" db:"blood_type"`
-	OverallStatus string  `json:"overall_status" db:"overall_status"`
+	DonorID          string    `json:"donor_id" db:"donor_id"`
+	UserID           string    `json:"user_id" db:"user_id"`
+	FullName         string    `json:"full_name" db:"full_name"`
+	Email            string    `json:"email" db:"email"`
+	Phone            string    `json:"phone" db:"phone"`
+	Address          string    `json:"address" db:"address"`
+	BloodType        *string   `json:"blood_type" db:"blood_type"`
+	Status           string    `json:"status" db:"status"`
+	OverallStatus    string    `json:"overall_status" db:"overall_status"`
+	RegistrationDate time.Time `json:"registration_date" db:"created_at"`
 }
 
 type DonorFilter struct {
 	BloodType     string `json:"blood_type"`
 	OverallStatus string `json:"overall_status"`
+	StartDate     string `json:"start_date"`
+	EndDate       string `json:"end_date"`
+	Status        string `json:"status"` // is_active
+	IsEligible    *bool  `json:"is_eligible"`
+	IsNewDonor    *bool  `json:"is_new_donor"`
 	StartDate     string `json:"start_date"`
 	EndDate       string `json:"end_date"`
 }

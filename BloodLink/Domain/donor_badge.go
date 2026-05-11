@@ -11,7 +11,9 @@ type DonorBadge struct {
 }
 
 type LeaderboardEntry struct {
-	Rank          int    `json:"rank"`
-	DonorID       string `json:"donor_id"`
-	DonationCount int    `json:"donation_count"`
+	Rank               int    `json:"rank"`
+	DonorID            string `json:"donor_id"`
+	FullName           string `json:"full_name"`
+	ProfilePictureURL  string `json:"profile_picture_url"`
+	DonationCount      int    `json:"donation_count"`
 }

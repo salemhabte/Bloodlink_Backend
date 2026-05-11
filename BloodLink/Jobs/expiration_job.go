@@ -3,14 +3,20 @@ package Jobs
 import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
-	"bloodlink/Infrastructure"
 	"bloodlink/Usecase"
+	"context"
 	"fmt"
 	"log"
 	"time"
 )
 
-func StartExpirationJob(inventoryUC *Usecase.BloodInventoryUsecase, bloodReqRepo Interfaces.IBloodRequestRepository) {
+func StartExpirationJob(
+	inventoryUC *Usecase.BloodInventoryUsecase,
+	bloodReqRepo Interfaces.IBloodRequestRepository,
+	notifUC Interfaces.INotificationUsecase,
+	donorBloodReqUC *Usecase.DonorBloodRequestUsecase,
+	userUC Interfaces.IUserUseCase,
+) {
 	for {
 		log.Println("[JOB] Running expiration and reservation cleanup...")
 
@@ -25,6 +31,11 @@ func StartExpirationJob(inventoryUC *Usecase.BloodInventoryUsecase, bloodReqRepo
 			log.Printf("[JOB ERROR] Failed to expire stale reservations: %v", err)
 		}
 
+		// 2.1. Cleanup stale DONOR reservations (24h rule)
+		if err := donorBloodReqUC.ExpireStaleRequests(); err != nil {
+			log.Printf("[JOB ERROR] Failed to expire stale donor requests: %v", err)
+		}
+
 		// 3. Reject associated blood requests
 		for _, reqID := range requestIDs {
 			log.Printf("[JOB] Auto-rejecting request %s due to stale reservation", reqID)
@@ -36,13 +47,20 @@ func StartExpirationJob(inventoryUC *Usecase.BloodInventoryUsecase, bloodReqRepo
 			// Notify Hospital
 			req, err := bloodReqRepo.GetRequestByID(reqID)
 			if err == nil {
-				go func() {
+				go func(r *Domain.BloodRequest) {
 					subject := "Blood Request Auto-Rejected"
-					content := fmt.Sprintf("Your request for %s blood has been automatically rejected because the reserved units were not collected within the required 24-hour window.", req.BloodType)
-					_ = Infrastructure.SendBloodRequestNotification("hospitaladmin@bloodlink.com", subject, content)
-				}()
+					content := fmt.Sprintf("Your request for %s blood has been automatically rejected because the reserved units were not collected within the required 24-hour window.", r.BloodType)
+					_ = notifUC.SendToHospital(r.HospitalID, "REJECTED", subject, content)
+				}(req)
 			}
 		}
+
+		// 4. Notify donors who become eligible today (90-day mark)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		if err := userUC.NotifyEligibleDonors(ctx); err != nil {
+			log.Printf("[JOB ERROR] Failed to notify eligible donors: %v", err)
+		}
+		cancel()
 
 		time.Sleep(1 * time.Hour) // Check more frequently than 24h to be accurate
 	}

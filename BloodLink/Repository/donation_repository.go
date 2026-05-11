@@ -66,6 +66,7 @@ func (r *donationRepository) SearchDonor(query string) (*Domain.DonorResponse, e
 		u.email,
 		u.phone,
 		d.blood_type,
+		d.status,
 		d.overall_status
 	FROM donors d
 	JOIN users u ON d.user_id = u.user_id
@@ -83,6 +84,7 @@ func (r *donationRepository) SearchDonor(query string) (*Domain.DonorResponse, e
 		&donor.Email,
 		&donor.Phone,
 		&donor.BloodType,
+		&donor.Status,
 		&donor.OverallStatus,	
 	)
 
