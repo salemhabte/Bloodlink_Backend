@@ -198,7 +198,15 @@ func (u *DonationUsecase) UpdateDonationStatus(donationID string, status string,
 	}
 
 	// ================================
-	// 2. Update status in DB
+	// 2. Validate Status
+	// ================================
+	validStatuses := map[string]bool{"PENDING": true, "APPROVED": true, "REJECTED_TEMPORARY": true}
+	if !validStatuses[status] {
+		return errors.New("invalid status: must be PENDING, APPROVED, or REJECTED_TEMPORARY")
+	}
+
+	// ================================
+	// 3. Update status in DB
 	// ================================
 	return u.repo.UpdateDonationStatus(donationID, status)
 }

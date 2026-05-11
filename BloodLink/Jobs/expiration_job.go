@@ -4,6 +4,7 @@ import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
 	"bloodlink/Usecase"
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -14,6 +15,7 @@ func StartExpirationJob(
 	bloodReqRepo Interfaces.IBloodRequestRepository,
 	notifUC Interfaces.INotificationUsecase,
 	donorBloodReqUC *Usecase.DonorBloodRequestUsecase,
+	userUC Interfaces.IUserUseCase,
 ) {
 	for {
 		log.Println("[JOB] Running expiration and reservation cleanup...")
@@ -52,6 +54,13 @@ func StartExpirationJob(
 				}(req)
 			}
 		}
+
+		// 4. Notify donors who become eligible today (90-day mark)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		if err := userUC.NotifyEligibleDonors(ctx); err != nil {
+			log.Printf("[JOB ERROR] Failed to notify eligible donors: %v", err)
+		}
+		cancel()
 
 		time.Sleep(1 * time.Hour) // Check more frequently than 24h to be accurate
 	}

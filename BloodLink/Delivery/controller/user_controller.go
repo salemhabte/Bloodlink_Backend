@@ -226,7 +226,7 @@ func (c *UserController) UpdateProfile(ctx *gin.Context) {
 	}
 
 	// 4. Save the merged profile back to the database
-	if err := c.UserUseCase.UpdateProfile(cCtx, existingProfile); err != nil {
+	if err := c.UserUseCase.UpdateProfile(cCtx, &existingProfile.UserProfile); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -319,8 +319,20 @@ func (c *UserController) ResetPassword(ctx *gin.Context) {
 
 func (c *UserController) GetDonors(ctx *gin.Context) {
 	filter := domain.DonorFilter{
-		BloodType: ctx.Query("blood_type"),
-		OverallStatus:    ctx.Query("overall_status"),
+		BloodType:     ctx.Query("blood_type"),
+		OverallStatus: ctx.Query("overall_status"),
+		StartDate:     ctx.Query("start_date"),
+		EndDate:       ctx.Query("end_date"),
+		Status:        ctx.Query("status"),
+	}
+
+	if isEligible := ctx.Query("is_eligible"); isEligible != "" {
+		val := isEligible == "true"
+		filter.IsEligible = &val
+	}
+	if isNewDonor := ctx.Query("is_new_donor"); isNewDonor != "" {
+		val := isNewDonor == "true"
+		filter.IsNewDonor = &val
 	}
 
 	cCtx, cancel := context.WithCancel(ctx.Request.Context())
@@ -390,4 +402,17 @@ func (c *UserController) Logout(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+}
+func (c *UserController) GetEligibleDonors(ctx *gin.Context) {
+	query := ctx.Query("q")
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	donors, err := c.UserUseCase.GetEligibleDonors(cCtx, query)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, donors)
 }

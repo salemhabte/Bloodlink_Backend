@@ -182,6 +182,8 @@ bloodCollector := r.Group("/api/bloodcollector")
 bloodCollector.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodCollector))
 {
 	bloodCollector.GET("/donors", donationController.GetPendingDonors)
+	bloodCollector.GET("/eligible-donors", userCtrl.GetEligibleDonors)
+	bloodCollector.GET("/all-donors", userCtrl.GetDonors)
 bloodCollector.GET("/donor/:id", donationController.GetDonorByID)
 bloodCollector.GET("/donor/search/pending", donationController.SearchPendingDonor)
     bloodCollector.GET("/donor/search", donationController.SearchDonor)
