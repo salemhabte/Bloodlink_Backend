@@ -94,6 +94,8 @@ func SetupRouter(
 		admin.GET("/leaderboard", badgeController.GetLeaderboard)
 		admin.GET("/badges", badgeController.GetAllBadges)
 		admin.GET("/blood-requests", donorBloodReqController.GetAllRequests)
+		admin.GET("/donor-blood-requests", donorBloodReqController.GetAllAdminRequests) // filtered + sorted by donations
+		admin.POST("/donor-blood-requests/expire-stale", donorBloodReqController.ExpireStaleRequests)
 		admin.PUT("/blood-requests/:id/approve", donorBloodReqController.ApproveRequest)
 		admin.PUT("/blood-requests/:id/fulfill", donorBloodReqController.FulfillRequest)
 		admin.PUT("/blood-requests/:id/reject", donorBloodReqController.RejectRequest)
@@ -170,7 +172,6 @@ func SetupRouter(
 			donor.GET("/leaderboard", badgeController.GetLeaderboard)
 			donor.GET("/emergencies", emergencyController.GetEmergenciesForDonor)
 			donor.POST("/blood-request", donorBloodReqController.CreateRequest)
-			donor.GET("/blood-requests", donorBloodReqController.GetAllRequests)
 			donor.GET("/my-requests", donorBloodReqController.GetMyRequests)
 
 		}

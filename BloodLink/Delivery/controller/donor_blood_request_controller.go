@@ -1,132 +1,237 @@
 package controller
 
 import (
+	"bloodlink/Domain"
 	"bloodlink/Usecase"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 type DonorBloodRequestController struct {
-	usecase     *Usecase.DonorBloodRequestUsecase
-	userUsecase *Usecase.UserUseCaseBase
+	usecase *Usecase.DonorBloodRequestUsecase
 }
 
-func NewDonorBloodRequestController(u *Usecase.DonorBloodRequestUsecase, userUsecase *Usecase.UserUseCaseBase) *DonorBloodRequestController {
+func NewDonorBloodRequestController(
+	u *Usecase.DonorBloodRequestUsecase,
+) *DonorBloodRequestController {
 	return &DonorBloodRequestController{
-		usecase:     u,
-		userUsecase: userUsecase,
+		usecase: u,
 	}
 }
+
+////////////////////////
+// CREATE REQUEST (DONOR)
+////////////////////////
+
 func (c *DonorBloodRequestController) CreateRequest(ctx *gin.Context) {
+
+	userID := ctx.GetString("userID")
+
 	var req struct {
-		DonorID    string `json:"donor_id"`
-		QuantityML int    `json:"quantity_ml"`
-		Reason     string `json:"reason"`
+		QuantityML      int    `json:"quantity_ml"`
+		Reason          string `json:"reason"`
+		HospitalName    string `json:"hospital_name"`
+		HospitalAddress string `json:"hospital_address"`
+		HospitalPhone   string `json:"hospital_phone"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(400, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	err := c.usecase.CreateRequest(req.DonorID, req.QuantityML, req.Reason)
+	err := c.usecase.CreateRequest(
+		userID,
+		req.QuantityML,
+		req.Reason,
+		req.HospitalName,
+		req.HospitalAddress,
+		req.HospitalPhone,
+	)
+
 	if err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
+		// Surface the "not enough donations" message as a clear 403
+		if strings.Contains(err.Error(), "at least perform one successful donation") {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(201, gin.H{"message": "Request created"})
+	ctx.JSON(http.StatusCreated, gin.H{
+		"message": "Blood request created successfully",
+	})
 }
-func (c *DonorBloodRequestController) ApproveRequest(ctx *gin.Context) {
-	id := ctx.Param("id")
 
-	err := c.usecase.ApproveRequest(id)
+////////////////////////
+// GET MY REQUESTS (DONOR)
+////////////////////////
+
+func (c *DonorBloodRequestController) GetMyRequests(ctx *gin.Context) {
+
+	userID := ctx.GetString("userID")
+
+	filter := Domain.DonorBloodRequestFilter{
+		StartDate: ctx.Query("start_date"),
+		EndDate:   ctx.Query("end_date"),
+		Status:    ctx.Query("status"),
+	}
+
+	data, err := c.usecase.GetMyRequests(userID, filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "Request approved"})
-}
-func (c *DonorBloodRequestController) FulfillRequest(ctx *gin.Context) {
-	id := ctx.Param("id")
-
-	err := c.usecase.FulfillRequest(id)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	// Just in case, ensure it's not null but [] if empty
+	if data == nil {
+		data = []Domain.DonorBloodRequest{}
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"message": "Request fulfilled"})
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "My requests fetched successfully",
+		"data":    data,
+	})
 }
+
+////////////////////////
+// GET ALL REQUESTS (ADMIN) — simple unfiltered version
+////////////////////////
+
 func (c *DonorBloodRequestController) GetAllRequests(ctx *gin.Context) {
+
 	data, err := c.usecase.GetAllRequests()
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	if len(data) == 0 {
-		ctx.JSON(http.StatusOK, gin.H{
-			"message": "No blood requests found",
-			"data":    []interface{}{},
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "All requests fetched successfully",
+		"data":    data,
+	})
+}
+
+////////////////////////
+// GET ALL REQUESTS — ADMIN FILTERED (sorted by successful donations DESC)
+// Query params: start_date, end_date, blood_type, status
+////////////////////////
+
+func (c *DonorBloodRequestController) GetAllAdminRequests(ctx *gin.Context) {
+
+	filter := Domain.DonorBloodRequestFilter{
+		StartDate: ctx.Query("start_date"),
+		EndDate:   ctx.Query("end_date"),
+		BloodType: ctx.Query("blood_type"),
+		Status:    ctx.Query("status"),
+	}
+
+	data, err := c.usecase.GetAllAdminRequests(filter)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "Admin donor requests fetched successfully",
+		"data":    data,
+	})
+}
+
+////////////////////////
+// APPROVE (ADMIN)
+// Returns the result message from the usecase:
+//   "no enough blood in the inventory" → 200 but status is REJECTED
+//   "partially approved"               → 200 + PARTIALLY APPROVED
+//   "fully approved"                   → 200 + APPROVED
+////////////////////////
+
+func (c *DonorBloodRequestController) ApproveRequest(ctx *gin.Context) {
+
+	id := ctx.Param("id")
+
+	updatedReq, message, err := c.usecase.ApproveRequest(id)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
 		})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"message": "Requests fetched successfully",
-		"data":    data,
+		"message": message,
+		"data":    updatedReq,
 	})
 }
+
+////////////////////////
+// REJECT (ADMIN)
+////////////////////////
+
 func (c *DonorBloodRequestController) RejectRequest(ctx *gin.Context) {
+
 	id := ctx.Param("id")
 
-	err := c.usecase.RejectRequest(id)
+	updatedReq, err := c.usecase.RejectRequest(id)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Failed to reject request",
-			"error":   err.Error(),
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
 		})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "Request rejected successfully",
+		"data":    updatedReq,
 	})
 }
-func (c *DonorBloodRequestController) GetMyRequests(ctx *gin.Context) {
 
-	userID := ctx.GetString("userID")
+////////////////////////
+// FULFILL (ADMIN)
+// Transitions:
+//   APPROVED          → FULFILLED
+//   PARTIALLY APPROVED → PARTIALLY FULFILLED
+////////////////////////
 
-	// get donorID from user
-	donorID, err := c.userUsecase.GetDonorIDByUserID(ctx, userID)
+func (c *DonorBloodRequestController) FulfillRequest(ctx *gin.Context) {
+
+	id := ctx.Param("id")
+
+	updatedReq, err := c.usecase.FulfillRequest(id)
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "Donor not found",
-		})
-		return
-	}
-
-	data, err := c.usecase.GetMyRequests(donorID)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Failed to fetch requests",
-		})
-		return
-	}
-
-	if len(data) == 0 {
-		ctx.JSON(http.StatusOK, gin.H{
-			"message": "You have no blood requests yet",
-			"data":    []interface{}{},
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
 		})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"message": "Requests retrieved successfully",
-		"data":    data,
+		"message": "Request fulfilled successfully",
+		"data":    updatedReq,
+	})
+}
+
+////////////////////////
+// EXPIRE STALE RESERVATIONS (ADMIN / CRON)
+// Call this endpoint periodically (or via a cron job) to release
+// any blood units that have been reserved for > 24 hours without
+// the admin clicking "Fulfilled".
+////////////////////////
+
+func (c *DonorBloodRequestController) ExpireStaleRequests(ctx *gin.Context) {
+
+	err := c.usecase.ExpireStaleRequests()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "Stale reservations expired successfully",
 	})
 }
