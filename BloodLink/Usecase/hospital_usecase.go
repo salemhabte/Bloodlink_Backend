@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"os"
 )
 
 type IHospitalUserRepository interface {
@@ -238,12 +239,7 @@ func (u *hospitalUsecase) AdminSignContract(contractID string, req *Domain.SignC
 	}
 
 	// Regenerate PDF with both signatures
-	finalPdfPath, err := u.pdfService.GenerateFinalContract(
-		contractID,
-		renderedText,
-		*contract.HospitalSignaturePath,
-		*contract.AdminSignaturePath,
-	)
+	finalPdfPath, err := u.generateFinalPDF(contract, hospital)
 	if err != nil {
 		return err
 	}
@@ -277,7 +273,72 @@ func (u *hospitalUsecase) RejectContract(contractID string, userID string, role 
 }
 
 func (u *hospitalUsecase) GetContractByID(contractID string) (*Domain.HospitalContract, error) {
-	return u.repo.GetContractByID(contractID)
+	contract, err := u.repo.GetContractByID(contractID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if document exists on disk. If not, re-generate it.
+	// This is important for ephemeral storage like Render.
+	if contract.Document != nil && *contract.Document != "" {
+		if _, err := os.Stat(*contract.Document); os.IsNotExist(err) {
+			if contract.Status == Domain.ContractStatusFinalized {
+				hospital, _ := u.repo.GetHospitalByID(contract.HospitalID)
+				if hospital != nil {
+					newPath, err := u.generateFinalPDF(contract, hospital)
+					if err == nil {
+						contract.Document = &newPath
+						_ = u.repo.UpdateContract(contract)
+					}
+				}
+			} else if contract.Status == Domain.ContractStatusPending || contract.Status == Domain.ContractStatusApprovedByHospital {
+				// Re-render draft if possible
+				if contract.TemplateID != nil {
+					template, err := u.repo.GetContractTemplateByID(*contract.TemplateID)
+					if err == nil {
+						hospital, _ := u.repo.GetHospitalByID(contract.HospitalID)
+						hName := "Hospital"
+						if hospital != nil {
+							hName = hospital.Name
+						}
+						renderedText := strings.ReplaceAll(template.Content, "{{hospital_name}}", hName)
+						renderedText = strings.ReplaceAll(renderedText, "{{contract_start_date}}", contract.ContractStart.Format("2006-01-02"))
+						renderedText = strings.ReplaceAll(renderedText, "{{contract_end_date}}", contract.ContractEnd.Format("2006-01-02"))
+
+						newPath, err := u.pdfService.GenerateDraftContract(contract.ContractID, renderedText)
+						if err == nil {
+							contract.Document = &newPath
+							_ = u.repo.UpdateContract(contract)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return contract, nil
+}
+
+func (u *hospitalUsecase) generateFinalPDF(contract *Domain.HospitalContract, hospital *Domain.Hospital) (string, error) {
+	var renderedText string
+	if contract.TemplateID != nil {
+		template, err := u.repo.GetContractTemplateByID(*contract.TemplateID)
+		if err == nil {
+			renderedText = strings.ReplaceAll(template.Content, "{{hospital_name}}", hospital.Name)
+			renderedText = strings.ReplaceAll(renderedText, "{{contract_start_date}}", contract.ContractStart.Format("2006-01-02"))
+			renderedText = strings.ReplaceAll(renderedText, "{{contract_end_date}}", contract.ContractEnd.Format("2006-01-02"))
+		}
+	}
+	if renderedText == "" {
+		renderedText = fmt.Sprintf("This blood supply contract is made and entered into on %s between the centralized Blood Bank and %s.", contract.ContractStart.Format("2006-01-02"), hospital.Name)
+	}
+
+	return u.pdfService.GenerateFinalContract(
+		contract.ContractID,
+		renderedText,
+		*contract.HospitalSignaturePath,
+		*contract.AdminSignaturePath,
+	)
 }
 
 func (u *hospitalUsecase) GetHospitalContracts(userID string) ([]Domain.HospitalContract, error) {
