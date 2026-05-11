@@ -47,6 +47,8 @@ func (c *BloodRequestController) GetHospitalRequests(ctx *gin.Context) {
 		BloodType:    bloodType,
 		Status:       ctx.Query("status"),
 		UrgencyLevel: ctx.Query("urgency_level"),
+		StartDate:    ctx.Query("start_date"),
+		EndDate:      ctx.Query("end_date"),
 	}
 
 	reqs, err := c.Usecase.GetHospitalRequests(filter)
@@ -58,7 +60,16 @@ func (c *BloodRequestController) GetHospitalRequests(ctx *gin.Context) {
 }
 
 func (c *BloodRequestController) GetAllRequests(ctx *gin.Context) {
-	reqs, err := c.Usecase.GetAllRequests()
+	filter := Domain.BloodRequestFilter{
+		HospitalID:   ctx.Query("hospital_id"),
+		BloodType:    ctx.Query("blood_type"),
+		Status:       ctx.Query("status"),
+		UrgencyLevel: ctx.Query("urgency_level"),
+		StartDate:    ctx.Query("start_date"),
+		EndDate:      ctx.Query("end_date"),
+	}
+
+	reqs, err := c.Usecase.GetAllRequests(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

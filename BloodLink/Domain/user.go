@@ -49,6 +49,8 @@ type UserProfile struct {
 	Phone             string `json:"phone" db:"phone"`
 	Address           string `json:"address" db:"address"`
 	ProfilePictureURL string `json:"profile_picture_url" db:"profile_picture_url"`
+	Latitude          *float64 `json:"latitude" db:"latitude"`
+	Longitude         *float64 `json:"longitude" db:"longitude"`
 }
 
 type Donor struct {
@@ -74,6 +76,8 @@ type DonorResponse struct {
 type DonorFilter struct {
 	BloodType     string `json:"blood_type"`
 	OverallStatus string `json:"overall_status"`
+	StartDate     string `json:"start_date"`
+	EndDate       string `json:"end_date"`
 }
 
 type EmailOTP struct {
@@ -107,6 +111,8 @@ type RegisterDonorRequest struct {
 	Password  string    `json:"password" binding:"required,min=8"`
 	Address   string    `json:"address" binding:"required"`
 	BirthDate time.Time `json:"birth_date" binding:"required"`
+	Latitude  float64   `json:"latitude,string"`
+	Longitude float64   `json:"longitude,string"`
 }
 
 // LoginRequest represents the payload for user login

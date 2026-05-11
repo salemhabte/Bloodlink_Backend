@@ -29,6 +29,7 @@ type IUserRepository interface {
 	UpdateRefreshToken(ctx context.Context, userID, refreshToken string) error
 	GetDonorByUserID(ctx context.Context, userID string) (*domain.Donor, error)
 	GetDonorsByBloodTypeAndAddress(ctx context.Context, bloodType, address string) ([]domain.DonorResponse, error)
+	GetDonorsNearby(ctx context.Context, bloodType string, lat, lon, radiusKm float64) ([]domain.DonorResponse, error)
 	GetUserByPhone(ctx context.Context, phone string) (*domain.User, error)
 }
 
@@ -164,6 +165,8 @@ func (u *UserUseCaseBase) RegisterDonor(ctx context.Context, req *domain.Registe
 		FullName:  req.FullName,
 		Phone:     req.Phone,
 		Address:   req.Address,
+		Latitude:  &req.Latitude,
+		Longitude: &req.Longitude,
 	}
 
 	if err := u.profileRepo.CreateProfile(ctx, profile); err != nil {
@@ -432,4 +435,18 @@ func (u *UserUseCaseBase) GetDonorIDByUserID(ctx context.Context, userID string)
 		return "", err
 	}
 	return donor.DonorID, nil
+}
+func (u *UserUseCaseBase) UpdateLocation(ctx context.Context, userID string, lat, lon float64) error {
+	profile, err := u.profileRepo.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if profile == nil {
+		return errors.New("profile not found")
+	}
+
+	profile.Latitude = &lat
+	profile.Longitude = &lon
+
+	return u.profileRepo.UpdateProfile(ctx, profile)
 }

@@ -22,4 +22,5 @@ type IUserUseCase interface {
 	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 	GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error)
 	GetDonorIDByUserID(ctx context.Context, userID string) (string, error)
+	UpdateLocation(ctx context.Context, userID string, lat, lon float64) error
 }

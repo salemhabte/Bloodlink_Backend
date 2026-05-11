@@ -85,7 +85,7 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 	available, err := u.inventoryRepo.CountAvailableUnitsByBloodType(req.BloodType)
 	if err == nil {
 		if available < req.Quantity {
-			_ = u.emergencyUC.TriggerEmergency(requestID, req.BloodType, req.Quantity, req.UrgencyLevel, hospitalName, hospitalLocation)
+			_ = u.emergencyUC.TriggerEmergency(requestID, req.BloodType, req.Quantity, req.UrgencyLevel, hospitalName, hospitalLocation, hospital.Latitude, hospital.Longitude)
 		}
 	}
 
@@ -117,8 +117,8 @@ func (u *bloodRequestUsecase) GetHospitalRequests(filter Domain.BloodRequestFilt
 	return u.repo.GetRequestsByHospital(filter)
 }
 
-func (u *bloodRequestUsecase) GetAllRequests() ([]Domain.BloodRequestResponse, error) {
-	return u.repo.GetAllRequests()
+func (u *bloodRequestUsecase) GetAllRequests(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error) {
+	return u.repo.GetAllRequests(filter)
 }
 
 func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveRequestResult, error) {

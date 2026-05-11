@@ -50,7 +50,15 @@ func (c *EmergencyRequestController) RejectEmergency(ctx *gin.Context) {
 }
 
 func (c *EmergencyRequestController) GetAllEmergencies(ctx *gin.Context) {
-	reqs, err := c.Usecase.GetAllEmergencies()
+	filter := Domain.EmergencyRequestFilter{
+		BloodType:    ctx.Query("blood_type"),
+		Status:       ctx.Query("status"),
+		UrgencyLevel: ctx.Query("urgency_level"),
+		StartDate:    ctx.Query("start_date"),
+		EndDate:      ctx.Query("end_date"),
+	}
+
+	reqs, err := c.Usecase.GetAllEmergencies(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

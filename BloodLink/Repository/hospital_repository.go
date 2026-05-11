@@ -4,6 +4,7 @@ import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
 	"database/sql"
+	"fmt"
 )
 
 type hospitalRepository struct {
@@ -15,9 +16,9 @@ func NewHospitalRepository(db *sql.DB) Interfaces.IHospitalRepository {
 }
 
 func (r *hospitalRepository) CreateHospitalRequest(req *Domain.HospitalRequest) error {
-	query := `INSERT INTO hospital_requests (request_id, hospital_name, address, phone, license_document, status, created_at)
-			  VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	_, err := r.db.Exec(query, req.RequestID, req.HospitalName, req.Address, req.Phone, req.LicenseDocument, req.Status, req.CreatedAt)
+	query := `INSERT INTO hospital_requests (request_id, hospital_name, address, phone, license_document, status, created_at, latitude, longitude, location_geo)
+			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ST_SetSRID(ST_MakePoint($9, $8), 4326)::geography)`
+	_, err := r.db.Exec(query, req.RequestID, req.HospitalName, req.Address, req.Phone, req.LicenseDocument, req.Status, req.CreatedAt, req.Latitude, req.Longitude)
 	return err
 }
 
@@ -28,12 +29,35 @@ func (r *hospitalRepository) CreateHospitalRequestAdmin(admin *Domain.HospitalRe
 	return err
 }
 
-func (r *hospitalRepository) GetPendingRequests() ([]Domain.HospitalRequestResponse, error) {
+func (r *hospitalRepository) GetPendingRequests(filter Domain.HospitalRequestFilter) ([]Domain.HospitalRequestResponse, error) {
 	query := `SELECT r.request_id, r.hospital_name, r.address, r.phone, r.status, a.admin_full_name, a.admin_email
 			  FROM hospital_requests r
 			  JOIN hospital_request_admins a ON r.request_id = a.request_id
-			  WHERE r.status = $1`
-	rows, err := r.db.Query(query, Domain.RequestStatusPending)
+			  WHERE 1=1`
+
+	args := []interface{}{}
+	placeholderID := 1
+
+	status := filter.Status
+	if status == "" {
+		status = Domain.RequestStatusPending
+	}
+	query += fmt.Sprintf(" AND r.status = $%d", placeholderID)
+	args = append(args, status)
+	placeholderID++
+
+	if filter.StartDate != "" {
+		query += fmt.Sprintf(" AND r.created_at >= $%d", placeholderID)
+		args = append(args, filter.StartDate)
+		placeholderID++
+	}
+	if filter.EndDate != "" {
+		query += fmt.Sprintf(" AND r.created_at <= $%d", placeholderID)
+		args = append(args, filter.EndDate)
+		placeholderID++
+	}
+
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -51,9 +75,9 @@ func (r *hospitalRepository) GetPendingRequests() ([]Domain.HospitalRequestRespo
 }
 
 func (r *hospitalRepository) GetHospitalRequestByID(requestID string) (*Domain.HospitalRequest, *Domain.HospitalRequestAdmin, error) {
-	reqQuery := `SELECT request_id, hospital_name, address, phone, license_document, status, created_at FROM hospital_requests WHERE request_id = $1`
+	reqQuery := `SELECT request_id, hospital_name, address, phone, license_document, status, created_at, latitude, longitude FROM hospital_requests WHERE request_id = $1`
 	req := &Domain.HospitalRequest{}
-	err := r.db.QueryRow(reqQuery, requestID).Scan(&req.RequestID, &req.HospitalName, &req.Address, &req.Phone, &req.LicenseDocument, &req.Status, &req.CreatedAt)
+	err := r.db.QueryRow(reqQuery, requestID).Scan(&req.RequestID, &req.HospitalName, &req.Address, &req.Phone, &req.LicenseDocument, &req.Status, &req.CreatedAt, &req.Latitude, &req.Longitude)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -75,8 +99,8 @@ func (r *hospitalRepository) UpdateHospitalRequestStatus(requestID string, statu
 }
 
 func (r *hospitalRepository) CreateHospital(hospital *Domain.Hospital) error {
-	query := `INSERT INTO hospitals (hospital_id, name, address, phone, created_at) VALUES ($1, $2, $3, $4, $5)`
-	_, err := r.db.Exec(query, hospital.HospitalID, hospital.Name, hospital.Address, hospital.Phone, hospital.CreatedAt)
+	query := `INSERT INTO hospitals (hospital_id, name, address, phone, created_at, latitude, longitude, location_geo) VALUES ($1, $2, $3, $4, $5, $6, $7, ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography)`
+	_, err := r.db.Exec(query, hospital.HospitalID, hospital.Name, hospital.Address, hospital.Phone, hospital.CreatedAt, hospital.Latitude, hospital.Longitude)
 	return err
 }
 
@@ -131,9 +155,9 @@ func (r *hospitalRepository) GetContractsByHospitalID(hospitalID string) ([]Doma
 }
 
 func (r *hospitalRepository) GetHospitalByID(hospitalID string) (*Domain.Hospital, error) {
-	query := `SELECT hospital_id, name, address, phone, created_at FROM hospitals WHERE hospital_id = $1`
+	query := `SELECT hospital_id, name, address, phone, created_at, latitude, longitude FROM hospitals WHERE hospital_id = $1`
 	hospital := &Domain.Hospital{}
-	err := r.db.QueryRow(query, hospitalID).Scan(&hospital.HospitalID, &hospital.Name, &hospital.Address, &hospital.Phone, &hospital.CreatedAt)
+	err := r.db.QueryRow(query, hospitalID).Scan(&hospital.HospitalID, &hospital.Name, &hospital.Address, &hospital.Phone, &hospital.CreatedAt, &hospital.Latitude, &hospital.Longitude)
 	return hospital, err
 }
 

@@ -259,6 +259,14 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 		args = append(args, filter.OverallStatus)
 		query += fmt.Sprintf(" AND d.overall_status = $%d", len(args))
 	}
+	if filter.StartDate != "" {
+		args = append(args, filter.StartDate)
+		query += fmt.Sprintf(" AND u.created_at >= $%d", len(args))
+	}
+	if filter.EndDate != "" {
+		args = append(args, filter.EndDate)
+		query += fmt.Sprintf(" AND u.created_at <= $%d", len(args))
+	}
 
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -359,6 +367,51 @@ func (r *UserRepository) GetDonorsByBloodTypeAndAddress(ctx context.Context, blo
 	`
 	rows, err := r.DB.QueryContext(ctx, query, bloodType, "%"+address+"%")
 	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var donors []domain.DonorResponse
+	for rows.Next() {
+		var donor domain.DonorResponse
+		if err := rows.Scan(
+			&donor.DonorID,
+			&donor.UserID,
+			&donor.FullName,
+			&donor.Email,
+			&donor.Phone,
+			&donor.Address,
+			&donor.BloodType,
+			&donor.OverallStatus,
+		); err != nil {
+			return nil, err
+		}
+		donors = append(donors, donor)
+	}
+	return donors, nil
+}
+
+func (r *UserRepository) GetDonorsNearby(ctx context.Context, bloodType string, lat, lon, radiusKm float64) ([]domain.DonorResponse, error) {
+	query := `
+		SELECT 
+			d.donor_id, 
+			d.user_id, 
+			u.full_name, 
+			u.email, 
+			u.phone, 
+			COALESCE(p.address, ''), 
+			COALESCE(d.blood_type, ''), 
+			d.overall_status 
+		FROM donors d
+		JOIN users u ON d.user_id = u.user_id
+		JOIN user_profiles p ON u.user_id = p.user_id
+		WHERE d.blood_type = $1 
+		AND ST_DWithin(p.location_geo, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, $4 * 1000)
+		ORDER BY ST_Distance(p.location_geo, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography) ASC
+	`
+	rows, err := r.DB.QueryContext(ctx, query, bloodType, lat, lon, radiusKm)
+	if err != nil {
+		log.Printf("[DATABASE ERROR] GetDonorsNearby failed: %v", err)
 		return nil, err
 	}
 	defer rows.Close()

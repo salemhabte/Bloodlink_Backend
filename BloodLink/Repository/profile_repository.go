@@ -15,8 +15,8 @@ func NewProfileRepository(db *sql.DB) *ProfileRepository {
 }
 
 func (r *ProfileRepository) CreateProfile(ctx context.Context, profile *domain.UserProfile) error {
-	query := `INSERT INTO user_profiles (profile_id, user_id, full_name, phone, address, profile_picture_url) 
-              VALUES ($1, $2, $3, $4, $5, $6)`
+	query := `INSERT INTO user_profiles (profile_id, user_id, full_name, phone, address, profile_picture_url, latitude, longitude, location_geo) 
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, ST_SetSRID(ST_MakePoint($8, $7), 4326)::geography)`
 
 	_, err := r.DB.ExecContext(ctx, query,
 		profile.ProfileID,
@@ -25,12 +25,14 @@ func (r *ProfileRepository) CreateProfile(ctx context.Context, profile *domain.U
 		profile.Phone,
 		profile.Address,
 		profile.ProfilePictureURL,
+		profile.Latitude,
+		profile.Longitude,
 	)
 	return err
 }
 
 func (r *ProfileRepository) GetProfileByUserID(ctx context.Context, userID string) (*domain.UserProfile, error) {
-	query := `SELECT profile_id, user_id, COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(address, ''), COALESCE(profile_picture_url, '') FROM user_profiles WHERE user_id = $1`
+	query := `SELECT profile_id, user_id, COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(address, ''), COALESCE(profile_picture_url, ''), latitude, longitude FROM user_profiles WHERE user_id = $1`
 	row := r.DB.QueryRowContext(ctx, query, userID)
 
 	var profile domain.UserProfile
@@ -41,6 +43,8 @@ func (r *ProfileRepository) GetProfileByUserID(ctx context.Context, userID strin
 		&profile.Phone,
 		&profile.Address,
 		&profile.ProfilePictureURL,
+		&profile.Latitude,
+		&profile.Longitude,
 	)
 
 	if err != nil {
@@ -53,19 +57,21 @@ func (r *ProfileRepository) GetProfileByUserID(ctx context.Context, userID strin
 }
 
 func (r *ProfileRepository) UpdateProfile(ctx context.Context, profile *domain.UserProfile) error {
-	query := `UPDATE user_profiles SET full_name = $1, phone = $2, address = $3, profile_picture_url = $4 WHERE user_id = $5`
+	query := `UPDATE user_profiles SET full_name = $1, phone = $2, address = $3, profile_picture_url = $4, latitude = $5, longitude = $6, location_geo = ST_SetSRID(ST_MakePoint($6, $5), 4326)::geography WHERE user_id = $7`
 	_, err := r.DB.ExecContext(ctx, query,
 		profile.FullName,
 		profile.Phone,
 		profile.Address,
 		profile.ProfilePictureURL,
+		profile.Latitude,
+		profile.Longitude,
 		profile.UserID,
 	)
 	return err
 }
 
 func (r *ProfileRepository) GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error) {
-	query := `SELECT profile_id, user_id, COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(address, ''), COALESCE(profile_picture_url, '') FROM user_profiles`
+	query := `SELECT profile_id, user_id, COALESCE(full_name, ''), COALESCE(phone, ''), COALESCE(address, ''), COALESCE(profile_picture_url, ''), latitude, longitude FROM user_profiles`
 	rows, err := r.DB.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -82,6 +88,8 @@ func (r *ProfileRepository) GetAllProfiles(ctx context.Context) ([]domain.UserPr
 			&profile.Phone,
 			&profile.Address,
 			&profile.ProfilePictureURL,
+			&profile.Latitude,
+			&profile.Longitude,
 		); err != nil {
 			return nil, err
 		}

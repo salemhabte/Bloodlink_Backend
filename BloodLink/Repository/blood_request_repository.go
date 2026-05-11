@@ -37,18 +37,28 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 	placeholderID := 2
 
 	if filter.BloodType != "" {
-		query += " AND br.blood_type = $" + fmt.Sprint(placeholderID)
+		query += fmt.Sprintf(" AND br.blood_type = $%d", placeholderID)
 		args = append(args, filter.BloodType)
 		placeholderID++
 	}
 	if filter.Status != "" {
-		query += " AND br.status = $" + fmt.Sprint(placeholderID)
+		query += fmt.Sprintf(" AND br.status = $%d", placeholderID)
 		args = append(args, filter.Status)
 		placeholderID++
 	}
 	if filter.UrgencyLevel != "" {
-		query += " AND br.urgency_level = $" + fmt.Sprint(placeholderID)
+		query += fmt.Sprintf(" AND br.urgency_level = $%d", placeholderID)
 		args = append(args, filter.UrgencyLevel)
+		placeholderID++
+	}
+	if filter.StartDate != "" {
+		query += fmt.Sprintf(" AND br.created_at >= $%d", placeholderID)
+		args = append(args, filter.StartDate)
+		placeholderID++
+	}
+	if filter.EndDate != "" {
+		query += fmt.Sprintf(" AND br.created_at <= $%d", placeholderID)
+		args = append(args, filter.EndDate)
 		placeholderID++
 	}
 	query += " ORDER BY br.created_at DESC"
@@ -75,7 +85,7 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 	return requests, nil
 }
 
-func (r *bloodRequestRepository) GetAllRequests() ([]Domain.BloodRequestResponse, error) {
+func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error) {
 	query := `SELECT br.request_id, br.hospital_id, h.name,
 	                 br.blood_type, br.quantity, br.urgency_level, br.status,
 	                 COALESCE(br.fulfilled_count, 0),
@@ -84,9 +94,44 @@ func (r *bloodRequestRepository) GetAllRequests() ([]Domain.BloodRequestResponse
 	                 br.created_at, br.approved_at
 	          FROM blood_requests br
 	          JOIN hospitals h ON br.hospital_id = h.hospital_id
-	          ORDER BY br.created_at DESC`
+	          WHERE 1=1`
 
-	rows, err := r.db.Query(query)
+	var args []interface{}
+	placeholderID := 1
+
+	if filter.BloodType != "" {
+		query += fmt.Sprintf(" AND br.blood_type = $%d", placeholderID)
+		args = append(args, filter.BloodType)
+		placeholderID++
+	}
+	if filter.Status != "" {
+		query += fmt.Sprintf(" AND br.status = $%d", placeholderID)
+		args = append(args, filter.Status)
+		placeholderID++
+	}
+	if filter.UrgencyLevel != "" {
+		query += fmt.Sprintf(" AND br.urgency_level = $%d", placeholderID)
+		args = append(args, filter.UrgencyLevel)
+		placeholderID++
+	}
+	if filter.HospitalID != "" {
+		query += fmt.Sprintf(" AND br.hospital_id = $%d", placeholderID)
+		args = append(args, filter.HospitalID)
+		placeholderID++
+	}
+	if filter.StartDate != "" {
+		query += fmt.Sprintf(" AND br.created_at >= $%d", placeholderID)
+		args = append(args, filter.StartDate)
+		placeholderID++
+	}
+	if filter.EndDate != "" {
+		query += fmt.Sprintf(" AND br.created_at <= $%d", placeholderID)
+		args = append(args, filter.EndDate)
+		placeholderID++
+	}
+	query += " ORDER BY br.created_at DESC"
+
+	rows, err := r.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

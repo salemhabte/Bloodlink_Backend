@@ -21,6 +21,8 @@ type HospitalRequest struct {
 	LicenseDocument string    `json:"license_document" db:"license_document"`
 	Status          string    `json:"status" db:"status"`
 	CreatedAt       time.Time `json:"created_at" db:"created_at"`
+	Latitude        float64   `json:"latitude" db:"latitude"`
+	Longitude       float64   `json:"longitude" db:"longitude"`
 }
 
 type HospitalRequestAdmin struct {
@@ -39,6 +41,8 @@ type Hospital struct {
 	Address    string    `json:"address" db:"address"`
 	Phone      string    `json:"phone" db:"phone"`
 	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+	Latitude   float64   `json:"latitude" db:"latitude"`
+	Longitude  float64   `json:"longitude" db:"longitude"`
 }
 
 type HospitalAdmin struct {
@@ -72,6 +76,8 @@ type RegisterHospitalRequestDTO struct {
 	AdminEmail      string `json:"admin_email" binding:"required,email"`
 	AdminPhone      string `json:"admin_phone" binding:"required"`
 	AdminPassword   string `json:"admin_password" binding:"required,min=8"`
+	Latitude        float64 `json:"latitude,string"`
+	Longitude       float64 `json:"longitude,string"`
 }
 
 type SignContractRequestDTO struct {
@@ -117,4 +123,10 @@ type HospitalContractResponse struct {
 	CreatedAt             time.Time  `json:"created_at"`
 	HospitalSignaturePath *string    `json:"hospital_signature_path"`
 	AdminSignaturePath    *string    `json:"admin_signature_path"`
+}
+
+type HospitalRequestFilter struct {
+	Status    string `json:"status"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
 }

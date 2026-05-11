@@ -42,7 +42,7 @@ func NewEmergencyRequestUsecase(
 	}
 }
 
-func (u *emergencyRequestUsecase) TriggerEmergency(requestID string, bloodType string, quantity int, urgencyLevel string, hospitalName string, location string) error {
+func (u *emergencyRequestUsecase) TriggerEmergency(requestID string, bloodType string, quantity int, urgencyLevel string, hospitalName string, location string, latitude float64, longitude float64) error {
 	// Check if an emergency for this request already exists
 	existing, err := u.repo.GetByRequestID(requestID)
 	if err == nil && existing != nil {
@@ -58,10 +58,11 @@ func (u *emergencyRequestUsecase) TriggerEmergency(requestID string, bloodType s
 		UrgencyLevel:      urgencyLevel,
 		HospitalName:      hospitalName,
 		Location:          location,
+		Latitude:          latitude,
+		Longitude:         longitude,
 		Status:            Domain.EmergencyStatusPending,
 		IsManual:          false,
 		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
 	}
 
 	err = u.repo.Create(emergency)
@@ -105,13 +106,14 @@ func (u *emergencyRequestUsecase) PublishEmergency(id string) error {
 			hospitalName = "a nearby hospital"
 		}
 
-		if hospitalAddress != "" {
-			// Get donors in the same area
-			donors, err := u.userRepo.GetDonorsByBloodTypeAndAddress(ctx, req.BloodType, hospitalAddress)
+		if req.Latitude != 0 && req.Longitude != 0 {
+			// Get donors nearby (e.g., 20km radius)
+			radiusKm := 20.0
+			donors, err := u.userRepo.GetDonorsNearby(ctx, req.BloodType, req.Latitude, req.Longitude, radiusKm)
 			if err == nil {
 				for _, donor := range donors {
-					subject := fmt.Sprintf("URGENT: %s Blood Emergency in %s", req.BloodType, hospitalAddress)
-					content := fmt.Sprintf("Hello %s,<br><br><b>%s</b> urgently needs <b>%d units</b> of <b>%s</b> blood.<br>Urgency: <b>%s</b>.<br>Since you are in the same area, your donation could save a life!<br><br>Please visit the hospital at <b>%s</b> or contact us for more details.", donor.FullName, hospitalName, req.QuantityRequired, req.BloodType, req.UrgencyLevel, hospitalAddress)
+					subject := fmt.Sprintf("URGENT: %s Blood Emergency nearby", req.BloodType)
+					content := fmt.Sprintf("Hello %s,<br><br><b>%s</b> urgently needs <b>%d units</b> of <b>%s</b> blood.<br>Urgency: <b>%s</b>.<br>Since you are within %.1f km, your donation could save a life!<br><br>Please visit the hospital at <b>%s</b> or contact us for more details.", donor.FullName, hospitalName, req.QuantityRequired, req.BloodType, req.UrgencyLevel, radiusKm, hospitalAddress)
 					_ = Infrastructure.SendBloodRequestNotification(donor.Email, subject, content)
 					_ = u.notifUC.SendNotification(donor.UserID, "EMERGENCY", "URGENT: Blood Emergency", fmt.Sprintf("%s needs %s blood.", hospitalName, req.BloodType))
 				}
@@ -144,10 +146,11 @@ func (u *emergencyRequestUsecase) CreateManualEmergency(dto *Domain.CreateEmerge
 		UrgencyLevel:      dto.UrgencyLevel,
 		HospitalName:      dto.HospitalName,
 		Location:          dto.Location,
+		Latitude:          dto.Latitude,
+		Longitude:         dto.Longitude,
 		Status:            Domain.EmergencyStatusPublished, // Manual ones are published immediately
 		IsManual:          true,
 		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
 	}
 
 	now := time.Now()
@@ -156,8 +159,8 @@ func (u *emergencyRequestUsecase) CreateManualEmergency(dto *Domain.CreateEmerge
 	return u.repo.Create(emergency)
 }
 
-func (u *emergencyRequestUsecase) GetAllEmergencies() ([]Domain.EmergencyRequest, error) {
-	return u.repo.GetAll()
+func (u *emergencyRequestUsecase) GetAllEmergencies(filter Domain.EmergencyRequestFilter) ([]Domain.EmergencyRequest, error) {
+	return u.repo.GetAll(filter)
 }
 
 func (u *emergencyRequestUsecase) GetPublishedEmergencies() ([]Domain.EmergencyRequest, error) {
@@ -170,9 +173,10 @@ func (u *emergencyRequestUsecase) GetEmergenciesForDonor(userID string) ([]Domai
 	if err != nil {
 		return nil, err
 	}
-	if profile == nil || profile.Address == "" {
-		return nil, errors.New("donor profile or address not found")
+	if profile == nil || profile.Latitude == nil || profile.Longitude == nil {
+		return nil, errors.New("donor profile or location not found")
 	}
 
-	return u.repo.GetByLocation(profile.Address)
+	// Find emergencies within 20km
+	return u.repo.GetNearby(*profile.Latitude, *profile.Longitude, 20.0)
 }

@@ -60,6 +60,8 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 		LicenseDocument: req.LicenseDocument,
 		Status:          Domain.RequestStatusPending,
 		CreatedAt:       time.Now(),
+		Latitude:        req.Latitude,
+		Longitude:       req.Longitude,
 	}
 
 	err = u.repo.CreateHospitalRequest(hospitalReq)
@@ -84,8 +86,8 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 	return err
 }
 
-func (u *hospitalUsecase) GetPendingRequests() ([]Domain.HospitalRequestResponse, error) {
-	return u.repo.GetPendingRequests()
+func (u *hospitalUsecase) GetPendingRequests(filter Domain.HospitalRequestFilter) ([]Domain.HospitalRequestResponse, error) {
+	return u.repo.GetPendingRequests(filter)
 }
 
 func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID string, payload *Domain.ApproveHospitalRequestDTO) error {
@@ -106,6 +108,8 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 		Address:    req.Address,
 		Phone:      req.Phone,
 		CreatedAt:  time.Now(),
+		Latitude:   req.Latitude,
+		Longitude:  req.Longitude,
 	}
 	if err := u.repo.CreateHospital(hospital); err != nil {
 		return err

@@ -319,8 +319,10 @@ func (c *UserController) ResetPassword(ctx *gin.Context) {
 
 func (c *UserController) GetDonors(ctx *gin.Context) {
 	filter := domain.DonorFilter{
-		BloodType: ctx.Query("blood_type"),
-		OverallStatus:    ctx.Query("overall_status"),
+		BloodType:     ctx.Query("blood_type"),
+		OverallStatus: ctx.Query("overall_status"),
+		StartDate:     ctx.Query("start_date"),
+		EndDate:       ctx.Query("end_date"),
 	}
 
 	cCtx, cancel := context.WithCancel(ctx.Request.Context())
@@ -390,4 +392,32 @@ func (c *UserController) Logout(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+}
+
+func (c *UserController) UpdateLocation(ctx *gin.Context) {
+	userID := ctx.GetString("userID")
+	if userID == "" {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "user id not found in context"})
+		return
+	}
+
+	var req struct {
+		Latitude  float64 `json:"latitude" binding:"required"`
+		Longitude float64 `json:"longitude" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	if err := c.UserUseCase.UpdateLocation(cCtx, userID, req.Latitude, req.Longitude); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Location updated successfully"})
 }

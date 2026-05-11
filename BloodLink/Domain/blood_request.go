@@ -51,4 +51,6 @@ type BloodRequestFilter struct {
 	BloodType    string `json:"blood_type"`
 	Status       string `json:"status"`
 	UrgencyLevel string `json:"urgency_level"`
+	StartDate    string `json:"start_date"`
+	EndDate      string `json:"end_date"`
 }

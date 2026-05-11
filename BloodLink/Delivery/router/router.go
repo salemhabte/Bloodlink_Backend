@@ -172,6 +172,7 @@ func SetupRouter(
 			donor.POST("/blood-request", donorBloodReqController.CreateRequest)
 			donor.GET("/blood-requests", donorBloodReqController.GetAllRequests)
 			donor.GET("/my-requests", donorBloodReqController.GetMyRequests)
+			donor.POST("/location", userCtrl.UpdateLocation)
 
 		}
 	}

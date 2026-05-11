@@ -35,7 +35,13 @@ func (c *HospitalController) SubmitRegistrationRequest(ctx *gin.Context) {
 }
 
 func (c *HospitalController) GetPendingRequests(ctx *gin.Context) {
-	reqs, err := c.Usecase.GetPendingRequests()
+	filter := Domain.HospitalRequestFilter{
+		Status:    ctx.Query("status"),
+		StartDate: ctx.Query("start_date"),
+		EndDate:   ctx.Query("end_date"),
+	}
+
+	reqs, err := c.Usecase.GetPendingRequests(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
