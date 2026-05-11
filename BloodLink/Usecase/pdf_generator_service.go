@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/color"
+	"image/draw"
 	"image/jpeg"
 	_ "image/png"
 	"io"
@@ -137,8 +139,15 @@ func (s *pdfGeneratorService) ensureLocalFile(pathOrURL string) (string, string)
 	}
 	defer tmpFile.Close()
 
+	// Handle transparency: Draw the image onto a white background
+	// This prevents transparent backgrounds from turning black when converted to JPEG
+	bounds := img.Bounds()
+	newImg := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+	draw.Draw(newImg, newImg.Bounds(), &image.Uniform{color.White}, image.Point{}, draw.Src)
+	draw.Draw(newImg, newImg.Bounds(), img, bounds.Min, draw.Over)
+
 	// Encode as JPEG with 95 quality
-	err = jpeg.Encode(tmpFile, img, &jpeg.Options{Quality: 95})
+	err = jpeg.Encode(tmpFile, newImg, &jpeg.Options{Quality: 95})
 	if err != nil {
 		os.Remove(tmpFile.Name())
 		return "", ""
