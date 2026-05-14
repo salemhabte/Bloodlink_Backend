@@ -20,4 +20,5 @@ type IEmergencyRequestUsecase interface {
 	GetAllEmergencies() ([]Domain.EmergencyRequest, error)
 	GetPublishedEmergencies() ([]Domain.EmergencyRequest, error)
 	GetEmergenciesForDonor(userID string) ([]Domain.EmergencyRequest, error)
+	GetEmergencyByID(id string) (*Domain.EmergencyRequest, error)
 }

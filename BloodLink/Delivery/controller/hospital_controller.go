@@ -3,6 +3,7 @@ package controller
 import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
+	"bloodlink/Usecase"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -13,10 +14,11 @@ import (
 
 type HospitalController struct {
 	Usecase Interfaces.IHospitalUsecase
+	AuditUsecase *Usecase.AuditLogUsecase
 }
 
-func NewHospitalController(u Interfaces.IHospitalUsecase) *HospitalController {
-	return &HospitalController{Usecase: u}
+func NewHospitalController(u Interfaces.IHospitalUsecase, au *Usecase.AuditLogUsecase) *HospitalController {
+	return &HospitalController{Usecase: u, AuditUsecase: au}
 }
 
 func (c *HospitalController) SubmitRegistrationRequest(ctx *gin.Context) {
@@ -44,28 +46,49 @@ func (c *HospitalController) GetPendingRequests(ctx *gin.Context) {
 }
 
 func (c *HospitalController) ApproveRequest(ctx *gin.Context) {
-	requestID := ctx.Param("id")
-	bloodBankAdminID := ctx.GetString("userID")
+	id := ctx.Param("id")
+	adminID := ctx.GetString("userID")
 
-	var payload Domain.ApproveHospitalRequestDTO
-	if err := ctx.ShouldBindJSON(&payload); err != nil {
+	var req Domain.ApproveHospitalRequestDTO
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := c.Usecase.ApproveRequest(requestID, bloodBankAdminID, &payload); err != nil {
+	oldReq, _, _ := c.Usecase.GetHospitalRequestByID(id)
+	hospitalName := "Hospital"
+	if oldReq != nil {
+		hospitalName = oldReq.HospitalName
+	}
+
+	if err := c.Usecase.ApproveRequest(id, adminID, &req); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if adminID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), adminID, "APPROVE_HOSPITAL_REQUEST", "HOSPITAL_REQUEST", id, hospitalName, "PENDING", "APPROVED")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Hospital request approved and contract drafted"})
 }
 
 func (c *HospitalController) RejectRequest(ctx *gin.Context) {
-	requestID := ctx.Param("id")
-	if err := c.Usecase.RejectRequest(requestID); err != nil {
+	id := ctx.Param("id")
+	oldReq, _, _ := c.Usecase.GetHospitalRequestByID(id)
+	hospitalName := "Hospital"
+	if oldReq != nil {
+		hospitalName = oldReq.HospitalName
+	}
+
+	if err := c.Usecase.RejectRequest(id); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "REJECT_HOSPITAL_REQUEST", "HOSPITAL_REQUEST", id, hospitalName, "PENDING", "REJECTED")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Hospital request rejected"})
@@ -89,7 +112,7 @@ func (c *HospitalController) HospitalSignContract(ctx *gin.Context) {
 }
 
 func (c *HospitalController) AdminSignContract(ctx *gin.Context) {
-	contractID := ctx.Param("id")
+	id := ctx.Param("id")
 	adminID := ctx.GetString("userID")
 
 	var req Domain.SignContractRequestDTO
@@ -98,22 +121,46 @@ func (c *HospitalController) AdminSignContract(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.Usecase.AdminSignContract(contractID, &req, adminID); err != nil {
+	if err := c.Usecase.AdminSignContract(id, &req, adminID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	contract, _ := c.Usecase.GetContractByID(id)
+	targetName := "Contract"
+	if contract != nil {
+		targetName = "Contract for Hospital ID " + contract.HospitalID
+	}
+
+	if adminID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), adminID, "SIGN_CONTRACT", "CONTRACT", id, targetName, "APPROVED_BY_HOSPITAL", "FINALIZED")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract finalized"})
 }
 
 func (c *HospitalController) RejectContract(ctx *gin.Context) {
-	contractID := ctx.Param("id")
+	id := ctx.Param("id")
 	userID := ctx.GetString("userID")
 	role := ctx.GetString("role")
 
-	if err := c.Usecase.RejectContract(contractID, userID, role); err != nil {
+	contract, _ := c.Usecase.GetContractByID(id)
+	oldStatus := "N/A"
+	targetName := "Contract"
+	if contract != nil {
+		oldStatus = contract.Status
+		targetName = "Contract for Hospital ID " + contract.HospitalID
+	}
+
+	if err := c.Usecase.RejectContract(id, userID, role); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "REJECT_CONTRACT", "CONTRACT", id, targetName, oldStatus, "REJECTED")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract rejected"})
 }
 
@@ -184,6 +231,11 @@ func (c *HospitalController) CreateContractTemplate(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	if adminID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), adminID, "CREATE_CONTRACT_TEMPLATE", "CONTRACT_TEMPLATE", "NEW", req.Name, "N/A", "CREATED")
+	}
+
 	ctx.JSON(http.StatusCreated, gin.H{"message": "Contract template created"})
 }
 
@@ -197,26 +249,51 @@ func (c *HospitalController) GetContractTemplates(ctx *gin.Context) {
 }
 
 func (c *HospitalController) UpdateContractTemplate(ctx *gin.Context) {
-	templateID := ctx.Param("id")
+	id := ctx.Param("id")
 	var req Domain.CreateTemplateRequestDTO
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := c.Usecase.UpdateContractTemplate(templateID, &req); err != nil {
+	oldTemplate, _ := c.Usecase.GetContractTemplateByID(id)
+	oldName := "N/A"
+	if oldTemplate != nil {
+		oldName = oldTemplate.Name
+	}
+
+	if err := c.Usecase.UpdateContractTemplate(id, &req); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "UPDATE_CONTRACT_TEMPLATE", "CONTRACT_TEMPLATE", id, req.Name, oldName, req.Name)
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract template updated"})
 }
 
 func (c *HospitalController) DeleteContractTemplate(ctx *gin.Context) {
-	templateID := ctx.Param("id")
-	if err := c.Usecase.DeleteContractTemplate(templateID); err != nil {
+	id := ctx.Param("id")
+
+	oldTemplate, _ := c.Usecase.GetContractTemplateByID(id)
+	oldName := "N/A"
+	if oldTemplate != nil {
+		oldName = oldTemplate.Name
+	}
+
+	if err := c.Usecase.DeleteContractTemplate(id); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "DELETE_CONTRACT_TEMPLATE", "CONTRACT_TEMPLATE", id, oldName, "EXISTING", "DELETED")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract template deleted"})
 }
 

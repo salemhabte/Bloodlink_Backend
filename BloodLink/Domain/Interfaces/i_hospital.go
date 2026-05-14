@@ -40,6 +40,8 @@ type IHospitalUsecase interface {
 	GetContractByID(contractID string) (*Domain.HospitalContract, error)
 	GetHospitalContracts(userID string) ([]Domain.HospitalContract, error)
 	GetLatestHospitalContract(userID string) (*Domain.HospitalContract, error)
+	GetHospitalRequestByID(requestID string) (*Domain.HospitalRequest, *Domain.HospitalRequestAdmin, error)
+	GetContractTemplateByID(templateID string) (*Domain.ContractTemplate, error)
 
 	CreateContractTemplate(req *Domain.CreateTemplateRequestDTO, adminID string) error
 	GetContractTemplates() ([]Domain.ContractTemplate, error)

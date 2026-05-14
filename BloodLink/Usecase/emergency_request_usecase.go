@@ -176,3 +176,7 @@ func (u *emergencyRequestUsecase) GetEmergenciesForDonor(userID string) ([]Domai
 
 	return u.repo.GetByLocation(profile.Address)
 }
+
+func (u *emergencyRequestUsecase) GetEmergencyByID(id string) (*Domain.EmergencyRequest, error) {
+	return u.repo.GetByID(id)
+}

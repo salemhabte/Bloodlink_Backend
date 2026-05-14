@@ -231,3 +231,11 @@ func (u *bloodRequestUsecase) RejectRequest(requestID string) error {
 
 	return nil
 }
+
+func (u *bloodRequestUsecase) GetRequestByID(id string) (*Domain.BloodRequest, error) {
+	return u.repo.GetRequestByID(id)
+}
+
+func (u *bloodRequestUsecase) GetRequestResponseByID(id string) (*Domain.BloodRequestResponse, error) {
+	return u.repo.GetRequestResponseByID(id)
+}

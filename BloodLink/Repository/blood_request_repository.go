@@ -119,6 +119,26 @@ func (r *bloodRequestRepository) GetRequestByID(requestID string) (*Domain.Blood
 	return req, err
 }
 
+func (r *bloodRequestRepository) GetRequestResponseByID(requestID string) (*Domain.BloodRequestResponse, error) {
+	query := `SELECT br.request_id, br.hospital_id, h.name,
+	                 br.blood_type, br.quantity, br.urgency_level, br.status,
+	                 COALESCE(br.fulfilled_count, 0),
+	                 COALESCE(br.fulfilled_volume_ml, 0),
+	                 COALESCE(br.notes, ''),
+	                 br.created_at, br.approved_at
+	          FROM blood_requests br
+	          JOIN hospitals h ON br.hospital_id = h.hospital_id
+	          WHERE br.request_id = $1`
+	req := &Domain.BloodRequestResponse{}
+	err := r.db.QueryRow(query, requestID).Scan(
+		&req.RequestID, &req.HospitalID, &req.HospitalName,
+		&req.BloodType, &req.Quantity, &req.UrgencyLevel, &req.Status,
+		&req.FulfilledCount, &req.FulfilledVolumeMl, &req.Notes,
+		&req.CreatedAt, &req.ApprovedAt,
+	)
+	return req, err
+}
+
 // UpdateRequestStatus updates status and approved_at (legacy / simple path)
 func (r *bloodRequestRepository) UpdateRequestStatus(requestID string, status string, approvedAt *string) error {
 	query := `UPDATE blood_requests SET status = $1, approved_at = COALESCE($2, approved_at) WHERE request_id = $3`

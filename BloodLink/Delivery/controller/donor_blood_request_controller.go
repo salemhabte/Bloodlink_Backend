@@ -11,13 +11,16 @@ import (
 
 type DonorBloodRequestController struct {
 	usecase *Usecase.DonorBloodRequestUsecase
+	auditUsecase *Usecase.AuditLogUsecase
 }
 
 func NewDonorBloodRequestController(
 	u *Usecase.DonorBloodRequestUsecase,
+	au *Usecase.AuditLogUsecase,
 ) *DonorBloodRequestController {
 	return &DonorBloodRequestController{
 		usecase: u,
+		auditUsecase: au,
 	}
 }
 
@@ -152,6 +155,13 @@ func (c *DonorBloodRequestController) GetAllAdminRequests(ctx *gin.Context) {
 func (c *DonorBloodRequestController) ApproveRequest(ctx *gin.Context) {
 
 	id := ctx.Param("id")
+	oldReq, _ := c.usecase.GetRequestByID(id)
+	oldStatus := "N/A"
+	targetName := "Donor Blood Request"
+	if oldReq != nil {
+		oldStatus = oldReq.Status
+		targetName = "Donor Request for " + oldReq.HospitalName
+	}
 
 	updatedReq, message, err := c.usecase.ApproveRequest(id)
 	if err != nil {
@@ -159,6 +169,11 @@ func (c *DonorBloodRequestController) ApproveRequest(ctx *gin.Context) {
 			"error": err.Error(),
 		})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.auditUsecase.Log(ctx.Request.Context(), userID, "APPROVE_DONOR_BLOOD_REQUEST", "DONOR_BLOOD_REQUEST", id, targetName, oldStatus, updatedReq.Status)
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
@@ -174,6 +189,13 @@ func (c *DonorBloodRequestController) ApproveRequest(ctx *gin.Context) {
 func (c *DonorBloodRequestController) RejectRequest(ctx *gin.Context) {
 
 	id := ctx.Param("id")
+	oldReq, _ := c.usecase.GetRequestByID(id)
+	oldStatus := "N/A"
+	targetName := "Donor Blood Request"
+	if oldReq != nil {
+		oldStatus = oldReq.Status
+		targetName = "Donor Request for " + oldReq.HospitalName
+	}
 
 	updatedReq, err := c.usecase.RejectRequest(id)
 	if err != nil {
@@ -181,6 +203,11 @@ func (c *DonorBloodRequestController) RejectRequest(ctx *gin.Context) {
 			"error": err.Error(),
 		})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.auditUsecase.Log(ctx.Request.Context(), userID, "REJECT_DONOR_BLOOD_REQUEST", "DONOR_BLOOD_REQUEST", id, targetName, oldStatus, "REJECTED")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
@@ -200,12 +227,25 @@ func (c *DonorBloodRequestController) FulfillRequest(ctx *gin.Context) {
 
 	id := ctx.Param("id")
 
+	oldReq, _ := c.usecase.GetRequestByID(id)
+	oldStatus := "N/A"
+	targetName := "Donor Blood Request"
+	if oldReq != nil {
+		oldStatus = oldReq.Status
+		targetName = "Donor Request for " + oldReq.HospitalName
+	}
+
 	updatedReq, err := c.usecase.FulfillRequest(id)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.auditUsecase.Log(ctx.Request.Context(), userID, "FULFILL_DONOR_BLOOD_REQUEST", "DONOR_BLOOD_REQUEST", id, targetName, oldStatus, "FULFILLED")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
@@ -229,6 +269,11 @@ func (c *DonorBloodRequestController) ExpireStaleRequests(ctx *gin.Context) {
 			"error": err.Error(),
 		})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.auditUsecase.Log(ctx.Request.Context(), userID, "EXPIRE_STALE_DONOR_REQUESTS", "SYSTEM", "", "Batch Operation", "N/A", "EXPIRED")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{

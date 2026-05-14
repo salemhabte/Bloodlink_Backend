@@ -23,10 +23,11 @@ import (
 // ==============================
 type CampaignController struct {
 	Usecase *Usecase.CampaignUsecase
+	AuditUsecase *Usecase.AuditLogUsecase
 }
 
-func NewCampaignController(usecase *Usecase.CampaignUsecase) *CampaignController {
-	return &CampaignController{Usecase: usecase}
+func NewCampaignController(usecase *Usecase.CampaignUsecase, auditUsecase *Usecase.AuditLogUsecase) *CampaignController {
+	return &CampaignController{Usecase: usecase, AuditUsecase: auditUsecase}
 }
 
 func (c *CampaignController) CreateCampaign(ctx *gin.Context) {
@@ -54,6 +55,11 @@ func (c *CampaignController) CreateCampaign(ctx *gin.Context) {
 	if err := c.Usecase.CreateCampaign(campaign); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "CREATE_CAMPAIGN", "CAMPAIGN", campaign.CampaignID, campaign.Title, "N/A", "CREATED")
 	}
 
 	ctx.JSON(http.StatusCreated, campaign)
@@ -104,9 +110,20 @@ func (c *CampaignController) UpdateCampaign(ctx *gin.Context) {
 		EndDate:    input.EndDate,
 	}
 
+	oldCampaign, _ := c.Usecase.GetCampaignByID(id)
+	oldTitle := "N/A"
+	if oldCampaign != nil {
+		oldTitle = oldCampaign.Title
+	}
+
 	if err := c.Usecase.UpdateCampaign(campaign); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "UPDATE_CAMPAIGN", "CAMPAIGN", id, campaign.Title, oldTitle, campaign.Title)
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Campaign updated successfully"})
@@ -115,9 +132,20 @@ func (c *CampaignController) UpdateCampaign(ctx *gin.Context) {
 func (c *CampaignController) DeleteCampaign(ctx *gin.Context) {
 	id := ctx.Param("id")
 
+	oldCampaign, _ := c.Usecase.GetCampaignByID(id)
+	oldTitle := "N/A"
+	if oldCampaign != nil {
+		oldTitle = oldCampaign.Title
+	}
+
 	if err := c.Usecase.DeleteCampaign(id); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "DELETE_CAMPAIGN", "CAMPAIGN", id, oldTitle, "EXISTING", "DELETED")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Campaign deleted successfully"})
@@ -623,10 +651,11 @@ fmt.Println("componentType:", componentType)
 // BloodInventoryController
 type BloodInventoryController struct {
 	usecase *Usecase.BloodInventoryUsecase
+	auditUsecase *Usecase.AuditLogUsecase
 }
 
-func NewBloodInventoryController(u *Usecase.BloodInventoryUsecase) *BloodInventoryController {
-	return &BloodInventoryController{usecase: u}
+func NewBloodInventoryController(u *Usecase.BloodInventoryUsecase, au *Usecase.AuditLogUsecase) *BloodInventoryController {
+	return &BloodInventoryController{usecase: u, auditUsecase: au}
 }
 
 // 🔹 GET /inventory
@@ -662,10 +691,23 @@ func (c *BloodInventoryController) UpdateStatus(ctx *gin.Context) {
 		return
 	}
 
+	oldUnit, _ := c.usecase.GetUnitByID(id)
+	oldStatus := "N/A"
+	bloodType := "Unit"
+	if oldUnit != nil {
+		oldStatus = oldUnit.Status
+		bloodType = oldUnit.BloodType + " Unit"
+	}
+
 	err := c.usecase.UpdateStatus(id, body.Status)
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.auditUsecase.Log(ctx.Request.Context(), userID, "UPDATE_INVENTORY_STATUS", "BLOOD_INVENTORY", id, bloodType, oldStatus, body.Status)
 	}
 
 	ctx.JSON(200, gin.H{"message": "Status updated"})
@@ -675,10 +717,23 @@ func (c *BloodInventoryController) UpdateStatus(ctx *gin.Context) {
 func (c *BloodInventoryController) MarkUsed(ctx *gin.Context) {
 	id := ctx.Param("id")
 
+	oldUnit, _ := c.usecase.GetUnitByID(id)
+	oldStatus := "N/A"
+	bloodType := "Unit"
+	if oldUnit != nil {
+		oldStatus = oldUnit.Status
+		bloodType = oldUnit.BloodType + " Unit"
+	}
+
 	err := c.usecase.MarkUnitAsUsed(id)
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.auditUsecase.Log(ctx.Request.Context(), userID, "MARK_INVENTORY_USED", "BLOOD_INVENTORY", id, bloodType, oldStatus, "USED")
 	}
 
 	ctx.JSON(200, gin.H{"message": "Blood unit marked as USED"})
@@ -688,10 +743,23 @@ func (c *BloodInventoryController) MarkUsed(ctx *gin.Context) {
 func (c *BloodInventoryController) Delete(ctx *gin.Context) {
 	id := ctx.Param("id")
 
+	oldUnit, _ := c.usecase.GetUnitByID(id)
+	oldStatus := "N/A"
+	bloodType := "Unit"
+	if oldUnit != nil {
+		oldStatus = oldUnit.Status
+		bloodType = oldUnit.BloodType + " Unit"
+	}
+
 	err := c.usecase.DeleteUnit(id)
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.auditUsecase.Log(ctx.Request.Context(), userID, "DELETE_INVENTORY", "BLOOD_INVENTORY", id, bloodType, oldStatus, "DELETED")
 	}
 
 	ctx.JSON(200, gin.H{"message": "Deleted successfully"})

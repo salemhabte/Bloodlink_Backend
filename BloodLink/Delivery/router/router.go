@@ -27,6 +27,7 @@ func SetupRouter(
 	emergencyController *controller.EmergencyRequestController,
 	donorBloodReqController *controller.DonorBloodRequestController,
 	notifController *controller.NotificationController,
+	auditController *controller.AuditLogController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -91,6 +92,9 @@ func SetupRouter(
 	admin := r.Group("/api/bloodbankadmin")
 	admin.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
 	{
+		admin.GET("/audit-logs", auditController.GetLogs)
+		admin.GET("/audit-logs/:id", auditController.GetLogByID)
+		admin.DELETE("/audit-logs/:id", auditController.DeleteLog)
 		admin.GET("/leaderboard", badgeController.GetLeaderboard)
 		admin.GET("/badges", badgeController.GetAllBadges)
 		admin.GET("/blood-requests", donorBloodReqController.GetAllRequests)

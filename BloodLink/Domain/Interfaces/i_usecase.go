@@ -22,6 +22,7 @@ type IUserUseCase interface {
 	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 	GetAllProfiles(ctx context.Context) ([]domain.UserProfile, error)
 	GetDonorIDByUserID(ctx context.Context, userID string) (string, error)
+	GetDonorByDonorID(ctx context.Context, donorID string) (*domain.Donor, error)
 	GetEligibleDonors(ctx context.Context, query string) ([]domain.DonorResponse, error)
 	NotifyEligibleDonors(ctx context.Context) error
 }

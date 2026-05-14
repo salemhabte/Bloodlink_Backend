@@ -299,6 +299,14 @@ func (u *hospitalUsecase) GetLatestHospitalContract(userID string) (*Domain.Hosp
 	return &contracts[0], nil
 }
 
+func (u *hospitalUsecase) GetHospitalRequestByID(requestID string) (*Domain.HospitalRequest, *Domain.HospitalRequestAdmin, error) {
+	return u.repo.GetHospitalRequestByID(requestID)
+}
+
+func (u *hospitalUsecase) GetContractTemplateByID(templateID string) (*Domain.ContractTemplate, error) {
+	return u.repo.GetContractTemplateByID(templateID)
+}
+
 func (u *hospitalUsecase) CreateContractTemplate(req *Domain.CreateTemplateRequestDTO, adminID string) error {
 	t := &Domain.ContractTemplate{
 		TemplateID: uuid.New().String(),

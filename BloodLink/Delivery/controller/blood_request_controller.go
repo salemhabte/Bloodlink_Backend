@@ -3,6 +3,8 @@ package controller
 import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
+	"bloodlink/Usecase"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -10,11 +12,12 @@ import (
 )
 
 type BloodRequestController struct {
-	Usecase Interfaces.IBloodRequestUsecase
+	Usecase      Interfaces.IBloodRequestUsecase
+	AuditUsecase *Usecase.AuditLogUsecase
 }
 
-func NewBloodRequestController(u Interfaces.IBloodRequestUsecase) *BloodRequestController {
-	return &BloodRequestController{Usecase: u}
+func NewBloodRequestController(u Interfaces.IBloodRequestUsecase, au *Usecase.AuditLogUsecase) *BloodRequestController {
+	return &BloodRequestController{Usecase: u, AuditUsecase: au}
 }
 
 func (c *BloodRequestController) CreateBloodRequest(ctx *gin.Context) {
@@ -67,23 +70,49 @@ func (c *BloodRequestController) GetAllRequests(ctx *gin.Context) {
 }
 
 func (c *BloodRequestController) ApproveRequest(ctx *gin.Context) {
-	requestID := ctx.Param("id")
+	id := ctx.Param("id")
 
-	result, err := c.Usecase.ApproveRequest(requestID)
+	oldReq, _ := c.Usecase.GetRequestResponseByID(id)
+	oldStatus := "N/A"
+	targetName := "Hospital Blood Request"
+	if oldReq != nil {
+		oldStatus = oldReq.Status
+		targetName = fmt.Sprintf("%d units of %s for %s", oldReq.Quantity, oldReq.BloodType, oldReq.HospitalName)
+	}
+
+	result, err := c.Usecase.ApproveRequest(id)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "APPROVE_HOSPITAL_BLOOD_REQUEST", "HOSPITAL_BLOOD_REQUEST", id, targetName, oldStatus, result.Status)
 	}
 
 	ctx.JSON(http.StatusOK, result)
 }
 
 func (c *BloodRequestController) RejectRequest(ctx *gin.Context) {
-	requestID := ctx.Param("id")
+	id := ctx.Param("id")
 
-	if err := c.Usecase.RejectRequest(requestID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	oldReq, _ := c.Usecase.GetRequestResponseByID(id)
+	oldStatus := "N/A"
+	targetName := "Hospital Blood Request"
+	if oldReq != nil {
+		oldStatus = oldReq.Status
+		targetName = fmt.Sprintf("%d units of %s for %s", oldReq.Quantity, oldReq.BloodType, oldReq.HospitalName)
+	}
+
+	if err := c.Usecase.RejectRequest(id); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "REJECT_HOSPITAL_BLOOD_REQUEST", "HOSPITAL_BLOOD_REQUEST", id, targetName, oldStatus, "REJECTED")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Blood request rejected successfully"})

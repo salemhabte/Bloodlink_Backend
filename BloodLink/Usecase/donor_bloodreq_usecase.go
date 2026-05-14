@@ -86,6 +86,10 @@ func (u *DonorBloodRequestUsecase) CreateRequest(
 // blood units are completely isolated from other donors' reservations.
 ////////////////////////
 
+func (u *DonorBloodRequestUsecase) GetRequestByID(id string) (*Domain.DonorBloodRequest, error) {
+	return u.repo.GetByID(id)
+}
+
 func (u *DonorBloodRequestUsecase) ApproveRequest(requestID string) (*Domain.DonorBloodRequest, string, error) {
 
 	req, err := u.repo.GetByID(requestID)

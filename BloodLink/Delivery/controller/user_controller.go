@@ -7,17 +7,20 @@ import (
 
 	domain "bloodlink/Domain"
 	domainInterface "bloodlink/Domain/Interfaces"
+	"bloodlink/Usecase"
 
 	"github.com/gin-gonic/gin"
 )
 
 type UserController struct {
 	UserUseCase domainInterface.IUserUseCase
+	AuditUsecase *Usecase.AuditLogUsecase
 }
 
-func NewUserController(userUseCase domainInterface.IUserUseCase) *UserController {
+func NewUserController(userUseCase domainInterface.IUserUseCase, auditUsecase *Usecase.AuditLogUsecase) *UserController {
 	return &UserController{
 		UserUseCase: userUseCase,
+		AuditUsecase: auditUsecase,
 	}
 }
 
@@ -273,9 +276,23 @@ func (c *UserController) UpdateDonorStatus(ctx *gin.Context) {
 	cCtx, cancel := context.WithCancel(ctx.Request.Context())
 	defer cancel()
 
+	donor, _ := c.UserUseCase.GetDonorByDonorID(cCtx, donorID)
+	oldStatus := "N/A"
+	targetName := "Donor"
+	if donor != nil {
+		oldStatus = donor.OverallStatus
+		// We could fetch the profile for the name, but for now we'll use ID or generic
+		targetName = "Donor ID " + donorID
+	}
+
 	if err := c.UserUseCase.UpdateDonorStatus(cCtx, donorID, body.Status); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	userID := ctx.GetString("userID")
+	if userID != "" {
+		c.AuditUsecase.Log(ctx.Request.Context(), userID, "UPDATE_DONOR_MEDICAL_STATUS", "DONOR", donorID, targetName, oldStatus, body.Status)
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Donor status updated to " + body.Status})

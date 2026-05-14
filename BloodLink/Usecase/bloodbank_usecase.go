@@ -275,9 +275,13 @@ func NewBloodInventoryUsecase(r Interface.IBloodInventoryRepository) *BloodInven
 	return &BloodInventoryUsecase{repo: r}
 }
 
-// 🔹 Get All
 func (u *BloodInventoryUsecase) GetAllUnits() ([]Domain.BloodUnit, error) {
 	return u.repo.GetAllBloodUnits()
+}
+
+// 🔹 Get By ID
+func (u *BloodInventoryUsecase) GetUnitByID(id string) (*Domain.BloodUnit, error) {
+	return u.repo.GetBloodUnitByID(id)
 }
 
 // 🔹 Get Stats

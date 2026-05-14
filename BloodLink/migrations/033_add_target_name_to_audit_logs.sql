@@ -1,0 +1,1 @@
+ALTER TABLE audit_logs ADD COLUMN target_name VARCHAR(255) DEFAULT '';

@@ -29,6 +29,7 @@ type IUserRepository interface {
 	GetUsersByRole(ctx context.Context, role string) ([]domain.UserResponse, error)
 	UpdateRefreshToken(ctx context.Context, userID, refreshToken string) error
 	GetDonorByUserID(ctx context.Context, userID string) (*domain.Donor, error)
+	GetDonorByDonorID(ctx context.Context, donorID string) (*domain.Donor, error)
 	GetDonorsByBloodTypeAndAddress(ctx context.Context, bloodType, address string) ([]domain.DonorResponse, error)
 	GetUserByPhone(ctx context.Context, phone string) (*domain.User, error)
 	GetEligibleDonors(ctx context.Context, query string) ([]domain.DonorResponse, error)
@@ -516,6 +517,10 @@ func (u *UserUseCaseBase) GetDonorIDByUserID(ctx context.Context, userID string)
 		return "", err
 	}
 	return donor.DonorID, nil
+}
+
+func (u *UserUseCaseBase) GetDonorByDonorID(ctx context.Context, donorID string) (*domain.Donor, error) {
+	return u.userRepo.GetDonorByDonorID(ctx, donorID)
 }
 
 func (u *UserUseCaseBase) GetEligibleDonors(ctx context.Context, query string) ([]domain.DonorResponse, error) {

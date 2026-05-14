@@ -7,6 +7,7 @@ type IBloodRequestRepository interface {
 	GetRequestsByHospital(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error)
 	GetAllRequests() ([]Domain.BloodRequestResponse, error)
 	GetRequestByID(requestID string) (*Domain.BloodRequest, error)
+	GetRequestResponseByID(requestID string) (*Domain.BloodRequestResponse, error)
 	UpdateRequestStatus(requestID string, status string, approvedAt *string) error
 	UpdateRequestStatusWithDetails(requestID string, status string, approvedAt *string, notes string, fulfilledCount int, fulfilledVolumeMl int) error
 	GetExpiredReservationRequests(cutoff string) ([]Domain.BloodRequest, error)
@@ -18,4 +19,6 @@ type IBloodRequestUsecase interface {
 	GetAllRequests() ([]Domain.BloodRequestResponse, error)
 	ApproveRequest(requestID string) (*Domain.ApproveRequestResult, error)
 	RejectRequest(requestID string) error
+	GetRequestByID(id string) (*Domain.BloodRequest, error)
+	GetRequestResponseByID(id string) (*Domain.BloodRequestResponse, error)
 }
