@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"os"
+
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"os"
 )
 
 type IHospitalUserRepository interface {
@@ -282,7 +283,8 @@ func (u *hospitalUsecase) GetContractByID(contractID string) (*Domain.HospitalCo
 	// This is important for ephemeral storage like Render.
 	if contract.Document != nil && *contract.Document != "" {
 		if _, err := os.Stat(*contract.Document); os.IsNotExist(err) {
-			if contract.Status == Domain.ContractStatusFinalized {
+			switch contract.Status {
+			case Domain.ContractStatusFinalized:
 				hospital, _ := u.repo.GetHospitalByID(contract.HospitalID)
 				if hospital != nil {
 					newPath, err := u.generateFinalPDF(contract, hospital)
@@ -291,7 +293,7 @@ func (u *hospitalUsecase) GetContractByID(contractID string) (*Domain.HospitalCo
 						_ = u.repo.UpdateContract(contract)
 					}
 				}
-			} else if contract.Status == Domain.ContractStatusPending || contract.Status == Domain.ContractStatusApprovedByHospital {
+			case Domain.ContractStatusPending, Domain.ContractStatusApprovedByHospital:
 				// Re-render draft if possible
 				if contract.TemplateID != nil {
 					template, err := u.repo.GetContractTemplateByID(*contract.TemplateID)
