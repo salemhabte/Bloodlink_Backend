@@ -92,6 +92,10 @@ func (u *CampaignUsecase) DeleteCampaign(id string) error {
 	return u.Repo.DeleteCampaign(id)
 }
 
+func (u *CampaignUsecase) MarkClosedCampaigns() error {
+	return u.Repo.MarkClosedCampaigns()
+}
+
 
 // DonationUsecase contains business logic for blood donations
 type DonationUsecase struct {
@@ -408,8 +412,48 @@ func NewBloodInventoryUsecase(r Interface.IBloodInventoryRepository) *BloodInven
 }
 
 // 🔹 Get All
-func (u *BloodInventoryUsecase) GetAllUnits(filter Domain.BloodUnitFilter) ([]Domain.BloodUnit, error) {
-	return u.repo.GetAllBloodUnits(filter)
+func (u *BloodInventoryUsecase) GetAllUnits(filter Domain.BloodUnitFilter) (*Domain.InventoryListResponse, error) {
+	units, err := u.repo.GetAllBloodUnits(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &Domain.InventoryListResponse{
+		Units:               units,
+		ByBloodType:         make(map[string]int),
+		ByComponentType:     make(map[string]int),
+		ByBloodAndComponent: make(map[string]int),
+	}
+
+	now := time.Now()
+	nearLimit := now.Add(168 * time.Hour) // 7 days
+
+	for _, unit := range units {
+		response.Total++
+		
+		// Status counts
+		switch unit.Status {
+		case "AVAILABLE":
+			response.Available++
+			if unit.ExpirationDate.Before(nearLimit) && unit.ExpirationDate.After(now) {
+				response.NearExpired++
+			}
+		case "RESERVED":
+			response.Reserved++
+		case "USED":
+			response.Used++
+		case "EXPIRED":
+			response.Expired++
+		}
+
+		// Grouping
+		response.ByBloodType[unit.BloodType]++
+		response.ByComponentType[unit.ComponentType]++
+		key := unit.BloodType + "_" + unit.ComponentType
+		response.ByBloodAndComponent[key]++
+	}
+
+	return response, nil
 }
 
 // 🔹 Get Stats

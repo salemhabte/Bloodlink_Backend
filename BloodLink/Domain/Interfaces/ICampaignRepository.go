@@ -11,4 +11,5 @@ type ICampaignRepository interface {
 	GetLiveCampaignByID(id string) (*domain.Campaign, error)
 	UpdateCampaign(campaign *domain.Campaign) error
 	DeleteCampaign(id string) error
+	MarkClosedCampaigns() error
 }

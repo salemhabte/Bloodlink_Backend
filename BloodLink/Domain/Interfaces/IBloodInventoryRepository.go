@@ -17,7 +17,7 @@ type IBloodInventoryRepository interface {
 	ConsumeUnits(bloodType string, quantity int) error
 
 	// Reservation workflow
-	ReserveUnitsForHospital(bloodType string, quantity int, hospitalID string, requestID string) ([]Domain.BloodUnit, error)
+	ReserveUnitsForHospital(bloodType string, componentType string, quantity int, hospitalID string, requestID string) ([]Domain.BloodUnit, error)
 	MarkUnitAsUsed(unitID string) error
 	ExpireStaleReservations(cutoff time.Time) ([]string, error) // returns affected request_ids
 	GetReservedUnitsByHospitalID(hospitalID string) ([]Domain.BloodUnit, error)

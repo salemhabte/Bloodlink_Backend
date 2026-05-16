@@ -20,12 +20,11 @@ type IHospitalUserRepository interface {
 	CreateUser(ctx context.Context, user *Domain.User) error
 	GetUserByPhone(ctx context.Context, phone string) (*Domain.User, error)
 	GetDonorByUserID(ctx context.Context, userID string) (*Domain.Donor, error)
-	UpdateDonorStatus(ctx context.Context, donorID, status string) error
 }
 
 type hospitalUsecase struct {
-	repo       Interfaces.IHospitalRepository
-	pdfService IPDFGeneratorService
+	repo         Interfaces.IHospitalRepository
+	pdfService   IPDFGeneratorService
 	userRepo     IHospitalUserRepository
 	notifUC      Interfaces.INotificationUsecase
 	donationRepo Interfaces.IDonationRepository
@@ -47,16 +46,23 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 		return err
 	}
 
-	// Check if hospital phone already exists
+	// Check if hospital phone already exists in hospitals table
 	existingHospital, _ := u.repo.GetHospitalByPhone(req.Phone)
 	if existingHospital != nil {
 		return errors.New("a hospital with this phone number is already registered")
 	}
 
-	// Note: We don't have a direct GetUserByPhone in hospitalRepo's userRepo interface,
-	// but we can check if a request with this admin phone is already pending.
-	// Actually, the database will catch the user phone conflict if we approve,
-	// but for now let's at least validate the hospital phone.
+	// Check if hospital phone already exists in users table (across all roles)
+	existingUser, _ := u.userRepo.GetUserByPhone(context.Background(), req.Phone)
+	if existingUser != nil {
+		return errors.New("this phone number is already associated with another account")
+	}
+
+	// Check if admin phone already exists
+	existingAdmin, _ := u.userRepo.GetUserByPhone(context.Background(), req.AdminPhone)
+	if existingAdmin != nil {
+		return errors.New("admin phone number already registered")
+	}
 
 	requestID := uuid.New().String()
 	hospitalReq := &Domain.HospitalRequest{
@@ -93,8 +99,29 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 	return err
 }
 
-func (u *hospitalUsecase) GetPendingRequests(filter Domain.HospitalRequestFilter) ([]Domain.HospitalRequestResponse, error) {
-	return u.repo.GetPendingRequests(filter)
+func (u *hospitalUsecase) GetPendingRequests(filter Domain.HospitalRequestFilter) (*Domain.HospitalRequestListResponse, error) {
+	requests, err := u.repo.GetPendingRequests(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	var analytics Domain.SummaryAnalytics
+	analytics.TotalRequests = len(requests)
+	for _, r := range requests {
+		switch r.Status {
+		case Domain.RequestStatusApproved:
+			analytics.TotalFulfilled++
+		case Domain.RequestStatusPending:
+			analytics.TotalPending++
+		case Domain.RequestStatusRejected:
+			analytics.TotalCancelled++
+		}
+	}
+
+	return &Domain.HospitalRequestListResponse{
+		Requests:  requests,
+		Analytics: analytics,
+	}, nil
 }
 
 func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID string, payload *Domain.ApproveHospitalRequestDTO) error {
@@ -348,14 +375,75 @@ func (u *hospitalUsecase) generateFinalPDF(contract *Domain.HospitalContract, ho
 	)
 }
 
-func (u *hospitalUsecase) GetHospitalContracts(userID string) ([]Domain.HospitalContract, error) {
+func (u *hospitalUsecase) GetHospitalContracts(userID string) (*Domain.HospitalContractListResponse, error) {
 	admin, err := u.repo.GetHospitalAdminByUserID(userID)
 	if err != nil {
 		return nil, err
 	}
-	return u.repo.GetContractsByHospitalID(admin.HospitalID)
+	contracts, err := u.repo.GetContractsByHospitalID(admin.HospitalID)
+	if err != nil {
+		return nil, err
+	}
+
+	var responses []Domain.HospitalContractResponse
+	for _, c := range contracts {
+		responses = append(responses, Domain.HospitalContractResponse{
+			ContractID:            c.ContractID,
+			HospitalID:            c.HospitalID,
+			BloodBankAdminID:      c.BloodBankAdminID,
+			Document:              c.Document,
+			Status:                c.Status,
+			ContractStart:         c.ContractStart,
+			ContractEnd:           c.ContractEnd,
+			CreatedAt:             c.CreatedAt,
+			HospitalSignaturePath: c.HospitalSignaturePath,
+			AdminSignaturePath:    c.AdminSignaturePath,
+		})
+	}
+
+	return &Domain.HospitalContractListResponse{
+		Contracts: responses,
+		Analytics: u.calculateContractAnalytics(responses),
+	}, nil
 }
 
+func (u *hospitalUsecase) calculateContractAnalytics(contracts []Domain.HospitalContractResponse) Domain.ContractAnalytics {
+	var analytics Domain.ContractAnalytics
+	analytics.TotalContracts = len(contracts)
+	now := time.Now()
+	for _, c := range contracts {
+		switch c.Status {
+		case Domain.ContractStatusFinalized:
+			if c.ContractEnd != nil && c.ContractEnd.Before(now) {
+				analytics.TotalExpired++
+			} else {
+				analytics.TotalActive++
+			}
+		case Domain.ContractStatusPending, Domain.ContractStatusApprovedByHospital:
+			analytics.TotalPending++
+		case Domain.ContractStatusRejected:
+			analytics.TotalRejected++
+		}
+	}
+	return analytics
+}
+func (u *hospitalUsecase) GetAllHospitals() (*Domain.HospitalListResponse, error) {
+	hospitals, err := u.repo.GetAllHospitals()
+	if err != nil {
+		return nil, err
+	}
+
+	var analytics Domain.HospitalAnalyticsSummary
+	analytics.TotalHospitals = len(hospitals)
+	// We could count active vs inactive if we had a status, 
+	// for now let's just assume all in the table are active or count by some other metric.
+	// Maybe we can count hospitals with active contracts.
+	
+	return &Domain.HospitalListResponse{
+		Hospitals: hospitals,
+		Analytics: analytics,
+	}, nil
+}
 func (u *hospitalUsecase) GetLatestHospitalContract(userID string) (*Domain.HospitalContract, error) {
 	admin, err := u.repo.GetHospitalAdminByUserID(userID)
 	if err != nil {
@@ -400,8 +488,16 @@ func (u *hospitalUsecase) DeleteContractTemplate(templateID string) error {
 	return u.repo.DeleteContractTemplate(templateID)
 }
 
-func (u *hospitalUsecase) GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error) {
-	return u.repo.GetSignedContracts(status)
+func (u *hospitalUsecase) GetSignedContracts(status string) (*Domain.HospitalContractListResponse, error) {
+	contracts, err := u.repo.GetSignedContracts(status)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Domain.HospitalContractListResponse{
+		Contracts: contracts,
+		Analytics: u.calculateContractAnalytics(contracts),
+	}, nil
 }
 
 func (u *hospitalUsecase) GetHospitalDashboard(userID string) (*Domain.HospitalDashboard, error) {
@@ -413,7 +509,7 @@ func (u *hospitalUsecase) GetHospitalDashboard(userID string) (*Domain.HospitalD
 }
 
 func (u *hospitalUsecase) ConfirmHospitalDonation(donorPhone string, hospitalAdminUserID string) error {
-	admin, err := u.repo.GetHospitalAdminByUserID(hospitalAdminUserID)
+	_, err := u.repo.GetHospitalAdminByUserID(hospitalAdminUserID)
 	if err != nil {
 		return errors.New("unauthorized: not a hospital admin")
 	}
@@ -436,6 +532,7 @@ func (u *hospitalUsecase) ConfirmHospitalDonation(donorPhone string, hospitalAdm
 		CollectionDate: time.Now(),
 		QuantityML:     450, // default standard for hospital direct donations
 		Status:         "APPROVED",
+		OverallStatus:  "CLEARED",
 		CreatedAt:      time.Now(),
 	}
 
@@ -443,6 +540,9 @@ func (u *hospitalUsecase) ConfirmHospitalDonation(donorPhone string, hospitalAdm
 	if err != nil {
 		return err
 	}
+
+	// Update overall_status
+	_ = u.donationRepo.UpdateDonorOverallStatus(donor.DonorID, "CLEARED")
 
 	return nil
 }

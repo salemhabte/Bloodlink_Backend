@@ -58,12 +58,17 @@ func (c *EmergencyRequestController) GetAllEmergencies(ctx *gin.Context) {
 		EndDate:      ctx.Query("end_date"),
 	}
 
-	reqs, err := c.Usecase.GetAllEmergencies(filter)
+	if (filter.StartDate != "" && filter.EndDate == "") || (filter.StartDate == "" && filter.EndDate != "") {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Both start_date and end_date are required"})
+		return
+	}
+
+	res, err := c.Usecase.GetAllEmergencies(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusOK, reqs)
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *EmergencyRequestController) GetPublishedEmergencies(ctx *gin.Context) {

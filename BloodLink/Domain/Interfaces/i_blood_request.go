@@ -14,8 +14,8 @@ type IBloodRequestRepository interface {
 
 type IBloodRequestUsecase interface {
 	CreateBloodRequest(req *Domain.CreateBloodRequestBatchDTO, hospitalAdminID string) error
-	GetHospitalRequests(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error)
-	GetAllRequests(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error)
+	GetHospitalRequests(filter Domain.BloodRequestFilter) (*Domain.BloodRequestListResponse, error)
+	GetAllRequests(filter Domain.BloodRequestFilter) (*Domain.BloodRequestListResponse, error)
 	ApproveRequest(requestID string) (*Domain.ApproveRequestResult, error)
 	RejectRequest(requestID string) error
 }

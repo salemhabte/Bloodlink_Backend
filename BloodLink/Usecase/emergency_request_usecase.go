@@ -63,6 +63,7 @@ func (u *emergencyRequestUsecase) TriggerEmergency(requestID string, bloodType s
 		Status:            Domain.EmergencyStatusPending,
 		IsManual:          false,
 		CreatedAt:         time.Now(),
+		EndDate:           nil, // Will be set upon publishing if not provided
 	}
 
 	err = u.repo.Create(emergency)
@@ -153,6 +154,13 @@ func (u *emergencyRequestUsecase) CreateManualEmergency(dto *Domain.CreateEmerge
 		CreatedAt:         time.Now(),
 	}
 
+	if dto.EndDate != "" {
+		ed, err := time.Parse("2006-01-02", dto.EndDate)
+		if err == nil {
+			emergency.EndDate = &ed
+		}
+	}
+
 	now := time.Now()
 	emergency.PublishedAt = &now
 
@@ -182,8 +190,28 @@ func (u *emergencyRequestUsecase) CreateManualEmergency(dto *Domain.CreateEmerge
 }
 
 
-func (u *emergencyRequestUsecase) GetAllEmergencies(filter Domain.EmergencyRequestFilter) ([]Domain.EmergencyRequest, error) {
-	return u.repo.GetAll(filter)
+func (u *emergencyRequestUsecase) GetAllEmergencies(filter Domain.EmergencyRequestFilter) (*Domain.EmergencyListResponse, error) {
+	emergencies, err := u.repo.GetAll(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	var analytics Domain.EmergencyAnalytics
+	analytics.TotalRequests = len(emergencies)
+	for _, e := range emergencies {
+		switch e.Status {
+		case Domain.EmergencyStatusPublished:
+			analytics.TotalPublished++
+			analytics.TotalActive++
+		case Domain.EmergencyStatusCompleted:
+			analytics.TotalEnded++
+		}
+	}
+
+	return &Domain.EmergencyListResponse{
+		Emergencies: emergencies,
+		Analytics:   analytics,
+	}, nil
 }
 
 func (u *emergencyRequestUsecase) GetPublishedEmergencies() ([]Domain.EmergencyRequest, error) {
@@ -211,4 +239,8 @@ func (u *emergencyRequestUsecase) GetEmergenciesForDonor(userID string) ([]Domai
 
 	// Find emergencies within 20km, filtered by blood type if known
 	return u.repo.GetNearby(*profile.Latitude, *profile.Longitude, 20.0, bloodType)
+}
+
+func (u *emergencyRequestUsecase) MarkCompletedEmergencies() error {
+	return u.repo.MarkCompletedEmergencies()
 }

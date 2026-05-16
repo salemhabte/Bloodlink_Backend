@@ -27,25 +27,27 @@ type IHospitalRepository interface {
 	GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error)
 	GetHospitalDashboard(hospitalID string) (*Domain.HospitalDashboard, error)
 	GetHospitalByPhone(phone string) (*Domain.Hospital, error)
+	GetAllHospitals() ([]Domain.Hospital, error)
 }
 
 type IHospitalUsecase interface {
 	SubmitRegistrationRequest(req *Domain.RegisterHospitalRequestDTO) error
-	GetPendingRequests(filter Domain.HospitalRequestFilter) ([]Domain.HospitalRequestResponse, error)
+	GetPendingRequests(filter Domain.HospitalRequestFilter) (*Domain.HospitalRequestListResponse, error)
 	ApproveRequest(requestID string, bloodBankAdminID string, payload *Domain.ApproveHospitalRequestDTO) error
 	RejectRequest(requestID string) error
 	HospitalSignContract(contractID string, req *Domain.SignContractRequestDTO, hospitalAdminID string) error
 	AdminSignContract(contractID string, req *Domain.SignContractRequestDTO, bloodBankAdminID string) error
 	RejectContract(contractID string, userID string, role string) error
 	GetContractByID(contractID string) (*Domain.HospitalContract, error)
-	GetHospitalContracts(userID string) ([]Domain.HospitalContract, error)
+	GetHospitalContracts(userID string) (*Domain.HospitalContractListResponse, error)
 	GetLatestHospitalContract(userID string) (*Domain.HospitalContract, error)
 
 	CreateContractTemplate(req *Domain.CreateTemplateRequestDTO, adminID string) error
 	GetContractTemplates() ([]Domain.ContractTemplate, error)
 	UpdateContractTemplate(templateID string, req *Domain.CreateTemplateRequestDTO) error
 	DeleteContractTemplate(templateID string) error
-	GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error)
+	GetSignedContracts(status string) (*Domain.HospitalContractListResponse, error)
 	GetHospitalDashboard(userID string) (*Domain.HospitalDashboard, error)
 	ConfirmHospitalDonation(donorPhone string, hospitalAdminUserID string) error
+	GetAllHospitals() (*Domain.HospitalListResponse, error)
 }

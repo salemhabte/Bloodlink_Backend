@@ -63,3 +63,8 @@ type BloodRequestFilter struct {
 	StartDate    string `json:"start_date"`
 	EndDate      string `json:"end_date"`
 }
+
+type BloodRequestListResponse struct {
+	Requests  []BloodRequestResponse `json:"requests"`
+	Analytics SummaryAnalytics       `json:"analytics"`
+}

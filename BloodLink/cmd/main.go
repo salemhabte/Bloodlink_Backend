@@ -47,7 +47,7 @@ func main() {
 
 	// --- Usecases ---
 	notifUsecase := Usecase.NewNotificationUsecase(notifRepo)
-	userUseCase := Usecase.NewUserUseCase(userRepo, profileRepo, donationRepo, jwtService, passwordService, notifUsecase)
+	userUseCase := Usecase.NewUserUseCase(userRepo, profileRepo, donationRepo, jwtService, passwordService, notifUsecase, hospitalRepo)
 	userController := controller.NewUserController(userUseCase)
 
 	badgeUsecase := Usecase.NewDonorBadgeUsecase(badgeRepo)
@@ -62,13 +62,13 @@ func main() {
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)
 
 	// Start background jobs after all dependencies are initialized
-	go jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo, notifUsecase, donorBloodReqUsecase, userUseCase)
+	emergencyUsecase := Usecase.NewEmergencyRequestUsecase(emergencyRepo, inventoryRepo, hospitalRepo, bloodReqRepo, userRepo, profileRepo, notifUsecase)
+	go jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo, notifUsecase, donorBloodReqUsecase, userUseCase, emergencyUsecase, campaignRepo)
 
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
 	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)
 	adminAnalyticsUsecase := Usecase.NewAdminAnalyticsUsecase(adminAnalyticsRepo)
-	emergencyUsecase := Usecase.NewEmergencyRequestUsecase(emergencyRepo, inventoryRepo, hospitalRepo, bloodReqRepo, userRepo, profileRepo, notifUsecase)
 	bloodReqUsecase := Usecase.NewBloodRequestUsecase(bloodReqRepo, hospitalRepo, inventoryRepo, emergencyUsecase, notifUsecase)
 
 	// --- Controllers ---

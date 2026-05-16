@@ -111,17 +111,49 @@ func (u *bloodRequestUsecase) getHospitalIDForAdmin(userID string) (string, erro
 	return admin.HospitalID, nil
 }
 
-func (u *bloodRequestUsecase) GetHospitalRequests(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error) {
+func (u *bloodRequestUsecase) GetHospitalRequests(filter Domain.BloodRequestFilter) (*Domain.BloodRequestListResponse, error) {
 	hospital_id, err := u.getHospitalIDForAdmin(filter.HospitalID)
 	if err != nil {
 		return nil, err
 	}
 	filter.HospitalID = hospital_id
-	return u.repo.GetRequestsByHospital(filter)
+	requests, err := u.repo.GetRequestsByHospital(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Domain.BloodRequestListResponse{
+		Requests:  requests,
+		Analytics: u.calculateAnalytics(requests),
+	}, nil
 }
 
-func (u *bloodRequestUsecase) GetAllRequests(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error) {
-	return u.repo.GetAllRequests(filter)
+func (u *bloodRequestUsecase) GetAllRequests(filter Domain.BloodRequestFilter) (*Domain.BloodRequestListResponse, error) {
+	requests, err := u.repo.GetAllRequests(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Domain.BloodRequestListResponse{
+		Requests:  requests,
+		Analytics: u.calculateAnalytics(requests),
+	}, nil
+}
+
+func (u *bloodRequestUsecase) calculateAnalytics(requests []Domain.BloodRequestResponse) Domain.SummaryAnalytics {
+	var analytics Domain.SummaryAnalytics
+	analytics.TotalRequests = len(requests)
+	for _, r := range requests {
+		switch r.Status {
+		case Domain.BloodRequestStatusFulfilled, Domain.BloodRequestStatusPartiallyFulfilled:
+			analytics.TotalFulfilled++
+		case Domain.BloodRequestStatusPending:
+			analytics.TotalPending++
+		case Domain.BloodRequestStatusRejected:
+			analytics.TotalCancelled++
+		}
+	}
+	return analytics
 }
 
 func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveRequestResult, error) {
@@ -135,7 +167,7 @@ func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveR
 	}
 
 	// 1. Reserve units (FIFO by expiry is handled in Repo)
-	reservedUnits, err := u.inventoryRepo.ReserveUnitsForHospital(br.BloodType, br.Quantity, br.HospitalID, requestID)
+	reservedUnits, err := u.inventoryRepo.ReserveUnitsForHospital(br.BloodType, br.Component, br.Quantity, br.HospitalID, requestID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reserve blood: %v", err)
 	}

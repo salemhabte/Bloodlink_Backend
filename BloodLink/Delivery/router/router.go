@@ -160,6 +160,8 @@ func SetupRouter(
 			adminEmergencies.POST("/:id/publish", emergencyController.PublishEmergency)
 			adminEmergencies.POST("/:id/reject", emergencyController.RejectEmergency)
 		}
+
+		admin.GET("/hospitals", hospitalController.GetAllHospitals)
 	}
 
 	// Donor Routes
