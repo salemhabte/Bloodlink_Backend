@@ -22,9 +22,9 @@ func (r *donationRepository) CreateDonation(record *Domain.DonationRecord) error
 INSERT INTO donation_records (
     donation_id, donor_id, campaign_id, collected_by, collection_date,
     weight, blood_pressure, hemoglobin, temperature, pulse,
-    quantity_ml, status
+    quantity_ml, status, rejection_reason
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 `
 
 	var campaignID interface{}
@@ -36,19 +36,19 @@ if record.CampaignID != nil {
 
 _, err := r.db.Exec(
     query,
-    record.DonationID,     // $1
-    record.DonorID,        // $2
-    campaignID,            // $3 
-    record.CollectedBy,    // $4
-    record.CollectionDate, // $5
-    record.Weight,         // $6
-    record.BloodPressure,  // $7
-    record.Hemoglobin,     // $8
-    record.Temperature,    // $9
-    record.Pulse,          // $10
-    record.QuantityML,     // $11
-    record.Status,         // $12
-    // record.CreatedAt,      // $13
+    record.DonationID,      // $1
+    record.DonorID,         // $2
+    campaignID,             // $3 
+    record.CollectedBy,     // $4
+    record.CollectionDate,  // $5
+    record.Weight,          // $6
+    record.BloodPressure,   // $7
+    record.Hemoglobin,      // $8
+    record.Temperature,     // $9
+    record.Pulse,           // $10
+    record.QuantityML,      // $11
+    record.Status,          // $12
+    record.RejectionReason, // $13
 )
 	
 
@@ -116,11 +116,15 @@ func (r *donationRepository) GetDonationByID(id string) (*Domain.DonationRecord,
 		d.pulse,
 		d.quantity_ml,
 		d.status,
+		COALESCE(d.rejection_reason, '') AS rejection_reason,
+		COALESCE(c.title, '') AS campaign_title,
+		COALESCE(c.location, '') AS campaign_address,
 		d.created_at
 	FROM donation_records d
 	JOIN donors dn ON d.donor_id = dn.donor_id
 	JOIN users u1 ON dn.user_id = u1.user_id
 	JOIN users u2 ON d.collected_by = u2.user_id
+	LEFT JOIN campaigns c ON d.campaign_id = c.campaign_id
 	WHERE d.donation_id=$1
 	`
 
@@ -141,6 +145,9 @@ func (r *donationRepository) GetDonationByID(id string) (*Domain.DonationRecord,
 		&d.Pulse,
 		&d.QuantityML,
 		&d.Status,
+		&d.RejectionReason,
+		&d.CampaignTitle,
+		&d.CampaignAddress,
 		&d.CreatedAt,
 	)
 
@@ -156,7 +163,7 @@ func (r *donationRepository) GetLastDonationByDonor(donorID string) (*Domain.Don
 	query := `
 	SELECT donation_id, donor_id, collection_date
 	FROM donation_records
-	WHERE donor_id=$1
+	WHERE donor_id=$1 AND status='APPROVED'
 	ORDER BY collection_date DESC
 	LIMIT 1`
 
@@ -176,8 +183,8 @@ func (r *donationRepository) UpdateDonation(record *Domain.DonationRecord) error
 
 	query := `
 UPDATE donation_records
-SET weight=$1, blood_pressure=$2, hemoglobin=$3, temperature=$4, pulse=$5, quantity_ml=$6, collection_date=$7, status=$8
-WHERE donation_id=$9 AND donor_id=$10`
+SET weight=$1, blood_pressure=$2, hemoglobin=$3, temperature=$4, pulse=$5, quantity_ml=$6, collection_date=$7, status=$8, rejection_reason=$9
+WHERE donation_id=$10 AND donor_id=$11`
 
 	_, err := r.db.Exec(
 		query,
@@ -189,6 +196,7 @@ WHERE donation_id=$9 AND donor_id=$10`
 		record.QuantityML,
 		record.CollectionDate,
 		record.Status,
+		record.RejectionReason,
 		record.DonationID,
 		record.DonorID,
 	)
@@ -202,18 +210,14 @@ func (r *donationRepository) UpdateDonationStatus(donationID string, status stri
 }
 func (r *donationRepository) UpdateDonorWeight(donorID string, weight float64) error {
 	query := `UPDATE donors SET weight=$1 WHERE donor_id=$2`
+	_, err := r.db.Exec(query, weight, donorID)
+	return err
+}
 
-	result, err := r.db.Exec(query, weight, donorID)
-	if err != nil {
-		return err
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		return fmt.Errorf("no donor found with id %s", donorID)
-	}
-
-	return nil
+func (r *donationRepository) UpdateDonorOverallStatus(donorID string, status string) error {
+	query := `UPDATE donors SET overall_status=$1 WHERE donor_id=$2`
+	_, err := r.db.Exec(query, status, donorID)
+	return err
 }
 func (r *donationRepository) GetPendingDonors() ([]Domain.DonorResponse, error) {
 
@@ -373,6 +377,7 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 		d.pulse,
 		d.quantity_ml,
 		d.status,
+		COALESCE(d.rejection_reason, '') AS rejection_reason,
 		d.created_at
 	FROM donation_records d
 	JOIN donors dn ON d.donor_id = dn.donor_id
@@ -411,6 +416,9 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 			&d.Pulse,
 			&d.QuantityML,
 			&d.Status,
+			&d.RejectionReason,
+			&d.CampaignTitle,
+			&d.CampaignAddress,
 			&d.CreatedAt,
 		)
 		if err != nil {
@@ -457,11 +465,15 @@ func (r *donationRepository) GetDonationsByCollector(collectorID string) ([]Doma
 		d.pulse,
 		d.quantity_ml,
 		d.status,
+		COALESCE(d.rejection_reason, '') AS rejection_reason,
+		COALESCE(c.title, '') AS campaign_title,
+		COALESCE(c.location, '') AS campaign_address,
 		d.created_at
 	FROM donation_records d
 	JOIN donors dn ON d.donor_id = dn.donor_id
 	JOIN users u1 ON dn.user_id = u1.user_id
 	JOIN users u2 ON d.collected_by = u2.user_id
+	LEFT JOIN campaigns c ON d.campaign_id = c.campaign_id
 	WHERE d.collected_by = $1
 	ORDER BY d.collection_date DESC
 	`
@@ -492,6 +504,9 @@ func (r *donationRepository) GetDonationsByCollector(collectorID string) ([]Doma
 			&d.Pulse,
 			&d.QuantityML,
 			&d.Status,
+			&d.RejectionReason,
+			&d.CampaignTitle,
+			&d.CampaignAddress,
 			&d.CreatedAt,
 		)
 
@@ -523,8 +538,11 @@ func (r *donationRepository) GetDonations(filter Domain.DonationFilter) ([]Domai
 	d.pulse,
 	d.quantity_ml,
 	d.status,
+	COALESCE(d.rejection_reason, '') AS rejection_reason,
 
 	COALESCE(tr.overall_status, dn.overall_status) AS overall_status,
+	COALESCE(c.title, '') AS campaign_title,
+	COALESCE(c.location, '') AS campaign_address,
 
 	d.created_at
 
@@ -534,6 +552,7 @@ LEFT JOIN donors dn ON d.donor_id = dn.donor_id
 LEFT JOIN users u1 ON dn.user_id = u1.user_id
 LEFT JOIN users u2 ON d.collected_by = u2.user_id
 LEFT JOIN donor_test_results tr ON d.donation_id = tr.donation_id
+LEFT JOIN campaigns c ON d.campaign_id = c.campaign_id
 
 WHERE 1=1`
 
@@ -601,7 +620,10 @@ if filter.EndDate != "" {
 			&d.Pulse,
 			&d.QuantityML,
 			&d.Status,
+			&d.RejectionReason,
 			&d.OverallStatus,
+			&d.CampaignTitle,
+			&d.CampaignAddress,
 			&d.CreatedAt,
 		)
 		if err != nil {

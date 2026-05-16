@@ -47,7 +47,7 @@ func (r *adminAnalyticsRepository) GetDonorStats() (int, int, int, int, error) {
 	err = r.db.QueryRow(`
 		SELECT COUNT(DISTINCT donor_id)
 		FROM donation_records
-		WHERE status = 'TEMPORARILY_REJECTED'
+		WHERE status = 'REJECTED_TEMPORARY'
 	`).Scan(&rejected)
 	if err != nil {
 		return 0, 0, 0, 0, err
@@ -219,6 +219,7 @@ func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeS
 	err := r.db.QueryRow(`
 		SELECT COUNT(*)
 		FROM blood_units
+		WHERE is_deleted = false
 	`).Scan(&total)
 
 	if err != nil {
@@ -231,6 +232,7 @@ func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeS
 	query := `
 		SELECT blood_type, COUNT(*)
 		FROM blood_units
+		WHERE is_deleted = false
 		GROUP BY blood_type
 	`
 
@@ -267,6 +269,7 @@ func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeS
 		FROM blood_units
 		WHERE expiration_date <= CURRENT_DATE + INTERVAL '7 days'
 		AND status = 'AVAILABLE'
+		AND is_deleted = false
 	`).Scan(&nearExpiry)
 
 	if err != nil {

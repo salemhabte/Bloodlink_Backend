@@ -137,16 +137,16 @@ func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveR
 		return nil, fmt.Errorf("failed to reserve blood: %v", err)
 	}
 
-	totalReservedVolume := 0
+	totalReservedQuantity := 0
 	fulfilledCount := len(reservedUnits)
 	var reservedInfo []Domain.ReservedUnitInfo
 
 	for _, unit := range reservedUnits {
-		totalReservedVolume += unit.VolumeML
+		totalReservedQuantity += unit.QuantityML
 		reservedInfo = append(reservedInfo, Domain.ReservedUnitInfo{
 			BloodUnitID:    unit.BloodUnitID,
 			BloodType:      unit.BloodType,
-			VolumeML:       unit.VolumeML,
+			QuantityML:       unit.QuantityML,
 			ExpirationDate: unit.ExpirationDate,
 		})
 	}
@@ -155,33 +155,33 @@ func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveR
 	var message string
 	var notes string
 
-	if totalReservedVolume == 0 {
+	if totalReservedQuantity == 0 {
 		// a. No blood in inventory
 		status = Domain.BloodRequestStatusRejected
 		message = "No blood"
 		notes = "Automatically rejected: No available units of the requested blood type in inventory."
-	} else if totalReservedVolume >= br.Quantity {
+	} else if totalReservedQuantity >= br.Quantity {
 		// b. Fully fulfilled
 		status = Domain.BloodRequestStatusFulfilled
 		message = "Request fully fulfilled and blood units reserved."
-		notes = fmt.Sprintf("Fully fulfilled. Reserved %d units totaling %dML.", fulfilledCount, totalReservedVolume)
+		notes = fmt.Sprintf("Fully fulfilled. Reserved %d units totaling %dML.", fulfilledCount, totalReservedQuantity)
 	} else {
 		// c. Partially fulfilled
 		status = Domain.BloodRequestStatusPartiallyFulfilled
-		message = fmt.Sprintf("Request partially fulfilled. Reserved %d units totaling %dML.", fulfilledCount, totalReservedVolume)
+		message = fmt.Sprintf("Request partially fulfilled. Reserved %d units totaling %dML.", fulfilledCount, totalReservedQuantity)
 
 		unitDetails := ""
 		for i, ui := range reservedInfo {
-			unitDetails += fmt.Sprintf("%dML", ui.VolumeML)
+			unitDetails += fmt.Sprintf("%dML", ui.QuantityML)
 			if i < len(reservedInfo)-1 {
 				unitDetails += " + "
 			}
 		}
-		notes = fmt.Sprintf("Partial fulfillment: %s = %dML total.", unitDetails, totalReservedVolume)
+		notes = fmt.Sprintf("Partial fulfillment: %s = %dML total.", unitDetails, totalReservedQuantity)
 	}
 
 	now := time.Now().Format("2006-01-02 15:04:05")
-	err = u.repo.UpdateRequestStatusWithDetails(requestID, status, &now, notes, fulfilledCount, totalReservedVolume)
+	err = u.repo.UpdateRequestStatusWithDetails(requestID, status, &now, notes, fulfilledCount, totalReservedQuantity)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveR
 		Status:         status,
 		Message:        message,
 		ReservedUnits:  reservedInfo,
-		TotalVolumeML:  totalReservedVolume,
+		TotalQuantityML:  totalReservedQuantity,
 		RequestedCount: br.Quantity,
 		FulfilledCount: fulfilledCount,
 	}, nil

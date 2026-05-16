@@ -4,7 +4,9 @@ import (
 	"bloodlink/Domain"
 	Interface "bloodlink/Domain/Interfaces"
 	"errors"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +24,13 @@ func NewCampaignUsecase(repo Interface.ICampaignRepository, notifUC Interface.IN
 }
 
 func (u *CampaignUsecase) CreateCampaign(campaign *Domain.Campaign) error {
+	// Validate campaign start date
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	if campaign.StartDate.Before(today) {
+		return errors.New("campaign start date cannot be in the past")
+	}
+
 	err := u.Repo.CreateCampaign(campaign)
 	if err == nil {
 		go u.NotifUC.SendToRole(Domain.RoleDonor, "CAMPAIGN", "New Blood Drive", "A new campaign '"+campaign.Title+"' has been created at "+campaign.Location)
@@ -29,12 +38,50 @@ func (u *CampaignUsecase) CreateCampaign(campaign *Domain.Campaign) error {
 	return err
 }
 
-func (u *CampaignUsecase) GetAllCampaigns(filter Domain.CampaignFilter) ([]Domain.Campaign, error) {
-	return u.Repo.GetAllCampaigns(filter)
+func (u *CampaignUsecase) GetAllCampaigns(filter Domain.CampaignFilter, liveOnly bool) (*Domain.CampaignListResponse, error) {
+	campaigns, err := u.Repo.GetAllCampaigns(filter, liveOnly)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &Domain.CampaignListResponse{
+		Campaigns: campaigns,
+	}
+
+	now := time.Now()
+	nearLimit := now.Add(168 * time.Hour) // 7 days
+
+	for _, c := range campaigns {
+		if c.EndDate.After(now) {
+			if c.StartDate.After(now) {
+				response.UpcomingCampaigns++
+			} else {
+				response.OngoingCampaigns++
+				if c.EndDate.Before(nearLimit) {
+					response.ClosingSoonCampaigns++
+				}
+			}
+		} else {
+			response.ClosedCampaigns++
+		}
+	}
+
+	// For Admin, we might want the true total from DB, 
+	// but here we can just count the current slice if no filters are applied.
+	// For now, let's just use the slice length as 'TotalCampaigns' for Admin if not liveOnly.
+	if !liveOnly {
+		response.TotalCampaigns = len(campaigns)
+	}
+
+	return response, nil
 }
 
 func (u *CampaignUsecase) GetCampaignByID(id string) (*Domain.Campaign, error) {
 	return u.Repo.GetCampaignByID(id)
+}
+
+func (u *CampaignUsecase) GetLiveCampaignByID(id string) (*Domain.Campaign, error) {
+	return u.Repo.GetLiveCampaignByID(id)
 }
 
 func (u *CampaignUsecase) UpdateCampaign(campaign *Domain.Campaign) error {
@@ -43,11 +90,6 @@ func (u *CampaignUsecase) UpdateCampaign(campaign *Domain.Campaign) error {
 
 func (u *CampaignUsecase) DeleteCampaign(id string) error {
 	return u.Repo.DeleteCampaign(id)
-}
-
-// Donor Feature
-func (u *CampaignUsecase) GetCampaignsByLocation(filter Domain.CampaignFilter) ([]Domain.Campaign, error) {
-	return u.Repo.GetCampaignsByLocation(filter)
 }
 
 
@@ -72,29 +114,51 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	record.DonationID = uuid.New().String()
 
 	// ================================
-	// 2. System-controlled status
+	// 2. Validate status field is provided
 	// ================================
-	record.Status = "PENDING"
+	record.Status = strings.ToUpper(strings.TrimSpace(record.Status))
+	if record.Status != "APPROVED" && record.Status != "REJECTED_TEMPORARY" {
+		return errors.New("status must be APPROVED or REJECTED_TEMPORARY")
+	}
+	
+	if record.Status == "REJECTED_TEMPORARY" && strings.TrimSpace(record.RejectionReason) == "" {
+		return errors.New("rejection_reason is required when status is REJECTED_TEMPORARY")
+	}
 
-	// ================================
-	// 3. Set collection date
-	// ================================
-	if record.CollectionDate.IsZero() {
-		record.CollectionDate = time.Now()
+	if record.Status == "APPROVED" {
+		record.RejectionReason = "" // Clear reason if approved
 	}
 
 	// ================================
-	// 4. Validate campaign (if provided)
+	// 3. Validate donation quantity
+	// ================================
+	if record.Status == "REJECTED_TEMPORARY" {
+		record.QuantityML = 0 // Donors who are rejected do not donate
+	} else if record.QuantityML != 350 && record.QuantityML != 450 {
+		return errors.New("quantity_ml must be 350 or 450 for approved donations")
+	}
+
+	// ================================
+	// 4. Set collection date
+	// ================================
+	if record.CollectionDate.IsZero() {
+		return errors.New("collection_date is required")
+	} else if record.CollectionDate.After(time.Now().Add(1 * time.Minute)) {
+		return errors.New("collection_date cannot be in the future")
+	}
+
+	// ================================
+	// 5. Validate campaign (if provided)
 	// ================================
 	if record.CampaignID != nil {
-		_, err := u.campaignRepo.GetCampaignByID(*record.CampaignID)
+		_, err := u.campaignRepo.GetLiveCampaignByID(*record.CampaignID)
 		if err != nil {
-			return errors.New("invalid campaign_id")
+			return err // Will return "campaign is already closed" if past
 		}
 	}
 
 	// ================================
-	// 5. IMPORTANT: Check donor eligibility FIRST
+	// 6. IMPORTANT: Check donor eligibility FIRST
 	// ================================
 	overallStatus, err := u.repo.GetDonorOverallStatus(record.DonorID)
 	if err != nil {
@@ -107,7 +171,7 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	}
 
 	// ================================
-	// 6. 3-MONTH RULE CHECK
+	// 7. 3-MONTH RULE CHECK
 	// ================================
 	lastDonation, err := u.repo.GetLastDonationByDonor(record.DonorID)
 	if err == nil && lastDonation != nil {
@@ -117,28 +181,35 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	}
 
 	// ================================
-	// 7. Evaluate donation (medical screening)
+	// 8. Suggestion/Review flow for status
 	// ================================
-	u.evaluateDonation(record)
-
-
+	suggested, conflict := SuggestDonationStatus(record.Weight, record.Hemoglobin, record.Temperature, record.Pulse, record.BloodPressure)
+	if conflict(record.Status) {
+		return fmt.Errorf("⚠ Suggestion: Based on screening values, status should be '%s'", suggested)
+	}
 
 	// ================================
-	// 8. Save donation
+	// 9. Save donation
 	// ================================
 	if err := u.repo.CreateDonation(record); err != nil {
 		return err
 	}
-	
-	// Notify Lab Techs
-	log.Printf("[DEBUG] Triggering notification for lab tech...")
-	go u.notifUC.SendToRole(Domain.RoleLabTech, "DONATION", "New Donation", "A new donation record is pending lab testing.")
 
 	// ================================
-	// 9. Update donor weight
+	// 10. POST-DONATION UPDATES
 	// ================================
+	// Reset overall_status to Pending (waiting for new lab results)
+	_ = u.repo.UpdateDonorOverallStatus(record.DonorID, "Pending")
+
+	// Update donor weight
 	if err := u.repo.UpdateDonorWeight(record.DonorID, record.Weight); err != nil {
-		return err
+		log.Printf("[ERROR] Failed to update donor weight: %v", err)
+	}
+
+	// Notify Lab Techs only if donation is APPROVED
+	if record.Status == "APPROVED" {
+		log.Printf("[DEBUG] Triggering notification for lab tech...")
+		go u.notifUC.SendToRole(Domain.RoleLabTech, "DONATION", "New Donation", "A new donation record is pending lab testing.")
 	}
 
 	return nil
@@ -153,20 +224,38 @@ func (u *DonationUsecase) GetPendingDonorByID(id string) (*Domain.DonorResponse,
 func (u *DonationUsecase) SearchPendingDonor(query string) (*Domain.DonorResponse, error) {
 	return u.repo.SearchPendingDonor(query)
 }
-// evaluateDonation determines status automatically
-func (u *DonationUsecase) evaluateDonation(record *Domain.DonationRecord) {
 
-	if record.Weight < 50 {
-		record.Status = "REJECTED_TEMPORARY"
-		return
+// SuggestDonationStatus evaluates screening data and returns the suggested status
+// plus a function to check if a given entered status conflicts with the suggestion.
+// WHO thresholds: weight >= 50kg, hemoglobin >= 12.5 g/dL, temp <= 37.5°C, pulse 50-100bpm
+func SuggestDonationStatus(weight float64, hemoglobin float64, temperature float64, pulse int, bloodPressure string) (string, func(string) bool) {
+	suggested := "APPROVED"
+
+	if weight < 50 {
+		suggested = "REJECTED_TEMPORARY"
+	} else if hemoglobin < 12.5 {
+		suggested = "REJECTED_TEMPORARY"
+	} else if temperature > 37.5 {
+		suggested = "REJECTED_TEMPORARY"
+	} else if pulse < 50 || pulse > 100 {
+		suggested = "REJECTED_TEMPORARY"
+	}
+	// Blood pressure parsing: systolic 90-160, diastolic 60-100
+	if bloodPressure != "" {
+		parts := strings.Split(bloodPressure, "/")
+		if len(parts) == 2 {
+			var systolic, diastolic int
+			fmt.Sscanf(parts[0], "%d", &systolic)
+			fmt.Sscanf(parts[1], "%d", &diastolic)
+			if systolic < 90 || systolic > 160 || diastolic < 60 || diastolic > 100 {
+				suggested = "REJECTED_TEMPORARY"
+			}
+		}
 	}
 
-	if record.Hemoglobin < 12 || record.Temperature > 37.5 {
-		record.Status = "REJECTED_TEMPORARY"
-		return
+	return suggested, func(entered string) bool {
+		return entered != suggested
 	}
-
-	record.Status = "APPROVED"
 }
 // Search donor by email or phone
 func (u *DonationUsecase) SearchDonor(query string) (*Domain.DonorResponse, error) {
@@ -179,7 +268,7 @@ func (u *DonationUsecase) SearchDonor(query string) (*Domain.DonorResponse, erro
 }
 
 // Update donation status manually by blood collector
-func (u *DonationUsecase) UpdateDonationStatus(donationID string, status string, collectorID string) error {
+func (u *DonationUsecase) UpdateDonationStatus(donationID string, status string, rejectionReason string, collectorID string) error {
 
 	// ================================
 	// 1. Get existing donation
@@ -200,15 +289,32 @@ func (u *DonationUsecase) UpdateDonationStatus(donationID string, status string,
 	// ================================
 	// 2. Validate Status
 	// ================================
-	validStatuses := map[string]bool{"PENDING": true, "APPROVED": true, "REJECTED_TEMPORARY": true}
+	status = strings.ToUpper(strings.TrimSpace(status))
+	validStatuses := map[string]bool{"APPROVED": true, "REJECTED_TEMPORARY": true}
 	if !validStatuses[status] {
-		return errors.New("invalid status: must be PENDING, APPROVED, or REJECTED_TEMPORARY")
+		return errors.New("invalid status: must be APPROVED or REJECTED_TEMPORARY")
+	}
+	
+	if status == "REJECTED_TEMPORARY" && strings.TrimSpace(rejectionReason) == "" {
+		return errors.New("rejection_reason is required when status is REJECTED_TEMPORARY")
+	}
+
+	if status == "APPROVED" {
+		rejectionReason = ""
+	}
+
+	// 3. Suggestion check
+	suggested, conflict := SuggestDonationStatus(existing.Weight, existing.Hemoglobin, existing.Temperature, existing.Pulse, existing.BloodPressure)
+	if conflict(status) {
+		return fmt.Errorf("⚠ Suggestion: Based on screening values, status should be '%s'", suggested)
 	}
 
 	// ================================
 	// 3. Update status in DB
 	// ================================
-	return u.repo.UpdateDonationStatus(donationID, status)
+	existing.Status = status
+	existing.RejectionReason = rejectionReason
+	return u.repo.UpdateDonation(existing)
 }
 
 // NEW: Get donation by ID
@@ -223,38 +329,64 @@ func (u *DonationUsecase) GetAllDonationsByDonor(donorID string) ([]Domain.Donat
 	return u.repo.GetAllDonationsByDonor(donorID)
 }
 
-// NEW: Update donation medical information
+// UpdateDonation updates donation medical information
 func (u *DonationUsecase) UpdateDonation(record *Domain.DonationRecord) error {
 
-    // Get existing donation
-    existing, err := u.repo.GetDonationByID(record.DonationID)
-    if err != nil {
-        return errors.New("donation not found")
-    }
+	// Validate and check status via suggestion flow
+	record.Status = strings.ToUpper(strings.TrimSpace(record.Status))
+	if record.Status != "APPROVED" && record.Status != "REJECTED_TEMPORARY" {
+		return errors.New("status must be APPROVED or REJECTED_TEMPORARY")
+	}
+
+	if record.Status == "REJECTED_TEMPORARY" && strings.TrimSpace(record.RejectionReason) == "" {
+		return errors.New("rejection_reason is required when status is REJECTED_TEMPORARY")
+	}
+
+	if record.Status == "APPROVED" {
+		record.RejectionReason = ""
+	}
+
+	// Validate quantity
+	if record.Status == "REJECTED_TEMPORARY" {
+		record.QuantityML = 0
+	} else if record.QuantityML != 350 && record.QuantityML != 450 {
+		return errors.New("quantity_ml must be 350 or 450 for approved donations")
+	}
+
+	if record.CollectionDate.After(time.Now().Add(1 * time.Minute)) {
+		return errors.New("collection_date cannot be in the future")
+	}
+
+	// Get existing donation
+	existing, err := u.repo.GetDonationByID(record.DonationID)
+	if err != nil {
+		return errors.New("donation not found")
+	}
+
+	// Identify donor from the existing record (no need for frontend to pass donor_id)
+	record.DonorID = existing.DonorID
+
 	// Only the collector who created this donation can update it
 	if existing.CollectedBy != record.CollectedBy {
 		return errors.New("you are not allowed to update this donation")
 	}
 
-    // Prevent wrong donor update
-    if existing.DonorID != record.DonorID {
-        return errors.New("donor_id does not match this donation")
-    }
+	suggested, conflict := SuggestDonationStatus(record.Weight, record.Hemoglobin, record.Temperature, record.Pulse, record.BloodPressure)
+	if conflict(record.Status) {
+		return fmt.Errorf("⚠ Suggestion: Based on screening values, status should be '%s'", suggested)
+	}
 
-    // 1. Recalculate donation status
-    u.evaluateDonation(record)
+	// Update donation
+	if err := u.repo.UpdateDonation(record); err != nil {
+		return err
+	}
 
-    // 2. Update donation
-    if err := u.repo.UpdateDonation(record); err != nil {
-        return err
-    }
+	// Update donor weight
+	if err := u.repo.UpdateDonorWeight(record.DonorID, record.Weight); err != nil {
+		return err
+	}
 
-    // 3. Update donor weight
-    if err := u.repo.UpdateDonorWeight(record.DonorID, record.Weight); err != nil {
-        return err
-    }
-
-    return nil
+	return nil
 }
 
 
@@ -321,6 +453,10 @@ func (u *BloodInventoryUsecase) GetStats() (map[string]int, error) {
 	return stats, nil
 }
 
+func (u *BloodInventoryUsecase) GetByID(id string) (*Domain.BloodUnit, error) {
+	return u.repo.GetBloodUnitByID(id)
+}
+
 // 🔹 Update Status
 func (u *BloodInventoryUsecase) UpdateStatus(id, status string) error {
 	return u.repo.UpdateBloodUnitStatus(id, status)
@@ -333,6 +469,15 @@ func (u *BloodInventoryUsecase) MarkUnitAsUsed(id string) error {
 
 // 🔹 Delete with Audit (only if expired or used)
 func (u *BloodInventoryUsecase) DeleteUnit(id string) error {
+	unit, err := u.repo.GetBloodUnitByID(id)
+	if err != nil {
+		return err
+	}
+
+	if unit.Status != "USED" && unit.Status != "EXPIRED" {
+		return errors.New("only USED or EXPIRED blood units can be deleted")
+	}
+
 	return u.repo.DeleteWithAudit(id)
 }
 
@@ -380,4 +525,71 @@ func (u *BloodInventoryUsecase) ExpireReservations() ([]string, error) {
 	// Cutoff is 24 hours ago
 	cutoff := time.Now().Add(-24 * time.Hour)
 	return u.repo.ExpireStaleReservations(cutoff)
+}
+
+func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQuantity int, cryoPoorQuantity *int) error {
+	plasma, err := u.repo.GetBloodUnitByID(plasmaUnitID)
+	if err != nil {
+		return err
+	}
+
+	if plasma.ComponentType != "PLASMA" {
+		return errors.New("only PLASMA units can be converted to Cryoprecipitate")
+	}
+	if plasma.Status != "AVAILABLE" {
+		return errors.New("only AVAILABLE units can be converted")
+	}
+	if cryoQuantity <= 0 || cryoQuantity >= plasma.QuantityML {
+		return errors.New("cryoprecipitate quantity must be greater than 0 and less than total plasma quantity")
+	}
+
+	// Calculate default poor plasma quantity
+	finalCryoPoorQuantity := plasma.QuantityML - cryoQuantity
+
+	// If user provided a specific quantity, use it (handle loss)
+	if cryoPoorQuantity != nil {
+		if *cryoPoorQuantity > finalCryoPoorQuantity {
+			return errors.New("cryo-poor plasma quantity cannot exceed the remaining plasma quantity")
+		}
+		if *cryoPoorQuantity < 0 {
+			return errors.New("cryo-poor plasma quantity cannot be negative")
+		}
+		finalCryoPoorQuantity = *cryoPoorQuantity
+	}
+
+	now := time.Now()
+	
+	// Create new Cryoprecipitate unit
+	cryoUnit := &Domain.BloodUnit{
+		BloodUnitID:     uuid.New().String(),
+		DonationID:      plasma.DonationID,
+		BloodType:       plasma.BloodType,
+		ComponentType:   "CRYOPRECIPITATE",
+		QuantityML:        cryoQuantity,
+		CollectionDate:  plasma.CollectionDate,
+		ExpirationDate:  plasma.ExpirationDate, // Or calculate dynamically if different
+		Status:          "AVAILABLE",
+		StorageLocation: plasma.StorageLocation,
+		RackNumber:      plasma.RackNumber,
+		ShelfNumber:     plasma.ShelfNumber,
+		CreatedAt:       now,
+	}
+
+	// Create new Cryo-poor Plasma unit
+	cryoPoorUnit := &Domain.BloodUnit{
+		BloodUnitID:     uuid.New().String(),
+		DonationID:      plasma.DonationID,
+		BloodType:       plasma.BloodType,
+		ComponentType:   "CRYO_POOR_PLASMA",
+		QuantityML:        finalCryoPoorQuantity,
+		CollectionDate:  plasma.CollectionDate,
+		ExpirationDate:  plasma.ExpirationDate, // Or calculate dynamically if different
+		Status:          "AVAILABLE",
+		StorageLocation: plasma.StorageLocation,
+		RackNumber:      plasma.RackNumber,
+		ShelfNumber:     plasma.ShelfNumber,
+		CreatedAt:       now,
+	}
+
+	return u.repo.ConvertPlasmaToCryo(plasmaUnitID, cryoUnit, cryoPoorUnit)
 }

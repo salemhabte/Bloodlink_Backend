@@ -44,18 +44,29 @@ func (r *CampaignRepository) CreateCampaign(campaign *Domain.Campaign) error {
 	return err
 }
 
-// GetAllCampaigns returns all active campaigns
-func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter) ([]Domain.Campaign, error) {
+func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter, liveOnly bool) ([]Domain.Campaign, error) {
 	query := `
-	SELECT campaign_id, title, content, location, start_date, end_date, created_at
+	SELECT campaign_id, title, content, location, start_date, end_date, created_at, is_deleted
 	FROM campaigns
-	WHERE 1=1
+	WHERE is_deleted = false
 	`
 	args := []interface{}{}
 	placeholderID := 1
 
+	if liveOnly || filter.LiveOnly {
+		query += fmt.Sprintf(" AND end_date >= $%d", placeholderID)
+		args = append(args, time.Now())
+		placeholderID++
+	}
+
+	if filter.Title != "" {
+		query += fmt.Sprintf(" AND title ILIKE $%d", placeholderID)
+		args = append(args, "%"+filter.Title+"%")
+		placeholderID++
+	}
+
 	if filter.Location != "" {
-		query += fmt.Sprintf(" AND location LIKE $%d", placeholderID)
+		query += fmt.Sprintf(" AND location ILIKE $%d", placeholderID)
 		args = append(args, "%"+filter.Location+"%")
 		placeholderID++
 	}
@@ -72,7 +83,13 @@ func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter) ([]Do
 		placeholderID++
 	}
 
-	query += " ORDER BY created_at DESC"
+	// SORT: Ongoing first, then Upcoming, then Past. Within groups, sort by end_date ASC.
+	query += ` ORDER BY (
+		CASE 
+			WHEN end_date >= NOW() AND start_date <= NOW() THEN 0 
+			WHEN end_date >= NOW() AND start_date > NOW() THEN 1 
+			ELSE 2 
+		END), end_date ASC`
 
 	rows, err := r.DB.Query(query, args...)
 	if err != nil {
@@ -93,6 +110,7 @@ func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter) ([]Do
 			&c.StartDate,
 			&c.EndDate,
 			&c.CreatedAt,
+			&c.IsDeleted,
 		)
 
 		if err != nil {
@@ -105,13 +123,13 @@ func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter) ([]Do
 	return campaigns, nil
 }
 
-// GetCampaignByID returns a campaign by ID
+// GetCampaignByID returns a campaign by ID (General)
 func (r *CampaignRepository) GetCampaignByID(id string) (*Domain.Campaign, error) {
 
 	query := `
-	SELECT campaign_id, title, content, location, start_date, end_date, created_at
+	SELECT campaign_id, title, content, location, start_date, end_date, created_at, is_deleted
 	FROM campaigns
-	WHERE campaign_id = $1 AND end_date >= NOW()
+	WHERE campaign_id = $1 AND is_deleted = false
 	LIMIT 1
 	`
 
@@ -127,9 +145,45 @@ func (r *CampaignRepository) GetCampaignByID(id string) (*Domain.Campaign, error
 		&c.StartDate,
 		&c.EndDate,
 		&c.CreatedAt,
+		&c.IsDeleted,
 	)
 
 	if err != nil {
+		return nil, err
+	}
+
+	return &c, nil
+}
+
+// GetLiveCampaignByID returns a campaign by ID ONLY if it is not expired
+func (r *CampaignRepository) GetLiveCampaignByID(id string) (*Domain.Campaign, error) {
+
+	query := `
+	SELECT campaign_id, title, content, location, start_date, end_date, created_at, is_deleted
+	FROM campaigns
+	WHERE campaign_id = $1 AND start_date <= NOW() AND end_date >= NOW() AND is_deleted = false
+	LIMIT 1
+	`
+
+	row := r.DB.QueryRow(query, id)
+
+	var c Domain.Campaign
+
+	err := row.Scan(
+		&c.CampaignID,
+		&c.Title,
+		&c.Content,
+		&c.Location,
+		&c.StartDate,
+		&c.EndDate,
+		&c.CreatedAt,
+		&c.IsDeleted,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("campaign is not currently active (it may have ended or not yet started)")
+		}
 		return nil, err
 	}
 
@@ -186,70 +240,10 @@ func (r *CampaignRepository) UpdateCampaign(campaign *Domain.Campaign) error {
 // DeleteCampaign removes a campaign
 func (r *CampaignRepository) DeleteCampaign(id string) error {
 
-	query := "DELETE FROM campaigns WHERE campaign_id=$1"
+	query := "UPDATE campaigns SET is_deleted = true WHERE campaign_id=$1"
 
 	_, err := r.DB.Exec(query, id)
 
 	return err
 }
-
-// GetCampaignsByLocation finds campaigns by location
-func (r *CampaignRepository) GetCampaignsByLocation(filter Domain.CampaignFilter) ([]Domain.Campaign, error) {
-	query := `
-	SELECT campaign_id, title, content, location, start_date, end_date, created_at
-	FROM campaigns
-	WHERE 1=1
-	`
-	args := []interface{}{}
-	placeholderID := 1
-
-	if filter.Location != "" {
-		query += fmt.Sprintf(" AND location LIKE $%d", placeholderID)
-		args = append(args, "%"+filter.Location+"%")
-		placeholderID++
-	}
-
-	if filter.StartDate != "" {
-		query += fmt.Sprintf(" AND start_date >= $%d", placeholderID)
-		args = append(args, filter.StartDate)
-		placeholderID++
-	}
-
-	if filter.EndDate != "" {
-		query += fmt.Sprintf(" AND end_date <= $%d", placeholderID)
-		args = append(args, filter.EndDate)
-		placeholderID++
-	}
-
-	query += " ORDER BY start_date ASC"
-
-	rows, err := r.DB.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var campaigns []Domain.Campaign
-
-	for rows.Next() {
-		var c Domain.Campaign
-
-		err := rows.Scan(
-			&c.CampaignID,
-			&c.Title,
-			&c.Content,
-			&c.Location,
-			&c.StartDate,
-			&c.EndDate,
-			&c.CreatedAt,
-		)
-
-		if err != nil {
-			return nil, err
-		}
-
-		campaigns = append(campaigns, c)
-	}
-
-	return campaigns, nil
-}
+

@@ -23,30 +23,39 @@ func NewDonorBloodRequestUsecase(r Interfaces.IDonorBloodRequestRepository) *Don
 
 func (u *DonorBloodRequestUsecase) CreateRequest(
 	userID string,
-	quantity int,
+	units int,
+	componentType string,
 	reason string,
 	hospitalName string,
 	hospitalAddress string,
 	hospitalPhone string,
-) error {
+) (*Domain.DonorBloodRequest, error) {
 
 	donorID, err := u.repo.GetDonorIDByUserID(userID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Gate: donor must have at least one successful donation (blood cleared into inventory)
-	hasSuccessful, err := u.repo.HasSuccessfulDonation(donorID)
+	// Gate: Top 10 Leaderboard
+	inTop10, err := u.repo.IsDonorInTop10(donorID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if !hasSuccessful {
-		return errors.New("at least perform one successful donation to request blood")
+	if !inTop10 {
+		return nil, errors.New("Only top 10 leaderboard donors are eligible to request blood")
+	}
+
+	// Gate: 3-month cooldown
+	lastReqDate, err := u.repo.GetLastRequestDateByDonor(donorID)
+	if err == nil && !lastReqDate.IsZero() {
+		if time.Since(lastReqDate).Hours() < 2160 {
+			return nil, errors.New("You can only request blood once every 3 months")
+		}
 	}
 
 	donor, err := u.repo.GetDonorProfile(donorID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req := &Domain.DonorBloodRequest{
@@ -59,8 +68,9 @@ func (u *DonorBloodRequestUsecase) CreateRequest(
 		DonorAddress: donor.Address,
 		BloodType:    donor.BloodType,
 
-		QuantityML: quantity,
-		Reason:     reason,
+		Units:         units,
+		ComponentType: componentType,
+		Reason:        reason,
 
 		HospitalName:    hospitalName,
 		HospitalAddress: hospitalAddress,
@@ -70,17 +80,20 @@ func (u *DonorBloodRequestUsecase) CreateRequest(
 		CreatedAt: time.Now(),
 	}
 
-	return u.repo.Create(req)
+	if err := u.repo.Create(req); err != nil {
+		return nil, err
+	}
+	return req, nil
 }
 
 ////////////////////////
 // APPROVE REQUEST
 //
 // Returns (message, error).
-// Three scenarios based on how many ML are available in inventory:
-//   - reservedML == 0                  → auto-REJECTED,           message: "no enough blood in the inventory"
-//   - 0 < reservedML < req.QuantityML  → PARTIALLY APPROVED,      message: "partially approved"
-//   - reservedML >= req.QuantityML     → APPROVED,                 message: "fully approved"
+// Three scenarios based on how many Units are available in inventory:
+//   - reservedUnits == 0                → auto-REJECTED,           message: "no enough blood in the inventory"
+//   - 0 < reservedUnits < req.Units     → PARTIALLY APPROVED,      message: "partially approved"
+//   - reservedUnits >= req.Units        → APPROVED,                 message: "fully approved"
 //
 // Reservation is scoped by the unique requestID, so each donor's reserved
 // blood units are completely isolated from other donors' reservations.
@@ -101,10 +114,10 @@ func (u *DonorBloodRequestUsecase) ApproveRequest(requestID string) (*Domain.Don
 		return nil, "", errors.New("request already rejected")
 	}
 
-	// ReserveBloodUnits returns how many ML were actually reserved.
+	// ReserveBloodUnits returns how many Units were actually reserved.
 	// It only touches AVAILABLE (non-expired) units and stamps each unit
 	// with donor_request_id = requestID — so Donor1 and Donor2 never share units.
-	reservedML, err := u.repo.ReserveBloodUnits(requestID, req.BloodType, req.QuantityML)
+	reservedUnits, err := u.repo.ReserveBloodUnits(requestID, req.BloodType, req.ComponentType, req.Units)
 	if err != nil {
 		return nil, "", err
 	}
@@ -112,10 +125,10 @@ func (u *DonorBloodRequestUsecase) ApproveRequest(requestID string) (*Domain.Don
 	var newStatus, message string
 
 	// Scenario 1: no blood available at all
-	if reservedML == 0 {
+	if reservedUnits == 0 {
 		newStatus = "REJECTED"
 		message = "no enough blood in the inventory"
-	} else if reservedML < req.QuantityML {
+	} else if reservedUnits < req.Units {
 		// Scenario 2: partial blood available
 		newStatus = "PARTIALLY APPROVED"
 		message = "partially approved"
@@ -125,7 +138,7 @@ func (u *DonorBloodRequestUsecase) ApproveRequest(requestID string) (*Domain.Don
 		message = "fully approved"
 	}
 
-	if err := u.repo.UpdateStatus(requestID, newStatus); err != nil {
+	if err := u.repo.UpdateStatusWithUnits(requestID, newStatus, reservedUnits); err != nil {
 		return nil, "", err
 	}
 
@@ -134,6 +147,8 @@ func (u *DonorBloodRequestUsecase) ApproveRequest(requestID string) (*Domain.Don
 	if err != nil {
 		return nil, "", err
 	}
+	// Always tell the caller how many units were actually reserved
+	updated.ReservedUnits = reservedUnits
 	return updated, message, nil
 }
 

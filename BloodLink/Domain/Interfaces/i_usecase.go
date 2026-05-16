@@ -13,7 +13,7 @@ type IUserUseCase interface {
 	GetProfile(ctx context.Context, userID string) (*domain.ProfileResponse, error)
 	UpdateProfile(ctx context.Context, profile *domain.UserProfile) error
 	DeleteUser(ctx context.Context, userID string) error
-	FilterDonors(ctx context.Context, filter domain.DonorFilter) ([]domain.DonorResponse, error)
+	FilterDonors(ctx context.Context, filter domain.DonorFilter) (*domain.AllDonorsResponse, error)
 	ForgotPassword(ctx context.Context, email string) error
 	ResetPassword(ctx context.Context, email, otp, newPassword string) error
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
@@ -22,7 +22,8 @@ type IUserUseCase interface {
 	GetUsersByRole(ctx context.Context, filter domain.UserFilter) ([]domain.UserResponse, error)
 	GetAllProfiles(ctx context.Context, filter domain.ProfileFilter) ([]domain.UserProfile, error)
 	GetDonorIDByUserID(ctx context.Context, userID string) (string, error)
-	GetEligibleDonors(ctx context.Context, query string) ([]domain.DonorResponse, error)
+	GetEligibleDonors(ctx context.Context, query string) (*domain.EligibleDonorsResponse, error)
+	GetEligibleDonorByID(ctx context.Context, id string) (*domain.DonorResponse, error)
 	NotifyEligibleDonors(ctx context.Context) error
 	UpdateLocation(ctx context.Context, userID string, lat, lon float64) error
 }

@@ -191,6 +191,26 @@ func (r *UserRepository) UpdateDonorStatus(ctx context.Context, donorID, status 
 	return nil
 }
 
+func (r *UserRepository) GetDonorStats(ctx context.Context) (*domain.AllDonorsResponse, error) {
+	stats := &domain.AllDonorsResponse{}
+
+	// Overall Status Breakdown
+	queryStatus := `
+        SELECT 
+            COUNT(*),
+            COUNT(*) FILTER (WHERE overall_status = 'CLEARED') as cleared,
+            COUNT(*) FILTER (WHERE overall_status = 'TEMPORARILY_DEFERRED') as temp,
+            COUNT(*) FILTER (WHERE overall_status = 'PERMANENTLY_DEFERRED') as perm
+        FROM donors
+    `
+	err := r.DB.QueryRowContext(ctx, queryStatus).Scan(&stats.TotalDonors, &stats.Cleared, &stats.TemporarilyDeferred, &stats.PermanentlyDeferred)
+	if err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
 func (r *UserRepository) GetAllDonors(ctx context.Context) ([]domain.DonorResponse, error) {
 	query := `
 		SELECT 
@@ -202,12 +222,14 @@ func (r *UserRepository) GetAllDonors(ctx context.Context) ([]domain.DonorRespon
 			COALESCE(p.address, ''), 
 			COALESCE(d.blood_type, ''), 
 			COALESCE(dr.last_status, 'Pending'),
-			d.overall_status
+			d.overall_status,
+			u.created_at,
+			dr.last_donation
 		FROM donors d
 		JOIN users u ON d.user_id = u.user_id
 		LEFT JOIN user_profiles p ON u.user_id = p.user_id
 		LEFT JOIN (
-			SELECT DISTINCT ON (donor_id) donor_id, status as last_status
+			SELECT DISTINCT ON (donor_id) donor_id, status as last_status, collection_date as last_donation
 			FROM donation_records
 			ORDER BY donor_id, collection_date DESC, created_at DESC
 		) dr ON d.donor_id = dr.donor_id
@@ -232,6 +254,8 @@ func (r *UserRepository) GetAllDonors(ctx context.Context) ([]domain.DonorRespon
 			&donor.BloodType,
 			&donor.Status,
 			&donor.OverallStatus,
+			&donor.RegistrationDate,
+			&donor.LastDonationDate,
 		); err != nil {
 			return nil, err
 		}
@@ -253,13 +277,15 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 			COALESCE(d.blood_type, ''), 
 			COALESCE(dr.last_status, 'Pending'),
 			d.overall_status,
-			u.created_at
+			u.created_at,
+			dr.last_donation
 		FROM donors d
 		JOIN users u ON d.user_id = u.user_id
 		LEFT JOIN user_profiles p ON u.user_id = p.user_id
 		LEFT JOIN (
 			SELECT DISTINCT ON (donor_id) donor_id, status as last_status, collection_date as last_donation
 			FROM donation_records
+			WHERE status = 'APPROVED'
 			ORDER BY donor_id, collection_date DESC, created_at DESC
 		) dr ON d.donor_id = dr.donor_id
 		WHERE 1=1
@@ -314,7 +340,7 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 	}
 	if filter.IsEligible != nil {
 		if *filter.IsEligible {
-			query += " AND (dr.last_donation IS NULL OR (dr.last_donation <= NOW() - INTERVAL '90 days' AND d.overall_status != 'Pending')) AND d.overall_status != 'PERMANENTLY_DEFERRED'"
+			query += " AND (dr.last_donation IS NULL OR dr.last_donation <= NOW() - INTERVAL '90 days') AND d.overall_status != 'PERMANENTLY_DEFERRED'"
 		} else {
 			query += " AND ((dr.last_donation IS NOT NULL AND (dr.last_donation > NOW() - INTERVAL '90 days' OR d.overall_status = 'Pending')) OR d.overall_status = 'PERMANENTLY_DEFERRED')"
 		}
@@ -351,6 +377,7 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 			&donor.Status,
 			&donor.OverallStatus,
 			&donor.RegistrationDate,
+			&donor.LastDonationDate,
 		); err != nil {
 			return nil, err
 		}
@@ -489,17 +516,20 @@ func (r *UserRepository) GetEligibleDonors(ctx context.Context, searchQuery stri
 			u.phone, 
 			COALESCE(p.address, ''), 
 			COALESCE(d.blood_type, ''), 
-			COALESCE(dr.last_status, 'Pending'),
-			d.overall_status 
+			'Pending' as last_status,
+			d.overall_status,
+			u.created_at,
+			dr.last_donation
 		FROM donors d
 		JOIN users u ON d.user_id = u.user_id
 		LEFT JOIN user_profiles p ON u.user_id = p.user_id
 		LEFT JOIN (
-			SELECT DISTINCT ON (donor_id) donor_id, status as last_status, collection_date as last_donation
+			SELECT DISTINCT ON (donor_id) donor_id, collection_date as last_donation
 			FROM donation_records
+			WHERE status = 'APPROVED'
 			ORDER BY donor_id, collection_date DESC, created_at DESC
 		) dr ON d.donor_id = dr.donor_id
-		WHERE (dr.last_donation IS NULL OR (dr.last_donation <= NOW() - INTERVAL '90 days' AND d.overall_status != 'Pending'))
+		WHERE (dr.last_donation IS NULL OR dr.last_donation <= NOW() - INTERVAL '90 days')
 		AND d.overall_status != 'PERMANENTLY_DEFERRED'
 	`
 	args := []interface{}{}
@@ -529,6 +559,8 @@ func (r *UserRepository) GetEligibleDonors(ctx context.Context, searchQuery stri
 			&donor.BloodType,
 			&donor.Status,
 			&donor.OverallStatus,
+			&donor.RegistrationDate,
+			&donor.LastDonationDate,
 		); err != nil {
 			return nil, err
 		}
@@ -536,6 +568,56 @@ func (r *UserRepository) GetEligibleDonors(ctx context.Context, searchQuery stri
 	}
 
 	return donors, nil
+}
+
+func (r *UserRepository) GetEligibleDonorByID(ctx context.Context, id string) (*domain.DonorResponse, error) {
+	query := `
+		SELECT 
+			d.donor_id, 
+			d.user_id, 
+			u.full_name, 
+			u.email, 
+			u.phone, 
+			COALESCE(p.address, ''), 
+			COALESCE(d.blood_type, ''), 
+			'Pending' as last_status,
+			d.overall_status,
+			u.created_at,
+			dr.last_donation
+		FROM donors d
+		JOIN users u ON d.user_id = u.user_id
+		LEFT JOIN user_profiles p ON u.user_id = p.user_id
+		LEFT JOIN (
+			SELECT DISTINCT ON (donor_id) donor_id, collection_date as last_donation
+			FROM donation_records
+			WHERE status = 'APPROVED'
+			ORDER BY donor_id, collection_date DESC, created_at DESC
+		) dr ON d.donor_id = dr.donor_id
+		WHERE d.donor_id = $1
+		AND (dr.last_donation IS NULL OR dr.last_donation <= NOW() - INTERVAL '90 days')
+		AND d.overall_status != 'PERMANENTLY_DEFERRED'
+	`
+	var donor domain.DonorResponse
+	err := r.DB.QueryRowContext(ctx, query, id).Scan(
+		&donor.DonorID,
+		&donor.UserID,
+		&donor.FullName,
+		&donor.Email,
+		&donor.Phone,
+		&donor.Address,
+		&donor.BloodType,
+		&donor.Status,
+		&donor.OverallStatus,
+		&donor.RegistrationDate,
+		&donor.LastDonationDate,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("donor not found or not currently eligible")
+		}
+		return nil, err
+	}
+	return &donor, nil
 }
 
 func (r *UserRepository) GetDonorsBecomingEligibleToday(ctx context.Context) ([]domain.DonorResponse, error) {

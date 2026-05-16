@@ -12,14 +12,37 @@ type DonorTestResult struct {
 	TesterName      string `json:"tester_name"`
 	CampaignAddress string `json:"campaign_address"`
 
-	HIVResult       string `json:"hiv_result"`
-	HepatitisResult string `json:"hepatitis_result"`
-	SyphilisResult  string `json:"syphilis_result"`
+	HIVResult        string `json:"hiv_result"`
+	HepatitisBResult string `json:"hepatitis_b_result"`
+	HepatitisCResult string `json:"hepatitis_c_result"`
+	SyphilisResult   string `json:"syphilis_result"`
 
 	BloodType     string `json:"blood_type"`
-	ComponentType string `json:"component_type"`
-
 	OverallStatus string `json:"overall_status"`
 
 	CreatedAt time.Time `json:"created_at"`
+
+	// --- Transient input fields (used in request body, NOT persisted in donor_test_results) ---
+	StorageLocation string               `json:"storage_location,omitempty"`
+	RackNumber      string               `json:"rack_number,omitempty"`
+	ShelfNumber     string               `json:"shelf_number,omitempty"`
+	Components      []BloodComponentInput `json:"components,omitempty"`
+}
+
+type TestResultListResponse struct {
+	Total               int                `json:"total"`
+	Cleared             int                `json:"cleared"`
+	TemporarilyDeferred int                `json:"temporarily_deferred"`
+	PermanentlyDeferred int                `json:"permanently_deferred"`
+	Tests               []DonorTestResult  `json:"tests"`
+}
+
+type TestFilter struct {
+	LabTechID       string
+	OverallStatus   string
+	BloodType       string
+	ComponentType   string
+	StorageLocation string
+	StartDate       string
+	EndDate         string
 }

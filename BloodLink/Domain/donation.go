@@ -23,7 +23,10 @@ type DonationRecord struct {
     Pulse          int       `json:"pulse"`
     QuantityML     int       `json:"quantity_ml"`
     Status         string    `json:"status"`
+    RejectionReason string   `json:"rejection_reason"`
     OverallStatus  string    `json:"overall_status"`
+    PreviousBloodType     string `json:"previous_blood_type,omitempty"`
+    PreviousOverallStatus  string `json:"previous_overall_status,omitempty"`
     CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -34,4 +37,11 @@ type DonationFilter struct {
 
 	StartDate   string
 	EndDate     string
+}
+
+type DonationListResponse struct {
+	Total               int              `json:"total"`
+	Approved            int              `json:"approved"`
+	TemporarilyRejected int              `json:"temporarily_rejected"`
+	Donations           []DonationRecord `json:"donations"`
 }

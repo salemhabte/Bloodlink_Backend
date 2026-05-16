@@ -6,7 +6,7 @@ import (
 	"bloodlink/Infrastructure"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
-	"bloodlink/Jobs"
+	"bloodlink/jobs"
 
 	"bloodlink/config"
 	"log"
@@ -62,7 +62,7 @@ func main() {
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)
 	
 	// Start background jobs after all dependencies are initialized
-	go Jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo, notifUsecase, donorBloodReqUsecase, userUseCase)
+	go jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo, notifUsecase, donorBloodReqUsecase, userUseCase)
 
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)

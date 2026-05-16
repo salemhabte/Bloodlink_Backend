@@ -5,6 +5,7 @@ import (
 	Interfaces "bloodlink/Domain/Interfaces"
 	"database/sql"
 	"fmt"
+	"time"
 )
 
 // struct
@@ -25,11 +26,11 @@ func (r *donorBloodRequestRepository) Create(req *domain.DonorBloodRequest) erro
 	INSERT INTO donor_blood_requests (
 		request_id, donor_id,
 		donor_name, donor_email, donor_phone, donor_address,
-		blood_type, quantity_ml, reason,
+		blood_type, component_type, units, reason,
 		hospital_name, hospital_address, hospital_phone,
 		status, created_at
 	)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 	`
 
 	_, err := r.db.Exec(query,
@@ -42,7 +43,8 @@ func (r *donorBloodRequestRepository) Create(req *domain.DonorBloodRequest) erro
 		req.DonorAddress,
 
 		req.BloodType,
-		req.QuantityML,
+		req.ComponentType,
+		req.Units,
 		req.Reason,
 
 		req.HospitalName,
@@ -61,9 +63,9 @@ func (r *donorBloodRequestRepository) GetAll() ([]domain.DonorBloodRequest, erro
 	SELECT
 		request_id, donor_id,
 		donor_name, donor_email, donor_phone, donor_address,
-		blood_type, quantity_ml, reason,
+		blood_type, COALESCE(component_type, ''), units, reason,
 		hospital_name, hospital_address, hospital_phone,
-		status, created_at
+		status, created_at, COALESCE(reserved_units, 0)
 	FROM donor_blood_requests
 	ORDER BY created_at DESC
 	`
@@ -89,7 +91,8 @@ func (r *donorBloodRequestRepository) GetAll() ([]domain.DonorBloodRequest, erro
 			&rqs.DonorAddress,
 
 			&rqs.BloodType,
-			&rqs.QuantityML,
+			&rqs.ComponentType,
+			&rqs.Units,
 			&rqs.Reason,
 
 			&rqs.HospitalName,
@@ -99,6 +102,7 @@ func (r *donorBloodRequestRepository) GetAll() ([]domain.DonorBloodRequest, erro
 		
 			&rqs.Status,
 			&rqs.CreatedAt,
+			&rqs.ReservedUnits,
 		)
 
 		if err != nil {
@@ -117,9 +121,9 @@ func (r *donorBloodRequestRepository) GetByID(id string) (*domain.DonorBloodRequ
 	SELECT
 		request_id, donor_id,
 		donor_name, donor_email, donor_phone, donor_address,
-		blood_type, quantity_ml, reason,
+		blood_type, COALESCE(component_type, ''), units, reason,
 		hospital_name, hospital_address, hospital_phone,
-		status, created_at
+		status, created_at, COALESCE(reserved_units, 0)
 	FROM donor_blood_requests
 	WHERE request_id=$1
 	`
@@ -136,7 +140,8 @@ func (r *donorBloodRequestRepository) GetByID(id string) (*domain.DonorBloodRequ
 		&rqs.DonorAddress,
 
 		&rqs.BloodType,
-		&rqs.QuantityML,
+		&rqs.ComponentType,
+		&rqs.Units,
 		&rqs.Reason,
 
 		&rqs.HospitalName,
@@ -145,6 +150,7 @@ func (r *donorBloodRequestRepository) GetByID(id string) (*domain.DonorBloodRequ
 
 		&rqs.Status,
 		&rqs.CreatedAt,
+		&rqs.ReservedUnits,
 	)
 
 	if err != nil {
@@ -160,9 +166,9 @@ func (r *donorBloodRequestRepository) GetByDonorID(donorID string, filter domain
 	SELECT
 		request_id, donor_id,
 		donor_name, donor_email, donor_phone, donor_address,
-		blood_type, quantity_ml, reason,
+		blood_type, COALESCE(component_type, ''), units, reason,
 		hospital_name, hospital_address, hospital_phone,
-		status, created_at
+		status, created_at, COALESCE(reserved_units, 0)
 	FROM donor_blood_requests
 	WHERE donor_id=$1
 	`
@@ -209,7 +215,8 @@ func (r *donorBloodRequestRepository) GetByDonorID(donorID string, filter domain
 			&rqs.DonorAddress,
 
 			&rqs.BloodType,
-			&rqs.QuantityML,
+			&rqs.ComponentType,
+			&rqs.Units,
 			&rqs.Reason,
 
 			&rqs.HospitalName,
@@ -218,6 +225,7 @@ func (r *donorBloodRequestRepository) GetByDonorID(donorID string, filter domain
 
 			&rqs.Status,
 			&rqs.CreatedAt,
+			&rqs.ReservedUnits,
 		)
 
 		if err != nil {
@@ -231,13 +239,20 @@ func (r *donorBloodRequestRepository) GetByDonorID(donorID string, filter domain
 	return result, nil
 }
 func (r *donorBloodRequestRepository) UpdateStatus(id, status string) error {
-
 	_, err := r.db.Exec(`
 	UPDATE donor_blood_requests
 	SET status=$1
 	WHERE request_id=$2
 	`, status, id)
+	return err
+}
 
+func (r *donorBloodRequestRepository) UpdateStatusWithUnits(id, status string, reservedUnits int) error {
+	_, err := r.db.Exec(`
+	UPDATE donor_blood_requests
+	SET status=$1, reserved_units=$2
+	WHERE request_id=$3
+	`, status, reservedUnits, id)
 	return err
 }
 func (r *donorBloodRequestRepository) GetAvailableBloodUnits(bloodType string) ([]string, error) {
@@ -272,45 +287,38 @@ func (r *donorBloodRequestRepository) GetAvailableBloodUnits(bloodType string) (
 func (r *donorBloodRequestRepository) ReserveBloodUnits(
 	requestID string,
 	bloodType string,
-	requiredML int,
+	componentType string,
+	requiredUnits int,
 ) (int, error) {
 
 	query := `
-	SELECT blood_unit_id, volume_ml
+	SELECT blood_unit_id
 	FROM blood_units
-	WHERE blood_type=$1
+	WHERE blood_type=$1 AND component_type=$2
 	AND status='AVAILABLE'
 	AND expiration_date > NOW()
 	ORDER BY expiration_date ASC
+	LIMIT $3
 	`
 
-	rows, err := r.db.Query(query, bloodType)
+	rows, err := r.db.Query(query, bloodType, componentType, requiredUnits)
 	if err != nil {
 		return 0, err
 	}
 	defer rows.Close()
 
 	var selected []string
-	total := 0
 
 	for rows.Next() {
 		var id string
-		var ml int
-
-		if err := rows.Scan(&id, &ml); err != nil {
+		if err := rows.Scan(&id); err != nil {
 			return 0, err
 		}
-
 		selected = append(selected, id)
-		total += ml
-
-		if total >= requiredML {
-			break
-		}
 	}
 
-	// If nothing is found
-	if total == 0 {
+	// If we don't have ANY units
+	if len(selected) == 0 {
 		return 0, nil
 	}
 
@@ -329,7 +337,7 @@ func (r *donorBloodRequestRepository) ReserveBloodUnits(
 		}
 	}
 
-	return total, nil
+	return len(selected), nil
 }
 func (r *donorBloodRequestRepository) MarkReservedAsUsed(requestID string) error {
 
@@ -397,9 +405,9 @@ func (r *donorBloodRequestRepository) GetAllAdmin(filter domain.DonorBloodReques
 	SELECT
 		dbr.request_id, dbr.donor_id,
 		dbr.donor_name, dbr.donor_email, dbr.donor_phone, dbr.donor_address,
-		dbr.blood_type, dbr.quantity_ml, dbr.reason,
+		dbr.blood_type, COALESCE(dbr.component_type, ''), dbr.units, dbr.reason,
 		dbr.hospital_name, dbr.hospital_address, dbr.hospital_phone,
-		dbr.status, dbr.created_at,
+		dbr.status, dbr.created_at, COALESCE(dbr.reserved_units, 0),
 		(
 			SELECT COUNT(*)
 			FROM blood_units bu
@@ -453,13 +461,15 @@ func (r *donorBloodRequestRepository) GetAllAdmin(filter domain.DonorBloodReques
 			&rqs.DonorPhone,
 			&rqs.DonorAddress,
 			&rqs.BloodType,
-			&rqs.QuantityML,
+			&rqs.ComponentType,
+			&rqs.Units,
 			&rqs.Reason,
 			&rqs.HospitalName,
 			&rqs.HospitalAddress,
 			&rqs.HospitalPhone,
 			&rqs.Status,
 			&rqs.CreatedAt,
+			&rqs.ReservedUnits,
 			&rqs.SuccessfulDonations,
 		)
 		if err != nil {
@@ -514,4 +524,46 @@ func (r *donorBloodRequestRepository) ExpireStaleReservations() error {
 	}
 
 	return tx.Commit()
+}
+
+// IsDonorInTop10 checks if the donor ranks in the top 10 by successful donations (CLEARED test results).
+func (r *donorBloodRequestRepository) IsDonorInTop10(donorID string) (bool, error) {
+	query := `
+		SELECT donor_id FROM (
+			SELECT d.donor_id, COUNT(dtr.test_id) AS donation_count
+			FROM donors d
+			LEFT JOIN donor_test_results dtr
+				ON dtr.donor_id = d.donor_id AND dtr.overall_status = 'CLEARED'
+			GROUP BY d.donor_id
+			ORDER BY donation_count DESC
+			LIMIT 10
+		) top10
+		WHERE donor_id = $1
+	`
+	var found string
+	err := r.db.QueryRow(query, donorID).Scan(&found)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// GetLastRequestDateByDonor returns the most recent request date for a donor.
+// Returns zero time and sql.ErrNoRows if no request exists (safe to ignore in usecase).
+func (r *donorBloodRequestRepository) GetLastRequestDateByDonor(donorID string) (time.Time, error) {
+	var t time.Time
+	err := r.db.QueryRow(`
+		SELECT created_at
+		FROM donor_blood_requests
+		WHERE donor_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, donorID).Scan(&t)
+	if err == sql.ErrNoRows {
+		return time.Time{}, nil
+	}
+	return t, err
 }

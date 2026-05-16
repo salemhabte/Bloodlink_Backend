@@ -30,7 +30,8 @@ func (c *DonorBloodRequestController) CreateRequest(ctx *gin.Context) {
 	userID := ctx.GetString("userID")
 
 	var req struct {
-		QuantityML      int    `json:"quantity_ml"`
+		Units           int    `json:"units"`
+		ComponentType   string `json:"component_type"`
 		Reason          string `json:"reason"`
 		HospitalName    string `json:"hospital_name"`
 		HospitalAddress string `json:"hospital_address"`
@@ -42,9 +43,10 @@ func (c *DonorBloodRequestController) CreateRequest(ctx *gin.Context) {
 		return
 	}
 
-	err := c.usecase.CreateRequest(
+	created, err := c.usecase.CreateRequest(
 		userID,
-		req.QuantityML,
+		req.Units,
+		req.ComponentType,
 		req.Reason,
 		req.HospitalName,
 		req.HospitalAddress,
@@ -52,8 +54,7 @@ func (c *DonorBloodRequestController) CreateRequest(ctx *gin.Context) {
 	)
 
 	if err != nil {
-		// Surface the "not enough donations" message as a clear 403
-		if strings.Contains(err.Error(), "at least perform one successful donation") {
+		if strings.Contains(err.Error(), "top 10") || strings.Contains(err.Error(), "3 months") {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -63,6 +64,7 @@ func (c *DonorBloodRequestController) CreateRequest(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusCreated, gin.H{
 		"message": "Blood request created successfully",
+		"data":    created,
 	})
 }
 

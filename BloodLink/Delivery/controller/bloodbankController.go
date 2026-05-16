@@ -59,19 +59,39 @@ func (c *CampaignController) CreateCampaign(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, campaign)
 }
 
+// GET /api/campaigns (Public/Donor) - Live Only
 func (c *CampaignController) GetAllCampaigns(ctx *gin.Context) {
 	filter := Domain.CampaignFilter{
+		Title:     ctx.Query("title"),
 		Location:  ctx.Query("location"),
 		StartDate: ctx.Query("start_date"),
 		EndDate:   ctx.Query("end_date"),
 	}
 
-	campaigns, err := c.Usecase.GetAllCampaigns(filter)
+	response, err := c.Usecase.GetAllCampaigns(filter, true) // LIVE ONLY
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusOK, campaigns)
+	ctx.JSON(http.StatusOK, response)
+}
+
+// GET /api/bloodbankadmin/campaigns - All Campaigns
+func (c *CampaignController) GetAllAdminCampaigns(ctx *gin.Context) {
+	filter := Domain.CampaignFilter{
+		Title:     ctx.Query("title"),
+		Location:  ctx.Query("location"),
+		StartDate: ctx.Query("start_date"),
+		EndDate:   ctx.Query("end_date"),
+		LiveOnly:  ctx.Query("live_only") == "true",
+	}
+
+	response, err := c.Usecase.GetAllCampaigns(filter, false) // ALL
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, response)
 }
 func (c *CampaignController) GetCampaignByID(ctx *gin.Context) {
 	id := ctx.Param("id")
@@ -129,23 +149,6 @@ func (c *CampaignController) DeleteCampaign(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": "Campaign deleted successfully"})
 }
 
-// Search campaigns by location
-func (c *CampaignController) GetCampaignsByLocation(ctx *gin.Context) {
-	filter := Domain.CampaignFilter{
-		Location:  ctx.Query("location"),
-		StartDate: ctx.Query("start_date"),
-		EndDate:   ctx.Query("end_date"),
-	}
-
-	campaigns, err := c.Usecase.GetCampaignsByLocation(filter)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, campaigns)
-}
-
 // DonationController handles HTTP requests for the blood collector
 type DonationController struct {
 	usecase     *Usecase.DonationUsecase
@@ -157,32 +160,6 @@ func NewDonationController(usecase *Usecase.DonationUsecase, userUsecase domainI
 	return &DonationController{usecase: usecase, userUsecase: userUsecase}
 }
 
-// SearchDonor handles GET /bloodcollector/donor?email=
-func (c *DonationController) SearchDonor(ctx *gin.Context) {
-	// Get query from URL
-	query := ctx.Query("q") // q is email or phone
-
-	// Trim spaces to avoid hidden character issues
-	query = strings.TrimSpace(query)
-
-	// Debug: print what we actually received
-	fmt.Printf("SearchDonor query received: '%s'\n", query)
-
-	if query == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Search value is required"})
-		return
-	}
-
-	// Call usecase
-	donor, err := c.usecase.SearchDonor(query)
-	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "Donor not found"})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, donor)
-}
-
 // CreateDonation handles POST /bloodcollector/donation
 func (c *DonationController) CreateDonation(ctx *gin.Context) {
 	var record Domain.DonationRecord
@@ -191,53 +168,32 @@ func (c *DonationController) CreateDonation(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Inject collector_id from JWT (never trust request body)
+	collectorID := ctx.GetString("userID")
+	record.CollectedBy = collectorID
+
 	fmt.Printf("Inserting donation: %+v", record)
 
 	if err := c.usecase.CreateDonation(&record); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Check if it's a suggestion warning
+		if strings.HasPrefix(err.Error(), "⚠ Suggestion:") {
+			ctx.JSON(http.StatusBadRequest, gin.H{"warning": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	ctx.JSON(http.StatusCreated, record)
 }
-func (c *DonationController) GetPendingDonors(ctx *gin.Context) {
-
-	donors, err := c.usecase.GetPendingDonors()
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, donors)
-}
 func (c *DonationController) GetDonorByID(ctx *gin.Context) {
 
 	id := ctx.Param("id")
 
-	donor, err := c.usecase.GetPendingDonorByID(id)
+	donor, err := c.userUsecase.GetEligibleDonorByID(ctx, id)
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "Donor not found"})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, donor)
-}
-func (c *DonationController) SearchPendingDonor(ctx *gin.Context) {
-
-	query := ctx.Query("q") // ?q=email_or_phone
-
-	if query == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "query parameter 'q' is required",
-		})
-		return
-	}
-
-	donor, err := c.usecase.SearchPendingDonor(query)
-	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"error": err.Error(),
-		})
+		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -250,7 +206,8 @@ func (c *DonationController) UpdateDonationStatus(ctx *gin.Context) {
 	donationID := ctx.Param("id")
 
 	var body struct {
-		Status string `json:"status"`
+		Status          string `json:"status"`
+		RejectionReason string `json:"rejection_reason"`
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
@@ -262,7 +219,7 @@ func (c *DonationController) UpdateDonationStatus(ctx *gin.Context) {
 	collectorID := ctx.GetString("userID")
 
 	// SECURE CALL
-	if err := c.usecase.UpdateDonationStatus(donationID, body.Status, collectorID); err != nil {
+	if err := c.usecase.UpdateDonationStatus(donationID, body.Status, body.RejectionReason, collectorID); err != nil {
 		ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
@@ -341,7 +298,20 @@ func (c *DonationController) GetAllDonations(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, data)
+	resp := Domain.DonationListResponse{
+		Total:     len(data),
+		Donations: data,
+	}
+	for _, d := range data {
+		status := strings.ToUpper(d.Status)
+		if status == "APPROVED" {
+			resp.Approved++
+		} else if status == "REJECTED_TEMPORARY" {
+			resp.TemporarilyRejected++
+		}
+	}
+
+	ctx.JSON(http.StatusOK, resp)
 }
 func (c *DonationController) GetMyDonations(ctx *gin.Context) {
 
@@ -359,7 +329,20 @@ func (c *DonationController) GetMyDonations(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, data)
+	resp := Domain.DonationListResponse{
+		Total:     len(data),
+		Donations: data,
+	}
+	for _, d := range data {
+		status := strings.ToUpper(d.Status)
+		if status == "APPROVED" {
+			resp.Approved++
+		} else if status == "REJECTED_TEMPORARY" {
+			resp.TemporarilyRejected++
+		}
+	}
+
+	ctx.JSON(http.StatusOK, resp)
 }
 
 // LabController handles lab technician requests
@@ -412,7 +395,8 @@ func (c *LabController) SubmitTestResult(ctx *gin.Context) {
 
 	// 5. Success
 	ctx.JSON(http.StatusOK, gin.H{
-		"message": "test result processed successfully",
+		"message":     "test result processed successfully",
+		"test_result": input,
 	})
 }
 
@@ -436,9 +420,10 @@ func (c *LabController) GetTestResult(ctx *gin.Context) {
 		"donor_id":    result.DonorID,
 		"tested_by":   result.TestedBy,
 
-		"hiv_result":       result.HIVResult,
-		"hepatitis_result": result.HepatitisResult,
-		"syphilis_result":  result.SyphilisResult,
+		"hiv_result":         result.HIVResult,
+		"hepatitis_b_result": result.HepatitisBResult,
+		"hepatitis_c_result": result.HepatitisCResult,
+		"syphilis_result":    result.SyphilisResult,
 
 		"blood_type":     result.BloodType,
 		"overall_status": result.OverallStatus,
@@ -448,7 +433,7 @@ func (c *LabController) GetTestResult(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response)
 }
 
-func (c *LabController) GetPendingTests(ctx *gin.Context) {
+func (c *LabController) GetPendingDonations(ctx *gin.Context) {
 	data, err := c.usecase.GetPendingDonations()
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
@@ -456,27 +441,7 @@ func (c *LabController) GetPendingTests(ctx *gin.Context) {
 	}
 	ctx.JSON(200, data)
 }
-func (c *LabController) GetHistory(ctx *gin.Context) {
-	data, err := c.usecase.GetAllTestResults()
-	if err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-	ctx.JSON(200, data)
-}
-func (c *LabController) FilterTests(ctx *gin.Context) {
-	overallStatus := ctx.Query("overall_status")
-	bloodType := normalizeBloodType(ctx.Query("blood_type"))
-	componentType := ctx.Query("component_type")
 
-	data, err := c.usecase.FilterTestResults(overallStatus, bloodType, componentType)
-	if err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(200, data)
-}
 
 func (c *LabController) UpdateTest(ctx *gin.Context) {
 	donationID := ctx.Param("donation_id")
@@ -554,7 +519,7 @@ func (c *LabController) GetLatestTestResultByDonor(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, result)
 }
-func (c *LabController) GetDonation(ctx *gin.Context) {
+func (c *LabController) GetPendingDonation(ctx *gin.Context) {
 	donationID := ctx.Param("donation_id")
 
 	if donationID == "" {
@@ -562,9 +527,9 @@ func (c *LabController) GetDonation(ctx *gin.Context) {
 		return
 	}
 
-	data, err := c.usecase.GetDonation(donationID)
+	data, err := c.usecase.GetPendingDonation(donationID)
 	if err != nil {
-		ctx.JSON(404, gin.H{"error": "donation not found"})
+		ctx.JSON(404, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -572,7 +537,7 @@ func (c *LabController) GetDonation(ctx *gin.Context) {
 }
 func (c *LabController) GetMyTests(ctx *gin.Context) {
 
-	// 🔐 get logged-in lab tech
+	// get logged-in lab tech
 	userID, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(401, gin.H{"error": "unauthorized"})
@@ -580,53 +545,68 @@ func (c *LabController) GetMyTests(ctx *gin.Context) {
 	}
 	labTechID := userID.(string)
 
-	// 🔎 filters (ONLY read query params here)
-	overallStatus := strings.ToUpper(strings.TrimSpace(ctx.Query("overall_status")))
-bloodType := normalizeBloodType(ctx.Query("blood_type"))
-componentType := strings.ToUpper(strings.TrimSpace(ctx.Query("component_type")))
+	// filters
+	filter := Domain.TestFilter{
+		LabTechID:       labTechID,
+		OverallStatus:   strings.ToUpper(strings.TrimSpace(ctx.Query("overall_status"))),
+		BloodType:       normalizeBloodType(ctx.Query("blood_type")),
+		ComponentType:   strings.ToUpper(strings.TrimSpace(ctx.Query("component_type"))),
+		StorageLocation: ctx.Query("storage_location"),
+		StartDate:       ctx.Query("start_date"),
+		EndDate:         ctx.Query("end_date"),
+	}
 
 	// call usecase
-	data, err := c.usecase.GetMyTestResultsFiltered(
-		labTechID,
-		overallStatus,
-		bloodType,
-		componentType,
-	)
+	data, err := c.usecase.GetMyTestResultsFiltered(filter)
 
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(200, data)
+	ctx.JSON(200, c.wrapTestResults(data))
 }
 // ✅ FIXED: safe normalization (DO NOT touch encoding)
 func normalizeBloodType(input string) string {
 	return strings.ToUpper(strings.TrimSpace(input))
 }
-func (c *LabController) GetAllTests(ctx *gin.Context) {
+func (c *LabController) GetAllTestHistory(ctx *gin.Context) {
 
-	overallStatus := strings.ToUpper(strings.TrimSpace(ctx.Query("overall_status")))
-	// FIX: do NOT modify HTTP input unnecessarily
-bloodType := strings.ToUpper(strings.TrimSpace(ctx.Query("blood_type")))
-	componentType := strings.ToUpper(strings.TrimSpace(ctx.Query("component_type")))
-	// DEBUG: verify request input
-fmt.Println("overallStatus:", overallStatus)
-fmt.Println("bloodType:", bloodType)
-fmt.Println("componentType:", componentType)
+	filter := Domain.TestFilter{
+		OverallStatus:   strings.ToUpper(strings.TrimSpace(ctx.Query("overall_status"))),
+		BloodType:       normalizeBloodType(ctx.Query("blood_type")),
+		ComponentType:   strings.ToUpper(strings.TrimSpace(ctx.Query("component_type"))),
+		StorageLocation: ctx.Query("storage_location"),
+		StartDate:       ctx.Query("start_date"),
+		EndDate:         ctx.Query("end_date"),
+	}
 
-	data, err := c.usecase.GetAllTestsFiltered(
-		overallStatus,
-		bloodType,
-		componentType,
-	)
+	data, err := c.usecase.GetAllTestsFiltered(filter)
 
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(200, data)
+	ctx.JSON(200, c.wrapTestResults(data))
+}
+
+func (c *LabController) wrapTestResults(tests []Domain.DonorTestResult) Domain.TestResultListResponse {
+	resp := Domain.TestResultListResponse{
+		Total: len(tests),
+		Tests: tests,
+	}
+	for _, t := range tests {
+		status := strings.ToUpper(t.OverallStatus)
+		if status == "CLEARED" {
+			resp.Cleared++
+		} else if status == "TEMPORARILY_DEFERRED" {
+			resp.TemporarilyDeferred++
+		} else if status == "PERMANENTLY_DEFERRED" {
+			resp.PermanentlyDeferred++
+		}
+	}
+	return resp
 }
 
 // BloodInventoryController
@@ -640,12 +620,15 @@ func NewBloodInventoryController(u *Usecase.BloodInventoryUsecase) *BloodInvento
 
 // 🔹 GET /inventory
 func (c *BloodInventoryController) GetAll(ctx *gin.Context) {
+	vol, _ := strconv.Atoi(ctx.Query("quantity"))
 	filter := Domain.BloodUnitFilter{
 		BloodType:     ctx.Query("blood_type"),
 		ComponentType: ctx.Query("component_type"),
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
 		EndDate:       ctx.Query("end_date"),
+		Quantity:        vol,
+		NearExpired:   ctx.Query("near_expired") == "true",
 	}
 
 	data, err := c.usecase.GetAllUnits(filter)
@@ -653,7 +636,20 @@ func (c *BloodInventoryController) GetAll(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusOK, data)
+
+	ctx.JSON(http.StatusOK, c.wrapInventoryResults(data))
+}
+
+func (c *BloodInventoryController) GetByID(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	unit, err := c.usecase.GetByID(id)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "Blood unit not found"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, unit)
 }
 
 // 🔹 GET /inventory/stats
@@ -666,27 +662,7 @@ func (c *BloodInventoryController) GetStats(ctx *gin.Context) {
 	ctx.JSON(200, stats)
 }
 
-// 🔹 PUT /inventory/:id/status
-func (c *BloodInventoryController) UpdateStatus(ctx *gin.Context) {
-	id := ctx.Param("id")
 
-	var body struct {
-		Status string `json:"status"`
-	}
-
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(400, gin.H{"error": "Invalid body"})
-		return
-	}
-
-	err := c.usecase.UpdateStatus(id, body.Status)
-	if err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(200, gin.H{"message": "Status updated"})
-}
 
 // 🔹 PUT /inventory/:id/used
 func (c *BloodInventoryController) MarkUsed(ctx *gin.Context) {
@@ -739,52 +715,84 @@ func (c *BloodInventoryController) GetReservedByHospital(ctx *gin.Context) {
 	ctx.JSON(200, units)
 }
 
+// 🔹 POST /inventory/:id/convert-cryo
+func (c *BloodInventoryController) ConvertPlasma(ctx *gin.Context) {
+	id := ctx.Param("id")
+	
+	var req Domain.ConvertCryoRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := c.usecase.ConvertPlasmaToCryo(id, req.CryoprecipitateQuantity, req.CryoPoorPlasmaQuantity)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "Plasma converted to Cryoprecipitate successfully"})
+}
+
 func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
+	vol, _ := strconv.Atoi(ctx.Query("quantity"))
 	filter := Domain.BloodUnitFilter{
 		BloodType:     ctx.Query("blood_type"),
 		ComponentType: ctx.Query("component_type"),
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
 		EndDate:       ctx.Query("end_date"),
+		Quantity:        vol,
+		NearExpired:   ctx.Query("near_expired") == "true",
 	}
 
 	units, _ := c.usecase.GetAllUnits(filter)
 
-	ctx.Header("Content-Disposition", "attachment; filename=blood_units.csv")
-	ctx.Header("Content-Type", "text/csv")
+	ctx.Header("Content-Type", "application/octet-stream")
+	ctx.Header("Content-Disposition", `attachment; filename="blood_inventory.csv"`)
+	ctx.Header("Content-Transfer-Encoding", "binary")
 
 	writer := csv.NewWriter(ctx.Writer)
 	defer writer.Flush()
 
 	writer.Write([]string{
 		"blood_unit_id",
-		"donation_id",
 		"blood_type",
-		"volume_ml",
+		"component_type",
+		"quantity_ml",
 		"collection_date",
 		"expiration_date",
 		"status",
+		"storage_location",
+		"rack_number",
+		"shelf_number",
 	})
 
 	for _, u := range units {
 		writer.Write([]string{
 			u.BloodUnitID,
-			u.DonationID,
 			u.BloodType,
-			strconv.Itoa(u.VolumeML),
+			u.ComponentType,
+			strconv.Itoa(u.QuantityML),
 			u.CollectionDate.Format("2006-01-02"),
 			u.ExpirationDate.Format("2006-01-02"),
 			u.Status,
+			u.StorageLocation,
+			u.RackNumber,
+			u.ShelfNumber,
 		})
 	}
 }
 func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
+	vol, _ := strconv.Atoi(ctx.Query("quantity"))
 	filter := Domain.BloodUnitFilter{
 		BloodType:     ctx.Query("blood_type"),
 		ComponentType: ctx.Query("component_type"),
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
 		EndDate:       ctx.Query("end_date"),
+		Quantity:        vol,
+		NearExpired:   ctx.Query("near_expired") == "true",
 	}
 
 	units, err := c.usecase.GetAllUnits(filter)
@@ -793,110 +801,99 @@ func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 		return
 	}
 
-	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf := gofpdf.New("L", "mm", "A4", "")
 	pdf.AddPage()
-
-	// 🔹 Title
 	pdf.SetFont("Arial", "B", 16)
-	pdf.Cell(190, 10, "Blood Inventory Report")
+	pdf.Cell(280, 10, "Blood Inventory Report")
 	pdf.Ln(12)
 
 	// 🔹 Header Row
-	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFont("Arial", "B", 8)
 
-	col1 := 45.0
-	col2 := 45.0
-	col3 := 15.0
-	col4 := 15.0
-	col5 := 25.0
-	col6 := 25.0
-	col7 := 20.0
+	colID := 40.0
+	colType := 20.0
+	colComp := 30.0
+	colQty := 15.0
+	colDate := 20.0
+	colStatus := 20.0
+	colStore := 40.0
+	colRack := 15.0
+	colShelf := 15.0
 
-	pdf.CellFormat(col1, 10, "Blood Unit ID", "1", 0, "C", false, 0, "")
-	pdf.CellFormat(col2, 10, "Donation ID", "1", 0, "C", false, 0, "")
-	pdf.CellFormat(col3, 10, "Blood Type", "1", 0, "C", false, 0, "")
-	pdf.CellFormat(col4, 10, "Volume (ml)", "1", 0, "C", false, 0, "")
-	pdf.CellFormat(col5, 10, "Collection Date", "1", 0, "C", false, 0, "")
-	pdf.CellFormat(col6, 10, "Expiry Date", "1", 0, "C", false, 0, "")
-	pdf.CellFormat(col7, 10, "Unit Status", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colID, 10, "Blood Unit ID", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colType, 10, "Blood Type", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colComp, 10, "Component", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colQty, 10, "Qty (ml)", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colDate, 10, "Expiry", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colStatus, 10, "Status", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colStore, 10, "Location", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colRack, 10, "Rack", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colShelf, 10, "Shelf", "1", 0, "C", false, 0, "")
 	pdf.Ln(-1)
+
 	// 🔹 Data Rows
-	pdf.SetFont("Arial", "", 8)
+	pdf.SetFont("Arial", "", 7)
 
 	for _, u := range units {
-
 		if u.Status == "EXPIRED" {
 			pdf.SetTextColor(255, 0, 0)
 		} else {
 			pdf.SetTextColor(0, 0, 0)
 		}
 
-		// Save current position
-		x := pdf.GetX()
-		y := pdf.GetY()
-
-		lineHeight := 5.0
-		maxHeight := lineHeight
-
-		// --- Column 1 (Unit ID) ---
-		pdf.SetXY(x, y)
-		pdf.MultiCell(col1, lineHeight, u.BloodUnitID, "1", "L", false)
-		h1 := pdf.GetY() - y
-
-		// --- Column 2 (Donation ID) ---
-		pdf.SetXY(x+col1, y)
-		pdf.MultiCell(col2, lineHeight, u.DonationID, "1", "L", false)
-		h2 := pdf.GetY() - y
-
-		// Determine max height
-		if h1 > maxHeight {
-			maxHeight = h1
-		}
-		if h2 > maxHeight {
-			maxHeight = h2
-		}
-
-		// --- Remaining columns ---
-		pdf.SetXY(x+col1+col2, y)
-		pdf.CellFormat(col3, maxHeight, u.BloodType, "1", 0, "C", false, 0, "")
-
-		pdf.CellFormat(col4, maxHeight, strconv.Itoa(u.VolumeML), "1", 0, "C", false, 0, "")
-
-		pdf.CellFormat(col5, maxHeight, u.CollectionDate.Format("2006-01-02"), "1", 0, "C", false, 0, "")
-
-		pdf.CellFormat(col6, maxHeight, u.ExpirationDate.Format("2006-01-02"), "1", 0, "C", false, 0, "")
-
-		pdf.CellFormat(col7, maxHeight, u.Status, "1", 0, "C", false, 0, "")
-
-		// Move to next row
-		pdf.Ln(maxHeight)
+		pdf.CellFormat(colID, 8, u.BloodUnitID, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(colType, 8, u.BloodType, "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colComp, 8, u.ComponentType, "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colQty, 8, strconv.Itoa(u.QuantityML), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colDate, 8, u.ExpirationDate.Format("2006-01-02"), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colStatus, 8, u.Status, "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colStore, 8, u.StorageLocation, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(colRack, 8, u.RackNumber, "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colShelf, 8, u.ShelfNumber, "1", 0, "C", false, 0, "")
+		pdf.Ln(-1)
 	}
 
 	pdf.SetTextColor(0, 0, 0)
-
-	ctx.Header("Content-Type", "application/pdf")
-	ctx.Header("Content-Disposition", "attachment; filename=blood_inventory.pdf")
-
-	err = pdf.Output(ctx.Writer)
-	if err != nil {
-		ctx.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
+	ctx.Header("Content-Type", "application/octet-stream")
+	ctx.Header("Content-Disposition", `attachment; filename="blood_inventory.pdf"`)
+	ctx.Header("Content-Transfer-Encoding", "binary")
+	pdf.Output(ctx.Writer)
 }
-func (c *BloodInventoryController) Filter(ctx *gin.Context) {
-	filter := Domain.BloodUnitFilter{
-		BloodType:     ctx.Query("blood_type"),
-		ComponentType: ctx.Query("component_type"),
-		Status:        ctx.Query("status"),
-		StartDate:     ctx.Query("start_date"),
-		EndDate:       ctx.Query("end_date"),
+
+
+func (c *BloodInventoryController) wrapInventoryResults(units []Domain.BloodUnit) Domain.InventoryListResponse {
+	resp := Domain.InventoryListResponse{
+		Total:               len(units),
+		ByBloodType:         make(map[string]int),
+		ByComponentType:     make(map[string]int),
+		ByBloodAndComponent: make(map[string]int),
+		Units:               units,
 	}
 
-	data, err := c.usecase.FilterUnits(filter)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	now := time.Now()
+	nearExpiryLimit := now.AddDate(0, 0, 7)
 
-	ctx.JSON(http.StatusOK, data)
+	for _, u := range units {
+		resp.ByBloodType[u.BloodType]++
+		if u.ComponentType != "" {
+			resp.ByComponentType[u.ComponentType]++
+			resp.ByBloodAndComponent[u.BloodType+"_"+u.ComponentType]++
+		}
+
+		status := strings.ToUpper(u.Status)
+		switch status {
+		case "AVAILABLE":
+			resp.Available++
+			if u.ExpirationDate.Before(nearExpiryLimit) && u.ExpirationDate.After(now) {
+				resp.NearExpired++
+			}
+		case "RESERVED":
+			resp.Reserved++
+		case "USED":
+			resp.Used++
+		case "EXPIRED":
+			resp.Expired++
+		}
+	}
+	return resp
 }

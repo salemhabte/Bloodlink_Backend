@@ -40,7 +40,7 @@ type BloodRequestResponse struct {
 	UrgencyLevel     string     `json:"urgency_level" db:"urgency_level"`
 	Status           string     `json:"status" db:"status"`
 	FulfilledCount   int        `json:"fulfilled_count" db:"fulfilled_count"`
-	FulfilledVolumeMl int       `json:"fulfilled_volume_ml" db:"fulfilled_volume_ml"`
+	FulfilledQuantityMl int       `json:"fulfilled_quantity_ml" db:"fulfilled_quantity_ml"`
 	Notes            string     `json:"notes" db:"notes"`
 	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
 	ApprovedAt       *time.Time `json:"approved_at" db:"approved_at"`

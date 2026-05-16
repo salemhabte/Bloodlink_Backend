@@ -18,28 +18,34 @@ func NewBloodInventoryRepository(db *sql.DB) *BloodInventoryRepository {
 // GetAllBloodUnits returns all blood units
 func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilter) ([]Domain.BloodUnit, error) {
 	query := `
-	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
-	       volume_ml, collection_date, expiration_date, status,
-	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at
+	SELECT blood_unit_id, '', blood_type, COALESCE(component_type,''),
+	       quantity_ml, collection_date, expiration_date, status,
+	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
 	FROM blood_units
-	WHERE 1=1
+	WHERE is_deleted = false
 	`
 	args := []interface{}{}
 	placeholderID := 1
 
 	if filter.BloodType != "" {
-		query += fmt.Sprintf(" AND blood_type = $%d", placeholderID)
+		query += fmt.Sprintf(" AND UPPER(blood_type) = UPPER($%d)", placeholderID)
 		args = append(args, filter.BloodType)
 		placeholderID++
 	}
 	if filter.ComponentType != "" {
-		query += fmt.Sprintf(" AND component_type = $%d", placeholderID)
+		query += fmt.Sprintf(" AND UPPER(component_type) = UPPER($%d)", placeholderID)
 		args = append(args, filter.ComponentType)
 		placeholderID++
 	}
 	if filter.Status != "" {
-		query += fmt.Sprintf(" AND status = $%d", placeholderID)
+		query += fmt.Sprintf(" AND UPPER(status) = UPPER($%d)", placeholderID)
 		args = append(args, filter.Status)
+		placeholderID++
+	}
+	if filter.Quantity > 0 {
+		query += fmt.Sprintf(" AND quantity_ml >= $%d", placeholderID)
+		args = append(args, filter.Quantity)
 		placeholderID++
 	}
 	if filter.StartDate != "" {
@@ -52,8 +58,11 @@ func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilte
 		args = append(args, filter.EndDate)
 		placeholderID++
 	}
+	if filter.NearExpired {
+		query += fmt.Sprintf(" AND expiration_date > NOW() AND expiration_date <= NOW() + INTERVAL '7 days'")
+	}
 
-	query += " ORDER BY created_at DESC"
+	query += " ORDER BY expiration_date ASC"
 
 	rows, err := r.DB.Query(query, args...)
 	if err != nil {
@@ -66,8 +75,9 @@ func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilte
 		var u Domain.BloodUnit
 		err := rows.Scan(
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
-			&u.VolumeML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
-			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt,
+			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
+			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
 		)
 		if err != nil {
 			return nil, err
@@ -81,15 +91,17 @@ func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilte
 func (r *BloodInventoryRepository) GetBloodUnitByID(id string) (*Domain.BloodUnit, error) {
 	query := `
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
-	       volume_ml, collection_date, expiration_date, status,
-	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at
-	FROM blood_units WHERE blood_unit_id = $1
+	       quantity_ml, collection_date, expiration_date, status,
+	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
+	FROM blood_units WHERE blood_unit_id = $1 AND is_deleted = false
 	`
 	var u Domain.BloodUnit
 	err := r.DB.QueryRow(query, id).Scan(
 		&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
-		&u.VolumeML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
-		&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt,
+		&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
+		&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
+		&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
 	)
 	if err != nil {
 		return nil, err
@@ -99,14 +111,14 @@ func (r *BloodInventoryRepository) GetBloodUnitByID(id string) (*Domain.BloodUni
 
 // UpdateBloodUnitStatus updates the status of a blood unit
 func (r *BloodInventoryRepository) UpdateBloodUnitStatus(id string, status string) error {
-	query := `UPDATE blood_units SET status=$1 WHERE blood_unit_id=$2`
+	query := `UPDATE blood_units SET status=$1 WHERE blood_unit_id=$2 AND is_deleted = false`
 	_, err := r.DB.Exec(query, status, id)
 	return err
 }
 
 // DeleteBloodUnitByID deletes a blood unit (legacy, no audit)
 func (r *BloodInventoryRepository) DeleteBloodUnitByID(id string) error {
-	query := `DELETE FROM blood_units WHERE blood_unit_id=$1`
+	query := `UPDATE blood_units SET is_deleted = true WHERE blood_unit_id=$1`
 	_, err := r.DB.Exec(query, id)
 	return err
 }
@@ -115,7 +127,7 @@ func (r *BloodInventoryRepository) DeleteBloodUnitByID(id string) error {
 func (r *BloodInventoryRepository) GetFullBloodUnitDetails(id string) (map[string]interface{}, error) {
 	query := `
 SELECT
-    bu.blood_unit_id, bu.blood_type, bu.volume_ml,
+    bu.blood_unit_id, bu.blood_type, bu.quantity_ml,
     bu.collection_date, bu.expiration_date, bu.status,
     d.donation_id, d.donor_id, d.collected_by,
     u.full_name, u.email, u.phone
@@ -133,7 +145,7 @@ WHERE bu.blood_unit_id = $1
 	var donorName, donorEmail, donorPhone string
 
 	err := row.Scan(
-		&bloodUnit.BloodUnitID, &bloodUnit.BloodType, &bloodUnit.VolumeML,
+		&bloodUnit.BloodUnitID, &bloodUnit.BloodType, &bloodUnit.QuantityML,
 		&bloodUnit.CollectionDate, &bloodUnit.ExpirationDate, &bloodUnit.Status,
 		&donationID, &donorID, &collectedBy,
 		&donorName, &donorEmail, &donorPhone,
@@ -154,7 +166,7 @@ WHERE bu.blood_unit_id = $1
 	}
 
 	rows, err := r.DB.Query(`
-	SELECT hiv_result, hepatitis_result, syphilis_result
+	SELECT hiv_result, hepatitis_b_result, hepatitis_c_result, syphilis_result
 	FROM donor_test_results WHERE donation_id = $1
 	`, donation["donation_id"])
 	if err != nil {
@@ -164,10 +176,10 @@ WHERE bu.blood_unit_id = $1
 
 	var tests []map[string]string
 	for rows.Next() {
-		var hiv, hep, syph string
-		rows.Scan(&hiv, &hep, &syph)
+		var hiv, hepB, hepC, syph string
+		rows.Scan(&hiv, &hepB, &hepC, &syph)
 		tests = append(tests, map[string]string{
-			"hiv": hiv, "hepatitis": hep, "syphilis": syph,
+			"hiv": hiv, "hepatitis_b": hepB, "hepatitis_c": hepC, "syphilis": syph,
 		})
 	}
 
@@ -183,10 +195,11 @@ func (r *BloodInventoryRepository) FilterBloodUnits(filter Domain.BloodUnitFilte
 
 	query := `
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
-	       volume_ml, collection_date, expiration_date, status,
-	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at
+	       quantity_ml, collection_date, expiration_date, status,
+	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
 	FROM blood_units
-	WHERE 1=1
+	WHERE is_deleted = false
 	`
 	args := []interface{}{}
 	placeholderID := 1
@@ -230,8 +243,9 @@ func (r *BloodInventoryRepository) FilterBloodUnits(filter Domain.BloodUnitFilte
 		var u Domain.BloodUnit
 		if err := rows.Scan(
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
-			&u.VolumeML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
-			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt,
+			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
+			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -254,7 +268,7 @@ func (r *BloodInventoryRepository) MarkExpiredUnits() error {
 
 // CountAvailableUnitsByBloodType counts available (non-reserved, non-expired) units
 func (r *BloodInventoryRepository) CountAvailableUnitsByBloodType(bloodType string) (int, error) {
-	query := `SELECT COUNT(*) FROM blood_units WHERE blood_type = $1 AND status = 'AVAILABLE' AND expiration_date > NOW()`
+	query := `SELECT COUNT(*) FROM blood_units WHERE blood_type = $1 AND status = 'AVAILABLE' AND expiration_date > NOW() AND is_deleted = false`
 	var count int
 	err := r.DB.QueryRow(query, bloodType).Scan(&count)
 	return count, err
@@ -308,7 +322,7 @@ func (r *BloodInventoryRepository) ReserveUnitsForHospital(bloodType string, qua
 	// Select AVAILABLE units ordered by nearest expiry (FIFO), lock rows
 	selectQuery := `
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
-	       volume_ml, collection_date, expiration_date, status, created_at
+	       quantity_ml, collection_date, expiration_date, status, created_at
 	FROM blood_units
 	WHERE blood_type = $1 AND status = 'AVAILABLE' AND expiration_date > NOW()
 	ORDER BY expiration_date ASC
@@ -320,23 +334,23 @@ func (r *BloodInventoryRepository) ReserveUnitsForHospital(bloodType string, qua
 	}
 
 	var units []Domain.BloodUnit
-	accumulatedVolume := 0
+	accumulatedQuantity := 0
 	
 	for rows.Next() {
 		var u Domain.BloodUnit
 		if err := rows.Scan(
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
-			&u.VolumeML, &u.CollectionDate, &u.ExpirationDate, &u.Status, &u.CreatedAt,
+			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status, &u.CreatedAt, &u.IsDeleted,
 		); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		
 		units = append(units, u)
-		accumulatedVolume += u.VolumeML
+		accumulatedQuantity += u.QuantityML
 		
-		if accumulatedVolume >= quantity {
-			break // Stop once we have enough volume
+		if accumulatedQuantity >= quantity {
+			break // Stop once we have enough quantity
 		}
 	}
 	rows.Close()
@@ -445,10 +459,11 @@ func (r *BloodInventoryRepository) ExpireStaleReservations(cutoff time.Time) ([]
 func (r *BloodInventoryRepository) GetReservedUnitsByHospitalID(hospitalID string) ([]Domain.BloodUnit, error) {
 	query := `
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
-	       volume_ml, collection_date, expiration_date, status,
-	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at
+	       quantity_ml, collection_date, expiration_date, status,
+	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
 	FROM blood_units
-	WHERE status = 'RESERVED' AND reserved_for_hospital_id = $1
+	WHERE status = 'RESERVED' AND reserved_for_hospital_id = $1 AND is_deleted = false
 	ORDER BY expiration_date ASC
 	`
 	rows, err := r.DB.Query(query, hospitalID)
@@ -462,8 +477,8 @@ func (r *BloodInventoryRepository) GetReservedUnitsByHospitalID(hospitalID strin
 		var u Domain.BloodUnit
 		if err := rows.Scan(
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
-			&u.VolumeML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
-			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt,
+			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
+			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
 		); err != nil {
 			return nil, err
 		}
@@ -486,7 +501,7 @@ func (r *BloodInventoryRepository) DeleteWithAudit(unitID string) error {
 	var volumeML int
 	var status string
 	err = tx.QueryRow(`
-		SELECT blood_type, volume_ml, status FROM blood_units WHERE blood_unit_id = $1
+		SELECT blood_type, quantity_ml, status FROM blood_units WHERE blood_unit_id = $1
 	`, unitID).Scan(&bloodType, &volumeML, &status)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -501,15 +516,61 @@ func (r *BloodInventoryRepository) DeleteWithAudit(unitID string) error {
 
 	// Write audit record before deletion
 	_, err = tx.Exec(`
-		INSERT INTO inventory_audit (blood_unit_id, blood_type, volume_ml, status_at_deletion)
+		INSERT INTO inventory_audit (blood_unit_id, blood_type, quantity_ml, status_at_deletion)
 		VALUES ($1, $2, $3, $4)
 	`, unitID, bloodType, volumeML, status)
 	if err != nil {
 		return err
 	}
 
-	// Delete the unit
-	_, err = tx.Exec(`DELETE FROM blood_units WHERE blood_unit_id = $1`, unitID)
+	// Soft Delete the unit
+	_, err = tx.Exec(`UPDATE blood_units SET is_deleted = true WHERE blood_unit_id = $1`, unitID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *BloodInventoryRepository) ConvertPlasmaToCryo(plasmaUnitID string, cryo *Domain.BloodUnit, cryoPoor *Domain.BloodUnit) error {
+	tx, err := r.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Soft delete the original plasma unit
+	res, err := tx.Exec(`UPDATE blood_units SET is_deleted = true WHERE blood_unit_id = $1 AND component_type = 'PLASMA' AND is_deleted = false AND status = 'AVAILABLE'`, plasmaUnitID)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("plasma unit not found or not eligible for conversion")
+	}
+
+	insertQuery := `
+	INSERT INTO blood_units (
+		blood_unit_id, donation_id, blood_type, component_type,
+		quantity_ml, collection_date, expiration_date, status, created_at, storage_location, rack_number, shelf_number
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
+
+	// Insert Cryoprecipitate
+	_, err = tx.Exec(insertQuery,
+		cryo.BloodUnitID, cryo.DonationID, cryo.BloodType, cryo.ComponentType,
+		cryo.QuantityML, cryo.CollectionDate, cryo.ExpirationDate, cryo.Status, cryo.CreatedAt,
+		cryo.StorageLocation, cryo.RackNumber, cryo.ShelfNumber,
+	)
+	if err != nil {
+		return err
+	}
+
+	// Insert Cryo-poor Plasma
+	_, err = tx.Exec(insertQuery,
+		cryoPoor.BloodUnitID, cryoPoor.DonationID, cryoPoor.BloodType, cryoPoor.ComponentType,
+		cryoPoor.QuantityML, cryoPoor.CollectionDate, cryoPoor.ExpirationDate, cryoPoor.Status, cryoPoor.CreatedAt,
+		cryoPoor.StorageLocation, cryoPoor.RackNumber, cryoPoor.ShelfNumber,
+	)
 	if err != nil {
 		return err
 	}

@@ -24,6 +24,7 @@ type IUserRepository interface {
 	CreateDonor(ctx context.Context, donor *domain.Donor) error
 	DeleteUser(ctx context.Context, userID string) error
 	FilterDonors(ctx context.Context, filter domain.DonorFilter) ([]domain.DonorResponse, error)
+	GetDonorStats(ctx context.Context) (*domain.AllDonorsResponse, error)
 	SetOTP(ctx context.Context, email, otp string) error
 	ResetPassword(ctx context.Context, email, hashedPassword string) error
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
@@ -34,6 +35,7 @@ type IUserRepository interface {
 	GetDonorsNearby(ctx context.Context, bloodType string, lat, lon, radiusKm float64) ([]domain.DonorResponse, error)
 	GetUserByPhone(ctx context.Context, phone string) (*domain.User, error)
 	GetEligibleDonors(ctx context.Context, query string) ([]domain.DonorResponse, error)
+	GetEligibleDonorByID(ctx context.Context, id string) (*domain.DonorResponse, error)
 	GetDonorsBecomingEligibleToday(ctx context.Context) ([]domain.DonorResponse, error)
 }
 
@@ -313,8 +315,22 @@ func (u *UserUseCaseBase) DeleteUser(ctx context.Context, userID string) error {
 	return u.userRepo.DeleteUser(ctx, userID)
 }
 
-func (u *UserUseCaseBase) FilterDonors(ctx context.Context, filter domain.DonorFilter) ([]domain.DonorResponse, error) {
-	return u.userRepo.FilterDonors(ctx, filter)
+func (u *UserUseCaseBase) FilterDonors(ctx context.Context, filter domain.DonorFilter) (*domain.AllDonorsResponse, error) {
+	donors, err := u.userRepo.FilterDonors(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	stats, err := u.userRepo.GetDonorStats(ctx)
+	if err != nil {
+		// Log error but don't fail the whole request if only stats fail? 
+		// Usually better to fail or return partial stats.
+		log.Printf("[ERROR] Failed to fetch donor stats: %v", err)
+		stats = &domain.AllDonorsResponse{}
+	}
+
+	stats.Donors = donors
+	return stats, nil
 }
 
 func (u *UserUseCaseBase) UpdateDonorStatus(ctx context.Context, donorID, status string) error {
@@ -522,8 +538,30 @@ func (u *UserUseCaseBase) GetDonorIDByUserID(ctx context.Context, userID string)
 	return donor.DonorID, nil
 }
 
-func (u *UserUseCaseBase) GetEligibleDonors(ctx context.Context, query string) ([]domain.DonorResponse, error) {
-	return u.userRepo.GetEligibleDonors(ctx, query)
+func (u *UserUseCaseBase) GetEligibleDonors(ctx context.Context, query string) (*domain.EligibleDonorsResponse, error) {
+	donors, err := u.userRepo.GetEligibleDonors(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	response := &domain.EligibleDonorsResponse{
+		Donors: donors,
+	}
+
+	for _, d := range donors {
+		response.TotalEligible++
+		if d.OverallStatus == "Pending" {
+			response.NewEligibleDonors++
+		} else {
+			response.ReturningEligible++
+		}
+	}
+
+	return response, nil
+}
+
+func (u *UserUseCaseBase) GetEligibleDonorByID(ctx context.Context, id string) (*domain.DonorResponse, error) {
+	return u.userRepo.GetEligibleDonorByID(ctx, id)
 }
 
 func (u *UserUseCaseBase) NotifyEligibleDonors(ctx context.Context) error {

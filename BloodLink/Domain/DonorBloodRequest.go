@@ -19,9 +19,10 @@ type DonorBloodRequest struct {
 	DonorPhone   string
 	DonorAddress string
 
-	BloodType  string
-	QuantityML int
-	Reason     string
+	BloodType     string
+	ComponentType string
+	Units         int
+	Reason        string
 
 	HospitalName    string
 	HospitalAddress string
@@ -33,6 +34,7 @@ type DonorBloodRequest struct {
 	// Resolved fields
 	SuccessfulDonations int  `json:"successful_donations,omitempty"`
 	CanFulfill          bool `json:"can_fulfill"`
+	ReservedUnits       int  `json:"reserved_units,omitempty"`
 }
 
 type DonorBloodRequestFilter struct {

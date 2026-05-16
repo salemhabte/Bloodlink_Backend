@@ -19,6 +19,7 @@ type IDonationRepository interface {
 	// Get last donation for 3 month rule
 	GetLastDonationByDonor(donorID string) (*domain.DonationRecord, error)
 	UpdateDonorWeight(donorID string, weight float64) error
+	UpdateDonorOverallStatus(donorID string, status string) error
 GetPendingDonors() ([]domain.DonorResponse, error)
 GetPendingDonorByID(donorID string) (*domain.DonorResponse, error)
 SearchPendingDonor(query string) (*domain.DonorResponse, error)

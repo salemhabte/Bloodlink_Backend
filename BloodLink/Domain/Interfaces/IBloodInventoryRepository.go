@@ -24,4 +24,6 @@ type IBloodInventoryRepository interface {
 
 	// Delete with audit
 	DeleteWithAudit(unitID string) error
+
+	ConvertPlasmaToCryo(plasmaUnitID string, cryo *Domain.BloodUnit, cryoPoor *Domain.BloodUnit) error
 }

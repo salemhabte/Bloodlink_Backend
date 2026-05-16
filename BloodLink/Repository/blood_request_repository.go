@@ -26,7 +26,7 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 	query := `SELECT br.request_id, br.hospital_id, h.name,
 	                 br.blood_type, br.quantity, br.urgency_level, br.status,
 	                 COALESCE(br.fulfilled_count, 0),
-	                 COALESCE(br.fulfilled_volume_ml, 0),
+	                 COALESCE(br.fulfilled_quantity_ml, 0),
 	                 COALESCE(br.notes, ''),
 	                 br.created_at, br.approved_at
 	          FROM blood_requests br
@@ -75,7 +75,7 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 		if err := rows.Scan(
 			&req.RequestID, &req.HospitalID, &req.HospitalName,
 			&req.BloodType, &req.Quantity, &req.UrgencyLevel, &req.Status,
-			&req.FulfilledCount, &req.FulfilledVolumeMl, &req.Notes,
+			&req.FulfilledCount, &req.FulfilledQuantityMl, &req.Notes,
 			&req.CreatedAt, &req.ApprovedAt,
 		); err != nil {
 			return nil, err
@@ -89,7 +89,7 @@ func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter
 	query := `SELECT br.request_id, br.hospital_id, h.name,
 	                 br.blood_type, br.quantity, br.urgency_level, br.status,
 	                 COALESCE(br.fulfilled_count, 0),
-	                 COALESCE(br.fulfilled_volume_ml, 0),
+	                 COALESCE(br.fulfilled_quantity_ml, 0),
 	                 COALESCE(br.notes, ''),
 	                 br.created_at, br.approved_at
 	          FROM blood_requests br
@@ -143,7 +143,7 @@ func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter
 		if err := rows.Scan(
 			&req.RequestID, &req.HospitalID, &req.HospitalName,
 			&req.BloodType, &req.Quantity, &req.UrgencyLevel, &req.Status,
-			&req.FulfilledCount, &req.FulfilledVolumeMl, &req.Notes,
+			&req.FulfilledCount, &req.FulfilledQuantityMl, &req.Notes,
 			&req.CreatedAt, &req.ApprovedAt,
 		); err != nil {
 			return nil, err
@@ -182,7 +182,7 @@ func (r *bloodRequestRepository) UpdateRequestStatusWithDetails(
 	    approved_at        = COALESCE($2, approved_at),
 	    notes              = $3,
 	    fulfilled_count    = $4,
-	    fulfilled_volume_ml = $5
+	    fulfilled_quantity_ml = $5
 	WHERE request_id = $6`
 	_, err := r.db.Exec(query, status, approvedAt, notes, fulfilledCount, fulfilledVolumeMl, requestID)
 	return err

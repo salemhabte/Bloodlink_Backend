@@ -85,6 +85,22 @@ type DonorResponse struct {
 	Status           string    `json:"status" db:"status"`
 	OverallStatus    string    `json:"overall_status" db:"overall_status"`
 	RegistrationDate time.Time `json:"registration_date" db:"created_at"`
+	LastDonationDate *time.Time `json:"last_donation_date,omitempty" db:"last_donation"`
+}
+
+type EligibleDonorsResponse struct {
+	TotalEligible      int             `json:"total_eligible"`
+	ReturningEligible  int             `json:"returning_eligible"`
+	NewEligibleDonors  int             `json:"new_eligible_donors"`
+	Donors             []DonorResponse `json:"donors"`
+}
+
+type AllDonorsResponse struct {
+	TotalDonors          int             `json:"total_donors"`
+	Cleared              int             `json:"cleared"`
+	TemporarilyDeferred  int             `json:"temporarily_deferred"`
+	PermanentlyDeferred  int             `json:"permanently_deferred"`
+	Donors               []DonorResponse `json:"donors"`
 }
 
 type DonorFilter struct {

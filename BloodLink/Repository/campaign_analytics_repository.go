@@ -24,7 +24,8 @@ func (r *campaignAnalyticsRepository) GetCampaignStats() (*Domain.CampaignStats,
 		COALESCE(SUM(CASE WHEN NOW() BETWEEN start_date AND end_date THEN 1 ELSE 0 END),0) AS active,
 		COALESCE(SUM(CASE WHEN end_date < NOW() THEN 1 ELSE 0 END),0) AS completed,
 		COALESCE(SUM(CASE WHEN start_date > NOW() THEN 1 ELSE 0 END),0) AS upcoming
-	FROM campaigns;
+	FROM campaigns
+	WHERE is_deleted = false;
 	`
 
 	var stats Domain.CampaignStats
@@ -55,7 +56,7 @@ func (r *campaignAnalyticsRepository) GetCampaignDonationStats(campaignID string
 		COALESCE(COUNT(DISTINCT donor_id),0) AS unique_donors,
 		COALESCE(SUM(CASE WHEN status = 'APPROVED' THEN 1 ELSE 0 END),0) AS approved,
 
-	COALESCE(SUM(CASE WHEN status = 'TEMPORARILY_REJECTED' THEN 1 ELSE 0 END),0) AS temporarily_rejected
+	COALESCE(SUM(CASE WHEN status = 'REJECTED_TEMPORARY' THEN 1 ELSE 0 END),0) AS temporarily_rejected
 	FROM donation_records
 	WHERE campaign_id = $1;
 	`
@@ -97,16 +98,17 @@ func (r *campaignAnalyticsRepository) GetAllCampaignDonationStats() ([]Domain.Ca
 
 	query := `
 	SELECT
-		campaign_id,
+		c.campaign_id,
 		COUNT(*) AS total_donations,
 		COALESCE(SUM(quantity_ml),0) AS total_ml,
 		COALESCE(COUNT(DISTINCT donor_id),0) AS unique_donors,
 		COALESCE(SUM(CASE WHEN status = 'APPROVED' THEN 1 ELSE 0 END),0) AS approved,
 
-	COALESCE(SUM(CASE WHEN status = 'TEMPORARILY_REJECTED' THEN 1 ELSE 0 END),0) AS temporarily_rejected
-	FROM donation_records
-	WHERE campaign_id IS NOT NULL
-	GROUP BY campaign_id;
+	COALESCE(SUM(CASE WHEN status = 'REJECTED_TEMPORARY' THEN 1 ELSE 0 END),0) AS temporarily_rejected
+	FROM donation_records dr
+	JOIN campaigns c ON dr.campaign_id = c.campaign_id
+	WHERE dr.campaign_id IS NOT NULL AND c.is_deleted = false
+	GROUP BY c.campaign_id;
 	`
 
 	rows, err := r.db.Query(query)
