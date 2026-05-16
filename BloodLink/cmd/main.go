@@ -56,7 +56,7 @@ func main() {
 	labUsecase := Usecase.NewLabUsecase(labRepo, badgeUsecase, notifUsecase)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
 	pdfService := Usecase.NewPDFGeneratorService("./uploads")
-	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo, notifUsecase)
+	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo, notifUsecase, donationRepo)
 	donorBloodReqUsecase := Usecase.NewDonorBloodRequestUsecase(donorBloodReqRepo)
 
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)

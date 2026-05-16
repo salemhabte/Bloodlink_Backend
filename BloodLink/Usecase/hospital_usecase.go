@@ -18,21 +18,26 @@ import (
 
 type IHospitalUserRepository interface {
 	CreateUser(ctx context.Context, user *Domain.User) error
+	GetUserByPhone(ctx context.Context, phone string) (*Domain.User, error)
+	GetDonorByUserID(ctx context.Context, userID string) (*Domain.Donor, error)
+	UpdateDonorStatus(ctx context.Context, donorID, status string) error
 }
 
 type hospitalUsecase struct {
 	repo       Interfaces.IHospitalRepository
 	pdfService IPDFGeneratorService
-	userRepo   IHospitalUserRepository
-	notifUC    Interfaces.INotificationUsecase
+	userRepo     IHospitalUserRepository
+	notifUC      Interfaces.INotificationUsecase
+	donationRepo Interfaces.IDonationRepository
 }
 
-func NewHospitalUsecase(repo Interfaces.IHospitalRepository, pdfService IPDFGeneratorService, userRepo IHospitalUserRepository, notifUC Interfaces.INotificationUsecase) Interfaces.IHospitalUsecase {
+func NewHospitalUsecase(repo Interfaces.IHospitalRepository, pdfService IPDFGeneratorService, userRepo IHospitalUserRepository, notifUC Interfaces.INotificationUsecase, donationRepo Interfaces.IDonationRepository) Interfaces.IHospitalUsecase {
 	return &hospitalUsecase{
-		repo:       repo,
-		pdfService: pdfService,
-		userRepo:   userRepo,
-		notifUC:    notifUC,
+		repo:         repo,
+		pdfService:   pdfService,
+		userRepo:     userRepo,
+		notifUC:      notifUC,
+		donationRepo: donationRepo,
 	}
 }
 
@@ -405,4 +410,39 @@ func (u *hospitalUsecase) GetHospitalDashboard(userID string) (*Domain.HospitalD
 		return nil, err
 	}
 	return u.repo.GetHospitalDashboard(admin.HospitalID)
+}
+
+func (u *hospitalUsecase) ConfirmHospitalDonation(donorPhone string, hospitalAdminUserID string) error {
+	admin, err := u.repo.GetHospitalAdminByUserID(hospitalAdminUserID)
+	if err != nil {
+		return errors.New("unauthorized: not a hospital admin")
+	}
+
+	user, err := u.userRepo.GetUserByPhone(context.Background(), donorPhone)
+	if err != nil || user == nil {
+		return errors.New("donor not found with the given phone number")
+	}
+
+	donor, err := u.userRepo.GetDonorByUserID(context.Background(), user.ID)
+	if err != nil || donor == nil {
+		return errors.New("user is not registered as a donor")
+	}
+
+	// Record donation
+	record := &Domain.DonationRecord{
+		DonationID:     uuid.New().String(),
+		DonorID:        donor.DonorID,
+		CollectedBy:    hospitalAdminUserID,
+		CollectionDate: time.Now(),
+		QuantityML:     450, // default standard for hospital direct donations
+		Status:         "APPROVED",
+		CreatedAt:      time.Now(),
+	}
+
+	err = u.donationRepo.CreateDonation(record)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

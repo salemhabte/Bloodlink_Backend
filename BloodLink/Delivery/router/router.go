@@ -296,6 +296,11 @@ lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 			hBloodReqs.POST("/", bloodReqController.CreateBloodRequest)
 			hBloodReqs.GET("/", bloodReqController.GetHospitalRequests)
 		}
+
+		hDonations := hospitalGrp.Group("/donations")
+		{
+			hDonations.POST("/confirm", hospitalController.ConfirmDonation)
+		}
 	}
 
 	r.Static("/uploads", "./uploads")

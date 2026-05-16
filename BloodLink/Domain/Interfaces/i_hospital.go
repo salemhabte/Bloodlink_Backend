@@ -47,4 +47,5 @@ type IHospitalUsecase interface {
 	DeleteContractTemplate(templateID string) error
 	GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error)
 	GetHospitalDashboard(userID string) (*Domain.HospitalDashboard, error)
+	ConfirmHospitalDonation(donorPhone string, hospitalAdminUserID string) error
 }

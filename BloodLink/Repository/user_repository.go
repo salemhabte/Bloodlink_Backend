@@ -668,10 +668,17 @@ func (r *UserRepository) GetDonorsNearby(ctx context.Context, bloodType string, 
 		FROM donors d
 		JOIN users u ON d.user_id = u.user_id
 		LEFT JOIN user_profiles p ON u.user_id = p.user_id
+		LEFT JOIN (
+			SELECT DISTINCT ON (donor_id) donor_id, collection_date as last_donation
+			FROM donation_records
+			WHERE status = 'APPROVED'
+			ORDER BY donor_id, collection_date DESC, created_at DESC
+		) dr ON d.donor_id = dr.donor_id
 		WHERE d.blood_type = $1
 		AND p.location_geo IS NOT NULL
 		AND ST_DWithin(p.location_geo, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, $4 * 1000)
-		AND d.overall_status != 'PERMANENTLY_DEFERRED'
+		AND (dr.last_donation IS NULL OR dr.last_donation <= NOW() - INTERVAL '90 days')
+		AND d.overall_status = 'CLEARED'
 		ORDER BY ST_Distance(p.location_geo, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography) ASC
 	`
 	rows, err := r.DB.QueryContext(ctx, query, bloodType, lat, lon, radiusKm)

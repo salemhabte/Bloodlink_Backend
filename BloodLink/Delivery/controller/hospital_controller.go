@@ -246,3 +246,21 @@ func (c *HospitalController) GetHospitalDashboard(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, dashboard)
 }
+
+func (c *HospitalController) ConfirmDonation(ctx *gin.Context) {
+	adminID := ctx.GetString("userID")
+	var req struct {
+		DonorPhone string `json:"donor_phone" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := c.Usecase.ConfirmHospitalDonation(req.DonorPhone, adminID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "Donation recorded successfully"})
+}
