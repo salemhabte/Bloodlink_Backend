@@ -35,7 +35,7 @@ func NewBloodRequestUsecase(
 	}
 }
 
-func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestDTO, hospitalAdminUserID string) error {
+func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestBatchDTO, hospitalAdminUserID string) error {
 	hospital_id, err := u.getHospitalIDForAdmin(hospitalAdminUserID)
 	if err != nil {
 		return err
@@ -58,22 +58,6 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 		return errors.New("cannot create blood request: hospital does not have a finalized contract")
 	}
 
-	requestID := uuid.New().String()
-	br := &Domain.BloodRequest{
-		RequestID:    requestID,
-		HospitalID:   hospital_id,
-		BloodType:    req.BloodType,
-		Quantity:     req.Quantity,
-		UrgencyLevel: req.UrgencyLevel,
-		Status:       Domain.BloodRequestStatusPending,
-		CreatedAt:    time.Now(),
-	}
-
-	err = u.repo.CreateRequest(br)
-	if err != nil {
-		return err
-	}
-
 	hospital, err := u.hospitalRepo.GetHospitalByID(hospital_id)
 	hospitalName := "A hospital"
 	hospitalLocation := "Unknown"
@@ -82,20 +66,39 @@ func (u *bloodRequestUsecase) CreateBloodRequest(req *Domain.CreateBloodRequestD
 		hospitalLocation = hospital.Address
 	}
 
-	available, err := u.inventoryRepo.CountAvailableUnitsByBloodType(req.BloodType)
-	if err == nil {
-		if available < req.Quantity {
-			_ = u.emergencyUC.TriggerEmergency(requestID, req.BloodType, req.Quantity, req.UrgencyLevel, hospitalName, hospitalLocation, hospital.Latitude, hospital.Longitude)
+	for _, item := range req.Requests {
+		requestID := uuid.New().String()
+		br := &Domain.BloodRequest{
+			RequestID:    requestID,
+			HospitalID:   hospital_id,
+			BloodType:    item.BloodType,
+			Component:    item.Component,
+			Quantity:     item.Quantity,
+			UrgencyLevel: req.UrgencyLevel,
+			Status:       Domain.BloodRequestStatusPending,
+			CreatedAt:    time.Now(),
 		}
-	}
 
-	adminEmail := "admin@bloodlink.com"
-	go func() {
-		subject := fmt.Sprintf("New %s Blood Request from %s", req.UrgencyLevel, hospitalName)
-		content := fmt.Sprintf("Hospital <b>%s</b> has requested %d units of %s blood.<br><br>Urgency: <b>%s</b>.<br>Location: <b>%s</b>.<br>Please review this request on the admin dashboard.", hospitalName, req.Quantity, req.BloodType, req.UrgencyLevel, hospitalLocation)
-		_ = Infrastructure.SendBloodRequestNotification(adminEmail, subject, content)
-		_ = u.notifUC.SendToRole(Domain.RoleBloodBankAdmin, "BLOOD_REQUEST", "New Blood Request", fmt.Sprintf("%s has requested %d units of %s", hospitalName, req.Quantity, req.BloodType))
-	}()
+		err = u.repo.CreateRequest(br)
+		if err != nil {
+			return err
+		}
+
+		available, err := u.inventoryRepo.CountAvailableUnitsByBloodType(item.BloodType)
+		if err == nil {
+			if available < item.Quantity && req.UrgencyLevel == "emergency" {
+				_ = u.emergencyUC.TriggerEmergency(requestID, item.BloodType, item.Quantity, req.UrgencyLevel, hospitalName, hospitalLocation, hospital.Latitude, hospital.Longitude)
+			}
+		}
+
+		adminEmail := "admin@bloodlink.com"
+		go func(rID string, bType string, qty int, comp string) {
+			subject := fmt.Sprintf("New %s Blood Request from %s", req.UrgencyLevel, hospitalName)
+			content := fmt.Sprintf("Hospital <b>%s</b> has requested %d units of %s (%s).<br><br>Urgency: <b>%s</b>.<br>Location: <b>%s</b>.<br>Please review this request on the admin dashboard.", hospitalName, qty, bType, comp, req.UrgencyLevel, hospitalLocation)
+			_ = Infrastructure.SendBloodRequestNotification(adminEmail, subject, content)
+			_ = u.notifUC.SendToRole(Domain.RoleBloodBankAdmin, "BLOOD_REQUEST", "New Blood Request", fmt.Sprintf("%s has requested %d units of %s (%s)", hospitalName, qty, bType, comp))
+		}(requestID, item.BloodType, item.Quantity, item.Component)
+	}
 
 	return nil
 }
