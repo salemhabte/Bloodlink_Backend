@@ -30,8 +30,7 @@ type EmergencyRequest struct {
 
 type CreateEmergencyRequestDTO struct {
 	BloodType        string  `json:"blood_type" binding:"required,oneof='A+' 'A-' 'B+' 'B-' 'AB+' 'AB-' 'O+' 'O-'"`
-	QuantityRequired int     `json:"quantity_required" binding:"required,gt=0"`
-	UrgencyLevel     string  `json:"urgency_level" binding:"required"`
+	QuantityRequired int     `json:"quantity_required" binding:"omitempty,gt=0"`
 	HospitalName     string  `json:"hospital_name" binding:"required"`
 	Location         string  `json:"location" binding:"required"`
 	EndDate          string  `json:"end_date" binding:"required"`

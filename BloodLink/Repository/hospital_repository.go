@@ -207,7 +207,7 @@ func (r *hospitalRepository) CreateContract(contract *Domain.HospitalContract) e
 
 func (r *hospitalRepository) GetContractByID(contractID string) (*Domain.HospitalContract, error) {
 	query := `SELECT c.contract_id, c.hospital_id, h.name as hospital_name, c.blood_bank_admin_id, c.document, 
-			         c.status, c.contract_start, c.contract_end, c.created_at, c.hospital_signature_path, c.admin_signature_path, c.template_id, h.license_document
+			         c.status, c.contract_start, c.contract_end, c.created_at, c.hospital_signature_path, c.admin_signature_path, c.template_id, COALESCE(h.license_document, '')
 			  FROM hospital_contracts c
 			  JOIN hospitals h ON c.hospital_id = h.hospital_id
 			  WHERE c.contract_id = $1`
@@ -240,7 +240,7 @@ func (r *hospitalRepository) GetContractsByHospitalID(hospitalID string) ([]Doma
 }
 
 func (r *hospitalRepository) GetHospitalByID(hospitalID string) (*Domain.Hospital, error) {
-	query := `SELECT hospital_id, name, address, phone, created_at, latitude, longitude, license_document FROM hospitals WHERE hospital_id = $1`
+	query := `SELECT hospital_id, name, address, phone, created_at, latitude, longitude, COALESCE(license_document, '') FROM hospitals WHERE hospital_id = $1`
 	hospital := &Domain.Hospital{}
 	err := r.db.QueryRow(query, hospitalID).Scan(&hospital.HospitalID, &hospital.Name, &hospital.Address, &hospital.Phone, &hospital.CreatedAt, &hospital.Latitude, &hospital.Longitude, &hospital.LicenseDocument)
 	return hospital, err
@@ -302,7 +302,7 @@ func (r *hospitalRepository) GetSignedContracts(status string) ([]Domain.Hospita
 
 	if status != "" {
 		query = `SELECT c.contract_id, c.hospital_id, h.name as hospital_name, c.blood_bank_admin_id, c.document, 
-		                 c.status, c.contract_start, c.contract_end, c.created_at, c.hospital_signature_path, c.admin_signature_path, h.license_document
+		                 c.status, c.contract_start, c.contract_end, c.created_at, c.hospital_signature_path, c.admin_signature_path, COALESCE(h.license_document, '')
 				  FROM hospital_contracts c
 				  JOIN hospitals h ON c.hospital_id = h.hospital_id
 				  WHERE c.status = $1
@@ -310,7 +310,7 @@ func (r *hospitalRepository) GetSignedContracts(status string) ([]Domain.Hospita
 		args = append(args, status)
 	} else {
 		query = `SELECT c.contract_id, c.hospital_id, h.name as hospital_name, c.blood_bank_admin_id, c.document, 
-		                 c.status, c.contract_start, c.contract_end, c.created_at, c.hospital_signature_path, c.admin_signature_path, h.license_document
+		                 c.status, c.contract_start, c.contract_end, c.created_at, c.hospital_signature_path, c.admin_signature_path, COALESCE(h.license_document, '')
 				  FROM hospital_contracts c
 				  JOIN hospitals h ON c.hospital_id = h.hospital_id
 				  WHERE c.status IN ($1, $2)
@@ -433,7 +433,7 @@ func (r *hospitalRepository) GetHospitalByPhone(phone string) (*Domain.Hospital,
 }
 
 func (r *hospitalRepository) GetAllHospitals() ([]Domain.Hospital, error) {
-	query := `SELECT hospital_id, name, address, phone, license_document, created_at FROM hospitals`
+	query := `SELECT hospital_id, name, address, phone, COALESCE(license_document, ''), created_at FROM hospitals`
 	rows, err := r.db.Query(query)
 	if err != nil {
 		return nil, err

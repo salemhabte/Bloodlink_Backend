@@ -302,6 +302,7 @@ lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 		hDonations := hospitalGrp.Group("/donations")
 		{
 			hDonations.POST("/confirm", hospitalController.ConfirmDonation)
+			hDonations.GET("/donor-profile", hospitalController.GetDonorProfileByPhone)
 		}
 	}
 

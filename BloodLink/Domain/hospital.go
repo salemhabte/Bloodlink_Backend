@@ -148,3 +148,13 @@ type HospitalContractListResponse struct {
 	Contracts []HospitalContractResponse `json:"contracts"`
 	Analytics ContractAnalytics          `json:"analytics"`
 }
+
+type DonorMinimalProfile struct {
+	FullName          string `json:"full_name"`
+	Phone             string `json:"phone"`
+	Email             string `json:"email"`
+	BloodType         string `json:"blood_type"`
+	IsEligible        bool   `json:"is_eligible"`
+	EligibilityStatus string `json:"eligibility_status"`
+	Message           string `json:"message"`
+}

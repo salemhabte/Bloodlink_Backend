@@ -4,6 +4,7 @@ import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,18 +18,30 @@ func NewEmergencyRequestController(u Interfaces.IEmergencyRequestUsecase) *Emerg
 }
 
 func (c *EmergencyRequestController) CreateManualEmergency(ctx *gin.Context) {
-	var dto Domain.CreateEmergencyRequestDTO
-	if err := ctx.ShouldBindJSON(&dto); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// 1. Try to bind as a slice (bulk request)
+	var dtos []Domain.CreateEmergencyRequestDTO
+	if err := ctx.ShouldBindJSON(&dtos); err == nil {
+		if err := c.Usecase.CreateManualEmergency(dtos); err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusCreated, gin.H{"message": "Manual emergency request(s) created and published successfully"})
 		return
 	}
 
-	if err := c.Usecase.CreateManualEmergency(&dto); err != nil {
+	// 2. Fallback to single object
+	var dto Domain.CreateEmergencyRequestDTO
+	if err := ctx.ShouldBindJSON(&dto); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: expected a single emergency or a list of emergencies"})
+		return
+	}
+
+	if err := c.Usecase.CreateManualEmergency([]Domain.CreateEmergencyRequestDTO{dto}); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, gin.H{"message": "Manual emergency request created and published"})
+	ctx.JSON(http.StatusCreated, gin.H{"message": "Manual emergency request created and published successfully"})
 }
 
 func (c *EmergencyRequestController) PublishEmergency(ctx *gin.Context) {
@@ -50,8 +63,13 @@ func (c *EmergencyRequestController) RejectEmergency(ctx *gin.Context) {
 }
 
 func (c *EmergencyRequestController) GetAllEmergencies(ctx *gin.Context) {
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.EmergencyRequestFilter{
-		BloodType:    ctx.Query("blood_type"),
+		BloodType:    bloodType,
 		Status:       ctx.Query("status"),
 		UrgencyLevel: ctx.Query("urgency_level"),
 		StartDate:    ctx.Query("start_date"),

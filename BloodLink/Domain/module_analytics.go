@@ -32,6 +32,4 @@ type ContractAnalytics struct {
 
 type HospitalAnalyticsSummary struct {
 	TotalHospitals int `json:"total_hospitals"`
-	TotalActive    int `json:"total_active"`
-	TotalPending   int `json:"total_pending"`
 }

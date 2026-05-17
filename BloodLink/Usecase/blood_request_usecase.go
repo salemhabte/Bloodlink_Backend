@@ -195,7 +195,7 @@ func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveR
 		status = Domain.BloodRequestStatusRejected
 		message = "No blood"
 		notes = "Automatically rejected: No available units of the requested blood type in inventory."
-	} else if totalReservedQuantity >= br.Quantity {
+	} else if fulfilledCount >= br.Quantity {
 		// b. Fully fulfilled
 		status = Domain.BloodRequestStatusFulfilled
 		message = "Request fully fulfilled and blood units reserved."

@@ -532,6 +532,21 @@ func (u *hospitalUsecase) ConfirmHospitalDonation(donorPhone string, hospitalAdm
 		return errors.New("unauthorized: not a hospital admin")
 	}
 
+	// Normalize phone number
+	donorPhone = strings.TrimSpace(donorPhone)
+	if strings.HasPrefix(donorPhone, " ") {
+		donorPhone = "+" + strings.TrimSpace(donorPhone[1:])
+	}
+	if strings.HasPrefix(donorPhone, "0") {
+		donorPhone = "+251" + donorPhone[1:]
+	}
+	if (strings.HasPrefix(donorPhone, "9") || strings.HasPrefix(donorPhone, "7")) && len(donorPhone) == 9 {
+		donorPhone = "+251" + donorPhone
+	}
+	if strings.HasPrefix(donorPhone, "251") {
+		donorPhone = "+" + donorPhone
+	}
+
 	user, err := u.userRepo.GetUserByPhone(context.Background(), donorPhone)
 	if err != nil || user == nil {
 		return errors.New("donor not found with the given phone number")
@@ -564,3 +579,71 @@ func (u *hospitalUsecase) ConfirmHospitalDonation(donorPhone string, hospitalAdm
 
 	return nil
 }
+
+func (u *hospitalUsecase) GetDonorProfileByPhone(phone string) (*Domain.DonorMinimalProfile, error) {
+	// Normalize phone number
+	phone = strings.TrimSpace(phone)
+	if strings.HasPrefix(phone, " ") {
+		phone = "+" + strings.TrimSpace(phone[1:])
+	}
+	if strings.HasPrefix(phone, "0") {
+		phone = "+251" + phone[1:]
+	}
+	if (strings.HasPrefix(phone, "9") || strings.HasPrefix(phone, "7")) && len(phone) == 9 {
+		phone = "+251" + phone
+	}
+	if strings.HasPrefix(phone, "251") {
+		phone = "+" + phone
+	}
+
+	user, err := u.userRepo.GetUserByPhone(context.Background(), phone)
+	if err != nil || user == nil {
+		return nil, errors.New("donor not found with the given phone number")
+	}
+
+	donor, err := u.userRepo.GetDonorByUserID(context.Background(), user.ID)
+	if err != nil || donor == nil {
+		return nil, errors.New("user is not registered as a donor")
+	}
+
+	// Calculate Eligibility
+	isEligible := false
+	eligibilityStatus := "Not Eligible"
+	message := "Eligible — You can come and donate at any time. Thank you for your willingness to save lives."
+
+	if donor.OverallStatus == "PERMANENTLY_DEFERRED" {
+		message = "Not Eligible — You are permanently deferred from donating blood and cannot donate again. Thank you for your willingness and your past contribution to saving lives."
+	} else {
+		lastDonation, err := u.donationRepo.GetLastDonationByDonor(donor.DonorID)
+		if err == nil && lastDonation != nil {
+			daysSince := int(time.Since(lastDonation.CollectionDate).Hours() / 24)
+			remainingDays := 90 - daysSince
+			if daysSince >= 90 {
+				isEligible = true
+				eligibilityStatus = "Eligible"
+			} else {
+				isEligible = false
+				eligibilityStatus = "Not Eligible"
+				if donor.OverallStatus == "Pending" {
+					message = fmt.Sprintf("Not Eligible — Your overall lab status is pending. Please wait %d more days before your next donation.", remainingDays)
+				} else {
+					message = fmt.Sprintf("Not Eligible — You donated recently. Please wait %d more days before donating again.", remainingDays)
+				}
+			}
+		} else {
+			isEligible = true
+			eligibilityStatus = "Eligible"
+		}
+	}
+
+	return &Domain.DonorMinimalProfile{
+		FullName:          user.FullName,
+		Phone:             user.Phone,
+		Email:             user.Email,
+		BloodType:         donor.BloodType,
+		IsEligible:        isEligible,
+		EligibilityStatus: eligibilityStatus,
+		Message:           message,
+	}, nil
+}
+

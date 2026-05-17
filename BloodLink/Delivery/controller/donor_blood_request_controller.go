@@ -128,10 +128,15 @@ func (c *DonorBloodRequestController) GetAllRequests(ctx *gin.Context) {
 ////////////////////////
 
 func (c *DonorBloodRequestController) GetAllAdminRequests(ctx *gin.Context) {
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.DonorBloodRequestFilter{
 		StartDate: ctx.Query("start_date"),
 		EndDate:   ctx.Query("end_date"),
-		BloodType: ctx.Query("blood_type"),
+		BloodType: bloodType,
 		Status:    ctx.Query("status"),
 	}
 

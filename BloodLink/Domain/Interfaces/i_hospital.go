@@ -53,5 +53,6 @@ type IHospitalUsecase interface {
 	GetSignedContracts(status string) (*Domain.HospitalContractListResponse, error)
 	GetHospitalDashboard(userID string) (*Domain.HospitalDashboard, error)
 	ConfirmHospitalDonation(donorPhone string, hospitalAdminUserID string) error
+	GetDonorProfileByPhone(phone string) (*Domain.DonorMinimalProfile, error)
 	GetAllHospitals() (*Domain.HospitalListResponse, error)
 }

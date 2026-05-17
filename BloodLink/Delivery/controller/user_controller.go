@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 
 	domain "bloodlink/Domain"
 	domainInterface "bloodlink/Domain/Interfaces"
@@ -330,8 +331,13 @@ func (c *UserController) ResetPassword(ctx *gin.Context) {
 }
 
 func (c *UserController) GetDonors(ctx *gin.Context) {
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := domain.DonorFilter{
-		BloodType:     ctx.Query("blood_type"),
+		BloodType:     bloodType,
 		OverallStatus: ctx.Query("overall_status"),
 		StartDate:     ctx.Query("start_date"),
 		EndDate:       ctx.Query("end_date"),

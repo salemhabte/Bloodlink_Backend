@@ -66,9 +66,14 @@ func (c *BloodRequestController) GetHospitalRequests(ctx *gin.Context) {
 }
 
 func (c *BloodRequestController) GetAllRequests(ctx *gin.Context) {
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.BloodRequestFilter{
 		HospitalID:   ctx.Query("hospital_id"),
-		BloodType:    ctx.Query("blood_type"),
+		BloodType:    bloodType,
 		Component:    ctx.Query("component"),
 		Status:       ctx.Query("status"),
 		UrgencyLevel: ctx.Query("urgency_level"),

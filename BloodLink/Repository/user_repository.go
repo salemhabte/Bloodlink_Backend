@@ -347,14 +347,6 @@ func (r *UserRepository) FilterDonors(ctx context.Context, filter domain.DonorFi
 	}
 
 	query += " ORDER BY u.created_at DESC"
-	if filter.StartDate != "" {
-		args = append(args, filter.StartDate)
-		query += fmt.Sprintf(" AND u.created_at >= $%d", len(args))
-	}
-	if filter.EndDate != "" {
-		args = append(args, filter.EndDate)
-		query += fmt.Sprintf(" AND u.created_at <= $%d", len(args))
-	}
 
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {

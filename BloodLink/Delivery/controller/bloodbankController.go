@@ -621,8 +621,13 @@ func NewBloodInventoryController(u *Usecase.BloodInventoryUsecase) *BloodInvento
 // 🔹 GET /inventory
 func (c *BloodInventoryController) GetAll(ctx *gin.Context) {
 	vol, _ := strconv.Atoi(ctx.Query("quantity"))
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.BloodUnitFilter{
-		BloodType:     ctx.Query("blood_type"),
+		BloodType:     bloodType,
 		ComponentType: ctx.Query("component_type"),
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
@@ -741,8 +746,13 @@ func (c *BloodInventoryController) ConvertPlasma(ctx *gin.Context) {
 
 func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 	vol, _ := strconv.Atoi(ctx.Query("quantity"))
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.BloodUnitFilter{
-		BloodType:     ctx.Query("blood_type"),
+		BloodType:     bloodType,
 		ComponentType: ctx.Query("component_type"),
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
@@ -791,8 +801,13 @@ func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 }
 func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 	vol, _ := strconv.Atoi(ctx.Query("quantity"))
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.BloodUnitFilter{
-		BloodType:     ctx.Query("blood_type"),
+		BloodType:     bloodType,
 		ComponentType: ctx.Query("component_type"),
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),

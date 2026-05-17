@@ -138,54 +138,60 @@ func (u *emergencyRequestUsecase) RejectEmergency(id string) error {
 	return u.repo.UpdateStatus(id, Domain.EmergencyStatusRejected)
 }
 
-func (u *emergencyRequestUsecase) CreateManualEmergency(dto *Domain.CreateEmergencyRequestDTO) error {
-	emergency := &Domain.EmergencyRequest{
-		EmergencyID:       uuid.New().String(),
-		BloodType:         dto.BloodType,
-		QuantityRequired:  dto.QuantityRequired,
-		QuantityFulfilled: 0,
-		UrgencyLevel:      dto.UrgencyLevel,
-		HospitalName:      dto.HospitalName,
-		Location:          dto.Location,
-		Latitude:          dto.Latitude,
-		Longitude:         dto.Longitude,
-		Status:            Domain.EmergencyStatusPublished, // Manual ones are published immediately
-		IsManual:          true,
-		CreatedAt:         time.Now(),
-	}
+func (u *emergencyRequestUsecase) CreateManualEmergency(dtos []Domain.CreateEmergencyRequestDTO) error {
+	for _, dto := range dtos {
+		emergency := &Domain.EmergencyRequest{
+			EmergencyID:       uuid.New().String(),
+			BloodType:         dto.BloodType,
+			QuantityRequired:  dto.QuantityRequired,
+			QuantityFulfilled: 0,
+			UrgencyLevel:      "emergency",
+			HospitalName:      dto.HospitalName,
+			Location:          dto.Location,
+			Latitude:          dto.Latitude,
+			Longitude:         dto.Longitude,
+			Status:            Domain.EmergencyStatusPublished, // Manual ones are published immediately
+			IsManual:          true,
+			CreatedAt:         time.Now(),
+		}
 
-	if dto.EndDate != "" {
-		ed, err := time.Parse("2006-01-02", dto.EndDate)
-		if err == nil {
+		if dto.EndDate != "" {
+			ed, err := time.Parse("2006-01-02", dto.EndDate)
+			if err != nil {
+				return errors.New("invalid end_date format, must be YYYY-MM-DD")
+			}
+			today := time.Now().Truncate(24 * time.Hour)
+			if ed.Before(today) {
+				return errors.New("end_date cannot be in the past")
+			}
 			emergency.EndDate = &ed
 		}
-	}
 
-	now := time.Now()
-	emergency.PublishedAt = &now
+		now := time.Now()
+		emergency.PublishedAt = &now
 
-	err := u.repo.Create(emergency)
-	if err != nil {
-		return err
-	}
+		err := u.repo.Create(emergency)
+		if err != nil {
+			return err
+		}
 
-	// Notify nearby donors if location is provided
-	if emergency.Latitude != 0 && emergency.Longitude != 0 {
-		go func() {
-			ctx := context.Background()
-			radiusKm := 20.0
-			donors, err := u.userRepo.GetDonorsNearby(ctx, emergency.BloodType, emergency.Latitude, emergency.Longitude, radiusKm)
-			if err == nil {
-				for _, donor := range donors {
-					subject := fmt.Sprintf("URGENT: %s Blood Emergency nearby", emergency.BloodType)
-					content := fmt.Sprintf("Hello %s,<br><br><b>%s</b> urgently needs <b>%d units</b> of <b>%s</b> blood.<br>Urgency: <b>%s</b>.<br>Since you are within %.1f km, your donation could save a life!<br><br>Please visit the hospital at <b>%s</b> or contact us for more details.", donor.FullName, emergency.HospitalName, emergency.QuantityRequired, emergency.BloodType, emergency.UrgencyLevel, radiusKm, emergency.Location)
-					_ = Infrastructure.SendBloodRequestNotification(donor.Email, subject, content)
-					_ = u.notifUC.SendNotification(donor.UserID, "EMERGENCY", "URGENT: Blood Emergency", fmt.Sprintf("%s needs %s blood.", emergency.HospitalName, emergency.BloodType))
+		// Notify nearby donors if location is provided
+		if emergency.Latitude != 0 && emergency.Longitude != 0 {
+			go func(e *Domain.EmergencyRequest) {
+				ctx := context.Background()
+				radiusKm := 20.0
+				donors, err := u.userRepo.GetDonorsNearby(ctx, e.BloodType, e.Latitude, e.Longitude, radiusKm)
+				if err == nil {
+					for _, donor := range donors {
+						subject := fmt.Sprintf("URGENT: %s Blood Emergency nearby", e.BloodType)
+						content := fmt.Sprintf("Hello %s,<br><br><b>%s</b> urgently needs <b>%d units</b> of <b>%s</b> blood.<br>Urgency: <b>%s</b>.<br>Since you are within %.1f km, your donation could save a life!<br><br>Please visit the hospital at <b>%s</b> or contact us for more details.", donor.FullName, e.HospitalName, e.QuantityRequired, e.BloodType, e.UrgencyLevel, radiusKm, e.Location)
+						_ = Infrastructure.SendBloodRequestNotification(donor.Email, subject, content)
+						_ = u.notifUC.SendNotification(donor.UserID, "EMERGENCY", "URGENT: Blood Emergency", fmt.Sprintf("%s needs %s blood.", e.HospitalName, e.BloodType))
+					}
 				}
-			}
-		}()
+			}(emergency)
+		}
 	}
-
 	return nil
 }
 

@@ -278,3 +278,19 @@ func (c *HospitalController) GetAllHospitals(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, res)
 }
+
+func (c *HospitalController) GetDonorProfileByPhone(ctx *gin.Context) {
+	phone := ctx.Query("phone")
+	if phone == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "phone query parameter is required"})
+		return
+	}
+
+	profile, err := c.Usecase.GetDonorProfileByPhone(phone)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, profile)
+}
