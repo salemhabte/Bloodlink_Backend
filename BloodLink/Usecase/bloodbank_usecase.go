@@ -235,7 +235,7 @@ func (u *DonationUsecase) SearchPendingDonor(query string) (*Domain.DonorRespons
 func SuggestDonationStatus(weight float64, hemoglobin float64, temperature float64, pulse int, bloodPressure string) (string, func(string) bool) {
 	suggested := "APPROVED"
 
-	if weight < 50 {
+	if weight < 45 {
 		suggested = "REJECTED_TEMPORARY"
 	} else if hemoglobin < 12.5 {
 		suggested = "REJECTED_TEMPORARY"
@@ -318,7 +318,15 @@ func (u *DonationUsecase) UpdateDonationStatus(donationID string, status string,
 	// ================================
 	existing.Status = status
 	existing.RejectionReason = rejectionReason
-	return u.repo.UpdateDonation(existing)
+	if err := u.repo.UpdateDonation(existing); err != nil {
+		return err
+	}
+
+	if status == "APPROVED" {
+		_ = u.repo.UpdateDonorOverallStatus(existing.DonorID, "Pending")
+	}
+
+	return nil
 }
 
 // NEW: Get donation by ID
@@ -388,6 +396,10 @@ func (u *DonationUsecase) UpdateDonation(record *Domain.DonationRecord) error {
 	// Update donor weight
 	if err := u.repo.UpdateDonorWeight(record.DonorID, record.Weight); err != nil {
 		return err
+	}
+
+	if record.Status == "APPROVED" {
+		_ = u.repo.UpdateDonorOverallStatus(record.DonorID, "Pending")
 	}
 
 	return nil

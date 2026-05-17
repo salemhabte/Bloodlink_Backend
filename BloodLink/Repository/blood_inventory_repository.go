@@ -59,7 +59,7 @@ func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilte
 		placeholderID++
 	}
 	if filter.NearExpired {
-		query += " AND expiration_date > NOW() AND expiration_date <= NOW() + INTERVAL '7 days'"
+		query += " AND expiration_date > CURRENT_DATE AND expiration_date <= CURRENT_DATE + 7"
 	}
 
 	query += " ORDER BY expiration_date ASC"

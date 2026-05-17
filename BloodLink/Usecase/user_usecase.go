@@ -299,7 +299,7 @@ func (u *UserUseCaseBase) CalculateEligibility(ctx context.Context, donorID stri
 	remainingDays := 90 - daysSince
 
 	if daysSince >= 90 {
-		// More than 3 months passed
+		// More than 3 months passed since the last approved donation
 		eligibility.IsEligible = true
 		eligibility.EligibilityStatus = "Eligible"
 		eligibility.EligibilityMessage = "Eligible — You can come and donate at any time. Thank you for your willingness to save lives."
@@ -308,6 +308,8 @@ func (u *UserUseCaseBase) CalculateEligibility(ctx context.Context, donorID stri
 		eligibility.CountdownDays = remainingDays
 		if overallStatus == "Pending" {
 			eligibility.EligibilityMessage = fmt.Sprintf("Not Eligible — Your overall lab status is pending. Please wait %d more days before your next donation.", remainingDays)
+		} else if overallStatus == "TEMPORARILY_DEFERRED" {
+			eligibility.EligibilityMessage = fmt.Sprintf("Not Eligible — You are temporarily deferred. Please wait %d more days before trying again.", remainingDays)
 		} else {
 			eligibility.EligibilityMessage = fmt.Sprintf("Not Eligible — You donated recently. Please wait %d more days before donating again.", remainingDays)
 		}
