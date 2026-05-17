@@ -21,6 +21,7 @@ type IBloodInventoryRepository interface {
 	MarkUnitAsUsed(unitID string) error
 	ExpireStaleReservations(cutoff time.Time) ([]string, error) // returns affected request_ids
 	GetReservedUnitsByHospitalID(hospitalID string) ([]Domain.BloodUnit, error)
+	GetReservedUnitsByRequestID(requestID string) ([]Domain.BloodUnit, error)
 
 	// Delete with audit
 	DeleteWithAudit(unitID string) error

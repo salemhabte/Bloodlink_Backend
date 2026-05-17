@@ -577,6 +577,10 @@ func (u *BloodInventoryUsecase) GetReservedUnitsByHospital(hospitalID string) ([
 	return u.repo.GetReservedUnitsByHospitalID(hospitalID)
 }
 
+func (u *BloodInventoryUsecase) GetReservedUnitsByRequestID(requestID string) ([]Domain.BloodUnit, error) {
+	return u.repo.GetReservedUnitsByRequestID(requestID)
+}
+
 func (u *BloodInventoryUsecase) ExpireReservations() ([]string, error) {
 	// Cutoff is 24 hours ago
 	cutoff := time.Now().Add(-24 * time.Hour)
