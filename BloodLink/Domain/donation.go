@@ -25,8 +25,6 @@ type DonationRecord struct {
     Status         string    `json:"status"`
     RejectionReason string   `json:"rejection_reason"`
     OverallStatus  string    `json:"overall_status"`
-    PreviousBloodType     string `json:"previous_blood_type,omitempty"`
-    PreviousOverallStatus  string `json:"previous_overall_status,omitempty"`
     CreatedAt      time.Time `json:"created_at"`
 }
 

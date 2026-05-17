@@ -157,8 +157,6 @@ func (r *LabRepository) GetPendingDonationByID(donationID string) (*Domain.Donat
 		d.pulse,
 		d.quantity_ml,
 		d.status,
-		COALESCE(dn.blood_type, ''),
-		COALESCE(dn.overall_status, 'CLEARED'),
 		d.created_at
 	FROM donation_records d
 	JOIN donors dn ON d.donor_id = dn.donor_id
@@ -182,8 +180,6 @@ func (r *LabRepository) GetPendingDonationByID(donationID string) (*Domain.Donat
 		&donation.Pulse,
 		&donation.QuantityML,
 		&donation.Status,
-		&donation.PreviousBloodType,
-		&donation.PreviousOverallStatus,
 		&donation.CreatedAt,
 	)
 
@@ -235,8 +231,6 @@ func (r *LabRepository) GetPendingDonations() ([]Domain.DonationRecord, error) {
 		d.pulse,
 		d.quantity_ml,
 		d.status,
-		COALESCE(dn.blood_type, ''),
-		COALESCE(dn.overall_status, 'CLEARED'),
 		d.created_at
 	FROM donation_records d
 	JOIN donors dn ON d.donor_id = dn.donor_id
@@ -271,8 +265,6 @@ func (r *LabRepository) GetPendingDonations() ([]Domain.DonationRecord, error) {
 			&d.Pulse,
 			&d.QuantityML,
 			&d.Status,
-			&d.PreviousBloodType,
-			&d.PreviousOverallStatus,
 			&d.CreatedAt,
 		)
 		if err != nil {
