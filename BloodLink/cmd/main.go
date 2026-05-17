@@ -6,7 +6,7 @@ import (
 	"bloodlink/Infrastructure"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
-	"bloodlink/jobs"
+	"bloodlink/Jobs"
 
 	"bloodlink/config"
 	"log"
