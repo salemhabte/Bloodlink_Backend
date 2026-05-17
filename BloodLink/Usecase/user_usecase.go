@@ -77,6 +77,11 @@ func NewUserUseCase(
 }
 
 func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) error {
+	// Validate phone format first
+	if user.Phone != "" && !u.validation.IsValidPhone(user.Phone) {
+		return errors.New("phone number must follow the +251 x[7,9]xxxxxxx format (e.g. +251912345678)")
+	}
+
 	// Validate email
 	if !u.validation.IsValidEmail(user.Email) {
 		return errors.New("invalid email format")
@@ -136,6 +141,11 @@ func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) e
 }
 
 func (u *UserUseCaseBase) RegisterDonor(ctx context.Context, req *domain.RegisterDonorRequest) error {
+	// Validate phone format first
+	if req.Phone == "" || !u.validation.IsValidPhone(req.Phone) {
+		return errors.New("phone number must follow the +251 x[7,9]xxxxxxx format (e.g. +251912345678)")
+	}
+
 	// 1. Validate
 	if !u.validation.IsValidEmail(req.Email) {
 		return errors.New("invalid email format")

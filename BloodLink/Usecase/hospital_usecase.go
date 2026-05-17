@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"os"
+	"regexp"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -41,6 +42,16 @@ func NewHospitalUsecase(repo Interfaces.IHospitalRepository, pdfService IPDFGene
 }
 
 func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospitalRequestDTO) error {
+	// Validate phone formats first
+	phoneRegex := `^\+251[79]\d{8}$`
+	re := regexp.MustCompile(phoneRegex)
+	if !re.MatchString(req.Phone) {
+		return errors.New("hospital phone number must follow the +251 x[7,9]xxxxxxx format (e.g. +251912345678)")
+	}
+	if !re.MatchString(req.AdminPhone) {
+		return errors.New("admin phone number must follow the +251 x[7,9]xxxxxxx format (e.g. +251912345678)")
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.AdminPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
