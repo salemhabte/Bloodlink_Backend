@@ -236,6 +236,7 @@ lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
 		{
 			adminActions.PUT("/:id/used", inventoryController.MarkUsed)
 			adminActions.GET("/reserved/:hospital_id", inventoryController.GetReservedByHospital)
+			adminActions.GET("/reserved-request/:request_id", inventoryController.GetReservedByRequest)
 		}
 
 		// Lab-Only Routes

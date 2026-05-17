@@ -725,6 +725,18 @@ func (c *BloodInventoryController) GetReservedByHospital(ctx *gin.Context) {
 	ctx.JSON(200, units)
 }
 
+func (c *BloodInventoryController) GetReservedByRequest(ctx *gin.Context) {
+	requestID := ctx.Param("request_id")
+
+	units, err := c.usecase.GetReservedUnitsByRequestID(requestID)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(200, units)
+}
+
 // 🔹 POST /inventory/:id/convert-cryo
 func (c *BloodInventoryController) ConvertPlasma(ctx *gin.Context) {
 	id := ctx.Param("id")

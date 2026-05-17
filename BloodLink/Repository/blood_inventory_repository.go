@@ -483,6 +483,39 @@ func (r *BloodInventoryRepository) GetReservedUnitsByHospitalID(hospitalID strin
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
 			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
+		); err != nil {
+			return nil, err
+		}
+		units = append(units, u)
+	}
+	return units, nil
+}
+
+func (r *BloodInventoryRepository) GetReservedUnitsByRequestID(requestID string) ([]Domain.BloodUnit, error) {
+	query := `
+	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
+	       quantity_ml, collection_date, expiration_date, status,
+	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
+	FROM blood_units
+	WHERE status = 'RESERVED' AND request_id = $1 AND is_deleted = false
+	ORDER BY expiration_date ASC
+	`
+	rows, err := r.DB.Query(query, requestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var units []Domain.BloodUnit
+	for rows.Next() {
+		var u Domain.BloodUnit
+		if err := rows.Scan(
+			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
+			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
+			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
 		); err != nil {
 			return nil, err
 		}
