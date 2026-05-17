@@ -75,6 +75,17 @@ func (u *AdminAnalyticsUsecase) GetDashboard() (*Domain.AdminDashboard, error) {
 	d.BloodTypeStats = inventory.BloodTypeStats
 	d.NearExpiryUnits = inventory.NearExpiryUnits
 
+	// ================= HOSPITALS =================
+	hospital, err := u.GetHospitalSummary()
+	if err != nil {
+		return nil, err
+	}
+
+	d.TotalHospitals = hospital.TotalHospitals
+	d.ActiveContracts = hospital.ActiveContracts
+	d.PendingHospitalRequests = hospital.PendingHospitalRequests
+	d.ActiveEmergencies = hospital.ActiveEmergencies
+
 	return d, nil
 }
 func (u *AdminAnalyticsUsecase) GetDonorSummary() (*Domain.DonorSummaryResponse, error) {
@@ -168,5 +179,19 @@ func (u *AdminAnalyticsUsecase) GetInventorySummary() (*Domain.InventorySummaryR
 		TotalBloodUnits: total,
 		BloodTypeStats:  bloodTypes,
 		NearExpiryUnits: nearExpiry,
+	}, nil
+}
+
+func (u *AdminAnalyticsUsecase) GetHospitalSummary() (*Domain.HospitalSummaryResponse, error) {
+	total, active, pending, emergencies, err := u.repo.GetHospitalStats()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Domain.HospitalSummaryResponse{
+		TotalHospitals:          total,
+		ActiveContracts:         active,
+		PendingHospitalRequests: pending,
+		ActiveEmergencies:       emergencies,
 	}, nil
 }

@@ -48,3 +48,9 @@ func (p *PasswordService) ComparePassword(userPassword, password string) error {
 	err := bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(password))
 	return err
 }
+
+func (p *PasswordService) IsValidPhone(phone string) bool {
+	regex := `^\+251[79]\d{8}$`
+	re := regexp.MustCompile(regex)
+	return re.MatchString(phone)
+}

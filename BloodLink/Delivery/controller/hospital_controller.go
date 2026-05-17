@@ -41,12 +41,17 @@ func (c *HospitalController) GetPendingRequests(ctx *gin.Context) {
 		EndDate:   ctx.Query("end_date"),
 	}
 
-	reqs, err := c.Usecase.GetPendingRequests(filter)
+	if (filter.StartDate != "" && filter.EndDate == "") || (filter.StartDate == "" && filter.EndDate != "") {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Both start_date and end_date are required"})
+		return
+	}
+
+	res, err := c.Usecase.GetPendingRequests(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusOK, reqs)
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *HospitalController) ApproveRequest(ctx *gin.Context) {
@@ -139,12 +144,12 @@ func (c *HospitalController) GetContractByID(ctx *gin.Context) {
 
 func (c *HospitalController) GetMyContracts(ctx *gin.Context) {
 	userID := ctx.GetString("userID")
-	contracts, err := c.Usecase.GetHospitalContracts(userID)
+	res, err := c.Usecase.GetHospitalContracts(userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusOK, contracts)
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *HospitalController) GetMyLatestContract(ctx *gin.Context) {
@@ -229,12 +234,12 @@ func (c *HospitalController) DeleteContractTemplate(ctx *gin.Context) {
 func (c *HospitalController) GetSignedContracts(ctx *gin.Context) {
 	status := strings.ToUpper(strings.TrimSpace(ctx.Query("status")))
 	fmt.Printf("GetSignedContracts - Received status: '%s'\n", status)
-	contracts, err := c.Usecase.GetSignedContracts(status)
+	res, err := c.Usecase.GetSignedContracts(status)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusOK, contracts)
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *HospitalController) GetHospitalDashboard(ctx *gin.Context) {
@@ -245,4 +250,47 @@ func (c *HospitalController) GetHospitalDashboard(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, dashboard)
+}
+
+func (c *HospitalController) ConfirmDonation(ctx *gin.Context) {
+	adminID := ctx.GetString("userID")
+	var req struct {
+		DonorPhone string `json:"donor_phone" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := c.Usecase.ConfirmHospitalDonation(req.DonorPhone, adminID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "Donation recorded successfully"})
+}
+
+func (c *HospitalController) GetAllHospitals(ctx *gin.Context) {
+	res, err := c.Usecase.GetAllHospitals()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusOK, res)
+}
+
+func (c *HospitalController) GetDonorProfileByPhone(ctx *gin.Context) {
+	phone := ctx.Query("phone")
+	if phone == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "phone query parameter is required"})
+		return
+	}
+
+	profile, err := c.Usecase.GetDonorProfileByPhone(phone)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, profile)
 }

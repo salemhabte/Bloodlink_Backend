@@ -5,6 +5,8 @@ import "bloodlink/Domain"
 type IHospitalRepository interface {
 	CreateHospitalRequest(req *Domain.HospitalRequest) error
 	CreateHospitalRequestAdmin(admin *Domain.HospitalRequestAdmin) error
+	CreateHospitalRegistrationRequest(req *Domain.HospitalRequest, admin *Domain.HospitalRequestAdmin) error
+	ApproveHospitalRegistration(hospital *Domain.Hospital, user *Domain.User, admin *Domain.HospitalAdmin, contract *Domain.HospitalContract, requestID string) error
 	GetPendingRequests(filter Domain.HospitalRequestFilter) ([]Domain.HospitalRequestResponse, error)
 	GetHospitalRequestByID(requestID string) (*Domain.HospitalRequest, *Domain.HospitalRequestAdmin, error)
 	UpdateHospitalRequestStatus(requestID string, status string) error
@@ -27,24 +29,30 @@ type IHospitalRepository interface {
 	GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error)
 	GetHospitalDashboard(hospitalID string) (*Domain.HospitalDashboard, error)
 	GetHospitalByPhone(phone string) (*Domain.Hospital, error)
+	GetAllHospitals() ([]Domain.Hospital, error)
+	IsPhoneRegisteredOrPending(phone string) (bool, error)
+	IsAdminEmailPending(email string) (bool, error)
 }
 
 type IHospitalUsecase interface {
 	SubmitRegistrationRequest(req *Domain.RegisterHospitalRequestDTO) error
-	GetPendingRequests(filter Domain.HospitalRequestFilter) ([]Domain.HospitalRequestResponse, error)
+	GetPendingRequests(filter Domain.HospitalRequestFilter) (*Domain.HospitalRequestListResponse, error)
 	ApproveRequest(requestID string, bloodBankAdminID string, payload *Domain.ApproveHospitalRequestDTO) error
 	RejectRequest(requestID string) error
 	HospitalSignContract(contractID string, req *Domain.SignContractRequestDTO, hospitalAdminID string) error
 	AdminSignContract(contractID string, req *Domain.SignContractRequestDTO, bloodBankAdminID string) error
 	RejectContract(contractID string, userID string, role string) error
 	GetContractByID(contractID string) (*Domain.HospitalContract, error)
-	GetHospitalContracts(userID string) ([]Domain.HospitalContract, error)
+	GetHospitalContracts(userID string) (*Domain.HospitalContractListResponse, error)
 	GetLatestHospitalContract(userID string) (*Domain.HospitalContract, error)
 
 	CreateContractTemplate(req *Domain.CreateTemplateRequestDTO, adminID string) error
 	GetContractTemplates() ([]Domain.ContractTemplate, error)
 	UpdateContractTemplate(templateID string, req *Domain.CreateTemplateRequestDTO) error
 	DeleteContractTemplate(templateID string) error
-	GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error)
+	GetSignedContracts(status string) (*Domain.HospitalContractListResponse, error)
 	GetHospitalDashboard(userID string) (*Domain.HospitalDashboard, error)
+	ConfirmHospitalDonation(donorPhone string, hospitalAdminUserID string) error
+	GetDonorProfileByPhone(phone string) (*Domain.DonorMinimalProfile, error)
+	GetAllHospitals() (*Domain.HospitalListResponse, error)
 }

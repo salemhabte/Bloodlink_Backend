@@ -20,12 +20,12 @@ func (r *emergencyRequestRepository) Create(req *Domain.EmergencyRequest) error 
 	query := `INSERT INTO emergency_requests (
 				emergency_id, request_id, blood_type, quantity_required, 
 				quantity_fulfilled, urgency_level, hospital_name, location,
-				status, is_manual, created_at, updated_at, latitude, longitude, location_geo
-			  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, ST_SetSRID(ST_MakePoint($14, $13), 4326)::geography)`
+				status, is_manual, created_at, updated_at, latitude, longitude, location_geo, end_date
+			  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, ST_SetSRID(ST_MakePoint($14, $13), 4326)::geography, $15)`
 	_, err := r.db.Exec(query,
 		req.EmergencyID, req.RequestID, req.BloodType, req.QuantityRequired,
 		req.QuantityFulfilled, req.UrgencyLevel, req.HospitalName, req.Location,
-		req.Status, req.IsManual, req.CreatedAt, time.Now(), req.Latitude, req.Longitude,
+		req.Status, req.IsManual, req.CreatedAt, time.Now(), req.Latitude, req.Longitude, req.EndDate,
 	)
 	return err
 }
@@ -47,14 +47,14 @@ func (r *emergencyRequestRepository) GetByID(id string) (*Domain.EmergencyReques
 	query := `SELECT 
 				emergency_id, request_id, blood_type, quantity_required, 
 				quantity_fulfilled, urgency_level, hospital_name, location,
-				status, is_manual, created_at, updated_at, published_at, latitude, longitude
+				status, is_manual, created_at, updated_at, published_at, latitude, longitude, end_date
 			  FROM emergency_requests WHERE emergency_id = $1`
 
 	req := &Domain.EmergencyRequest{}
 	err := r.db.QueryRow(query, id).Scan(
 		&req.EmergencyID, &req.RequestID, &req.BloodType, &req.QuantityRequired,
 		&req.QuantityFulfilled, &req.UrgencyLevel, &req.HospitalName, &req.Location,
-		&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude,
+		&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude, &req.EndDate,
 	)
 	if err != nil {
 		return nil, err
@@ -66,9 +66,9 @@ func (r *emergencyRequestRepository) GetAll(filter Domain.EmergencyRequestFilter
 	query := `SELECT 
 				emergency_id, request_id, blood_type, quantity_required, 
 				quantity_fulfilled, urgency_level, hospital_name, location,
-				status, is_manual, created_at, updated_at, published_at, latitude, longitude
+				status, is_manual, created_at, updated_at, published_at, latitude, longitude, end_date
 			  FROM emergency_requests 
-			  WHERE 1=1`
+			  WHERE 1=1 AND (end_date IS NULL OR end_date >= NOW())`
 
 	args := []interface{}{}
 	placeholderID := 1
@@ -113,7 +113,7 @@ func (r *emergencyRequestRepository) GetAll(filter Domain.EmergencyRequestFilter
 		err := rows.Scan(
 			&req.EmergencyID, &req.RequestID, &req.BloodType, &req.QuantityRequired,
 			&req.QuantityFulfilled, &req.UrgencyLevel, &req.HospitalName, &req.Location,
-			&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude,
+			&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude, &req.EndDate,
 		)
 		if err != nil {
 			return nil, err
@@ -127,9 +127,9 @@ func (r *emergencyRequestRepository) GetActive() ([]Domain.EmergencyRequest, err
 	query := `SELECT 
 				emergency_id, request_id, blood_type, quantity_required, 
 				quantity_fulfilled, urgency_level, hospital_name, location,
-				status, is_manual, created_at, updated_at, published_at, latitude, longitude
+				status, is_manual, created_at, updated_at, published_at, latitude, longitude, end_date
 			  FROM emergency_requests 
-			  WHERE status = $1 ORDER BY published_at DESC`
+			  WHERE status = $1 AND (end_date IS NULL OR end_date >= NOW()) ORDER BY published_at DESC`
 
 	rows, err := r.db.Query(query, Domain.EmergencyStatusPublished)
 	if err != nil {
@@ -143,7 +143,7 @@ func (r *emergencyRequestRepository) GetActive() ([]Domain.EmergencyRequest, err
 		err := rows.Scan(
 			&req.EmergencyID, &req.RequestID, &req.BloodType, &req.QuantityRequired,
 			&req.QuantityFulfilled, &req.UrgencyLevel, &req.HospitalName, &req.Location,
-			&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude,
+			&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude, &req.EndDate,
 		)
 		if err != nil {
 			return nil, err
@@ -157,14 +157,14 @@ func (r *emergencyRequestRepository) GetByRequestID(requestID string) (*Domain.E
 	query := `SELECT 
 				emergency_id, request_id, blood_type, quantity_required, 
 				quantity_fulfilled, urgency_level, hospital_name, location,
-				status, is_manual, created_at, updated_at, published_at, latitude, longitude
+				status, is_manual, created_at, updated_at, published_at, latitude, longitude, end_date
 			  FROM emergency_requests WHERE request_id = $1`
 
 	req := &Domain.EmergencyRequest{}
 	err := r.db.QueryRow(query, requestID).Scan(
 		&req.EmergencyID, &req.RequestID, &req.BloodType, &req.QuantityRequired,
 		&req.QuantityFulfilled, &req.UrgencyLevel, &req.HospitalName, &req.Location,
-		&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude,
+		&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude, &req.EndDate,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -179,7 +179,7 @@ func (r *emergencyRequestRepository) GetByLocation(location string) ([]Domain.Em
 	query := `SELECT 
 				emergency_id, request_id, blood_type, quantity_required, 
 				quantity_fulfilled, urgency_level, hospital_name, location,
-				status, is_manual, created_at, updated_at, published_at, latitude, longitude
+				status, is_manual, created_at, updated_at, published_at, latitude, longitude, end_date
 			  FROM emergency_requests 
 			  WHERE status = $1 AND location ILIKE $2
 			  ORDER BY published_at DESC`
@@ -196,7 +196,7 @@ func (r *emergencyRequestRepository) GetByLocation(location string) ([]Domain.Em
 		err := rows.Scan(
 			&req.EmergencyID, &req.RequestID, &req.BloodType, &req.QuantityRequired,
 			&req.QuantityFulfilled, &req.UrgencyLevel, &req.HospitalName, &req.Location,
-			&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude,
+			&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude, &req.EndDate,
 		)
 		if err != nil {
 			return nil, err
@@ -210,9 +210,10 @@ func (r *emergencyRequestRepository) GetNearby(lat float64, lon float64, radiusK
 	query := `SELECT 
 				emergency_id, request_id, blood_type, quantity_required, 
 				quantity_fulfilled, urgency_level, hospital_name, location,
-				status, is_manual, created_at, updated_at, published_at, latitude, longitude
+				status, is_manual, created_at, updated_at, published_at, latitude, longitude, end_date
 			  FROM emergency_requests 
 			  WHERE status = $1 
+			  AND (end_date IS NULL OR end_date >= NOW())
 			  AND ($5 = '' OR blood_type = $5)
 			  AND ST_DWithin(location_geo, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, $4 * 1000)
 			  ORDER BY ST_Distance(location_geo, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography) ASC`
@@ -229,7 +230,7 @@ func (r *emergencyRequestRepository) GetNearby(lat float64, lon float64, radiusK
 		err := rows.Scan(
 			&req.EmergencyID, &req.RequestID, &req.BloodType, &req.QuantityRequired,
 			&req.QuantityFulfilled, &req.UrgencyLevel, &req.HospitalName, &req.Location,
-			&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude,
+			&req.Status, &req.IsManual, &req.CreatedAt, &req.UpdatedAt, &req.PublishedAt, &req.Latitude, &req.Longitude, &req.EndDate,
 		)
 		if err != nil {
 			return nil, err
@@ -237,4 +238,10 @@ func (r *emergencyRequestRepository) GetNearby(lat float64, lon float64, radiusK
 		requests = append(requests, req)
 	}
 	return requests, nil
+}
+
+func (r *emergencyRequestRepository) MarkCompletedEmergencies() error {
+	query := `UPDATE emergency_requests SET status = $1, updated_at = $2 WHERE status = $3 AND end_date <= $2`
+	_, err := r.db.Exec(query, Domain.EmergencyStatusCompleted, time.Now(), Domain.EmergencyStatusPublished)
+	return err
 }

@@ -241,16 +241,48 @@ func (u *DonorBloodRequestUsecase) GetAllRequests() ([]Domain.DonorBloodRequest,
 
 // GetAllAdminRequests returns filtered donor requests sorted by successful
 // donation count descending — donors who donated more appear first (higher priority).
-func (u *DonorBloodRequestUsecase) GetAllAdminRequests(filter Domain.DonorBloodRequestFilter) ([]Domain.DonorBloodRequest, error) {
-	return u.repo.GetAllAdmin(filter)
+func (u *DonorBloodRequestUsecase) GetAllAdminRequests(filter Domain.DonorBloodRequestFilter) (*Domain.DonorBloodRequestListResponse, error) {
+	requests, err := u.repo.GetAllAdmin(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Domain.DonorBloodRequestListResponse{
+		Requests:  requests,
+		Analytics: u.calculateAnalytics(requests),
+	}, nil
 }
 
-func (u *DonorBloodRequestUsecase) GetMyRequests(userID string, filter Domain.DonorBloodRequestFilter) ([]Domain.DonorBloodRequest, error) {
+func (u *DonorBloodRequestUsecase) GetMyRequests(userID string, filter Domain.DonorBloodRequestFilter) (*Domain.DonorBloodRequestListResponse, error) {
 	donorID, err := u.repo.GetDonorIDByUserID(userID)
 	if err != nil {
 		return nil, err
 	}
-	return u.repo.GetByDonorID(donorID, filter)
+	requests, err := u.repo.GetByDonorID(donorID, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Domain.DonorBloodRequestListResponse{
+		Requests:  requests,
+		Analytics: u.calculateAnalytics(requests),
+	}, nil
+}
+
+func (u *DonorBloodRequestUsecase) calculateAnalytics(requests []Domain.DonorBloodRequest) Domain.SummaryAnalytics {
+	var analytics Domain.SummaryAnalytics
+	analytics.TotalRequests = len(requests)
+	for _, r := range requests {
+		switch r.Status {
+		case "FULFILLED", "PARTIALLY FULFILLED":
+			analytics.TotalFulfilled++
+		case "PENDING":
+			analytics.TotalPending++
+		case "REJECTED":
+			analytics.TotalCancelled++
+		}
+	}
+	return analytics
 }
 
 ////////////////////////

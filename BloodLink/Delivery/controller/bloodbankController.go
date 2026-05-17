@@ -621,8 +621,13 @@ func NewBloodInventoryController(u *Usecase.BloodInventoryUsecase) *BloodInvento
 // 🔹 GET /inventory
 func (c *BloodInventoryController) GetAll(ctx *gin.Context) {
 	vol, _ := strconv.Atoi(ctx.Query("quantity"))
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.BloodUnitFilter{
-		BloodType:     ctx.Query("blood_type"),
+		BloodType:     bloodType,
 		ComponentType: ctx.Query("component_type"),
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
@@ -631,13 +636,18 @@ func (c *BloodInventoryController) GetAll(ctx *gin.Context) {
 		NearExpired:   ctx.Query("near_expired") == "true",
 	}
 
-	data, err := c.usecase.GetAllUnits(filter)
+	if (filter.StartDate != "" && filter.EndDate == "") || (filter.StartDate == "" && filter.EndDate != "") {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Both start_date and end_date are required"})
+		return
+	}
+
+	res, err := c.usecase.GetAllUnits(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, c.wrapInventoryResults(data))
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *BloodInventoryController) GetByID(ctx *gin.Context) {
@@ -736,8 +746,13 @@ func (c *BloodInventoryController) ConvertPlasma(ctx *gin.Context) {
 
 func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 	vol, _ := strconv.Atoi(ctx.Query("quantity"))
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.BloodUnitFilter{
-		BloodType:     ctx.Query("blood_type"),
+		BloodType:     bloodType,
 		ComponentType: ctx.Query("component_type"),
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
@@ -746,7 +761,8 @@ func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 		NearExpired:   ctx.Query("near_expired") == "true",
 	}
 
-	units, _ := c.usecase.GetAllUnits(filter)
+	res, _ := c.usecase.GetAllUnits(filter)
+	units := res.Units
 
 	ctx.Header("Content-Type", "application/octet-stream")
 	ctx.Header("Content-Disposition", `attachment; filename="blood_inventory.csv"`)
@@ -785,8 +801,13 @@ func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 }
 func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 	vol, _ := strconv.Atoi(ctx.Query("quantity"))
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.BloodUnitFilter{
-		BloodType:     ctx.Query("blood_type"),
+		BloodType:     bloodType,
 		ComponentType: ctx.Query("component_type"),
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
@@ -795,11 +816,12 @@ func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 		NearExpired:   ctx.Query("near_expired") == "true",
 	}
 
-	units, err := c.usecase.GetAllUnits(filter)
+	res, err := c.usecase.GetAllUnits(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	units := res.Units
 
 	pdf := gofpdf.New("L", "mm", "A4", "")
 	pdf.AddPage()

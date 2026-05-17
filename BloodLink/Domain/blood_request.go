@@ -18,6 +18,7 @@ type BloodRequest struct {
 	RequestID    string     `json:"request_id" db:"request_id"`
 	HospitalID   string     `json:"hospital_id" db:"hospital_id"`
 	BloodType    string     `json:"blood_type" db:"blood_type"`
+	Component    string     `json:"component" db:"component"`
 	Quantity     int        `json:"quantity" db:"quantity"`
 	UrgencyLevel string     `json:"urgency_level" db:"urgency_level"`
 	Status       string     `json:"status" db:"status"`
@@ -25,10 +26,16 @@ type BloodRequest struct {
 	ApprovedAt   *time.Time `json:"approved_at" db:"approved_at"`
 }
 
-type CreateBloodRequestDTO struct {
-	BloodType    string `json:"blood_type" binding:"required,oneof='A+' 'A-' 'B+' 'B-' 'AB+' 'AB-' 'O+' 'O-'"`
-	Quantity     int    `json:"quantity" binding:"required,gt=0"`
-	UrgencyLevel string `json:"urgency_level" binding:"required,oneof=LOW MEDIUM HIGH CRITICAL"`
+type BloodRequestItemDTO struct {
+	BloodType string `json:"blood_type" binding:"required,oneof='A+' 'A-' 'B+' 'B-' 'AB+' 'AB-' 'O+' 'O-'"`
+	Component string `json:"component" binding:"required,oneof='CRS' 'Plasma' 'Platelets' 'Cryo Precipitate' 'Whole Blood'"`
+	Quantity  int    `json:"quantity" binding:"required,gt=0"`
+}
+
+type CreateBloodRequestBatchDTO struct {
+	HospitalID   string                `json:"hospital_id"`
+	UrgencyLevel string                `json:"urgency_level" binding:"required,oneof=emergency normal"`
+	Requests     []BloodRequestItemDTO `json:"requests" binding:"required,min=1,dive"`
 }
 
 type BloodRequestResponse struct {
@@ -36,6 +43,7 @@ type BloodRequestResponse struct {
 	HospitalID       string     `json:"hospital_id" db:"hospital_id"`
 	HospitalName     string     `json:"hospital_name" db:"hospital_name"`
 	BloodType        string     `json:"blood_type" db:"blood_type"`
+	Component        string     `json:"component" db:"component"`
 	Quantity         int        `json:"quantity" db:"quantity"`
 	UrgencyLevel     string     `json:"urgency_level" db:"urgency_level"`
 	Status           string     `json:"status" db:"status"`
@@ -49,8 +57,14 @@ type BloodRequestResponse struct {
 type BloodRequestFilter struct {
 	HospitalID   string `json:"hospital_id"`
 	BloodType    string `json:"blood_type"`
+	Component    string `json:"component"`
 	Status       string `json:"status"`
 	UrgencyLevel string `json:"urgency_level"`
 	StartDate    string `json:"start_date"`
 	EndDate      string `json:"end_date"`
+}
+
+type BloodRequestListResponse struct {
+	Requests  []BloodRequestResponse `json:"requests"`
+	Analytics SummaryAnalytics       `json:"analytics"`
 }

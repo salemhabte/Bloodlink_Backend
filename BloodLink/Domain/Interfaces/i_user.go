@@ -18,4 +18,5 @@ type IUserValidation interface {
 	IsStrongPassword(password string) bool
 	Hashpassword(password string) string
 	ComparePassword(userPassword, password string) error
+	IsValidPhone(phone string) bool
 }

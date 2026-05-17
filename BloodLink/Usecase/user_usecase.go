@@ -53,6 +53,7 @@ type UserUseCaseBase struct {
 	auth         domainInterface.IAuthentication
 	validation   domainInterface.IUserValidation
 	notifUC      domainInterface.INotificationUsecase
+	hospitalRepo domainInterface.IHospitalRepository
 }
 
 func NewUserUseCase(
@@ -62,6 +63,7 @@ func NewUserUseCase(
 	auth domainInterface.IAuthentication,
 	validation domainInterface.IUserValidation,
 	notifUC domainInterface.INotificationUsecase,
+	hospitalRepo domainInterface.IHospitalRepository,
 ) *UserUseCaseBase {
 	return &UserUseCaseBase{
 		userRepo:     userRepo,
@@ -70,10 +72,16 @@ func NewUserUseCase(
 		auth:         auth,
 		validation:   validation,
 		notifUC:      notifUC,
+		hospitalRepo: hospitalRepo,
 	}
 }
 
 func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) error {
+	// Validate phone format first
+	if user.Phone != "" && !u.validation.IsValidPhone(user.Phone) {
+		return errors.New("phone number must follow the +251 x[7,9]xxxxxxx format (e.g. +251912345678)")
+	}
+
 	// Validate email
 	if !u.validation.IsValidEmail(user.Email) {
 		return errors.New("invalid email format")
@@ -133,6 +141,11 @@ func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) e
 }
 
 func (u *UserUseCaseBase) RegisterDonor(ctx context.Context, req *domain.RegisterDonorRequest) error {
+	// Validate phone format first
+	if req.Phone == "" || !u.validation.IsValidPhone(req.Phone) {
+		return errors.New("phone number must follow the +251 x[7,9]xxxxxxx format (e.g. +251912345678)")
+	}
+
 	// 1. Validate
 	if !u.validation.IsValidEmail(req.Email) {
 		return errors.New("invalid email format")
@@ -400,52 +413,47 @@ func (u *UserUseCaseBase) ResetPassword(ctx context.Context, email, otp, newPass
 	return u.userRepo.ResetPassword(ctx, email, hashedPassword)
 }
 
-func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (string, string, string, string, error) {
+func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (string, string, string, string, bool, error) {
 	// Hardcoded BloodBank Admin bypass
-	if email == "admin@bloodlink.com" {
-		if password != "Admin123!" {
-			return "", "", "", "", errors.New("invalid credentials")
-		}
-
-		// Create claims for the hardcoded admin
+	if email == "admin@bloodlink.com" && password == "Admin123!" {
 		claims := &domain.UserClaims{
 			UserID:      "00000000-0000-0000-0000-000000000000",
 			Email:       "admin@bloodlink.com",
-			AccountType: domain.RoleBloodBankAdmin,
+			AccountType: "bloodbankadmin",
 			IsVerified:  true,
 		}
-
-		accessToken, err := u.auth.GenerateToken(claims, domainInterface.AccessToken)
-		if err != nil {
-			return "", "", "", "", err
-		}
-
-		refreshToken, err := u.auth.GenerateToken(claims, domainInterface.RefreshToken)
-		if err != nil {
-			return "", "", "", "", err
-		}
-
-		// Save refresh token to DB (bypass for hardcoded admin usually, but let's keep it consistent if possible)
-		// Actually, admin@bloodlink.com doesn't exist in DB, so u.userRepo.UpdateRefreshToken will fail.
-		// Let's only do it for normal users.
-
-		return accessToken, refreshToken, "bloodbankadmin", claims.UserID, nil
+		at, _ := u.auth.GenerateToken(claims, domainInterface.AccessToken)
+		rt, _ := u.auth.GenerateToken(claims, domainInterface.RefreshToken)
+		return at, rt, "bloodbankadmin", "00000000-0000-0000-0000-000000000000", false, nil
 	}
 
 	// Normal User flow
 	// Get user by email
 	user, err := u.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", false, err
 	}
 	if user == nil {
-		return "", "", "", "", errors.New("invalid credentials") // Avoid "user not found" for security
+		// Check if there is a pending hospital registration request for this email
+		isPending, _ := u.hospitalRepo.IsAdminEmailPending(email)
+		if isPending {
+			return "", "", "", "", false, errors.New("Your registration is under review")
+		}
+		return "", "", "", "", false, errors.New("invalid credentials") // Avoid "user not found" for security
 	}
 
 	// Compare password
 	err = u.validation.ComparePassword(user.Password, password)
 	if err != nil {
-		return "", "", "", "", errors.New("invalid credentials")
+		return "", "", "", "", false, errors.New("invalid credentials")
+	}
+
+	// Hospital Review Check
+	if user.Role == domain.RoleHospitalAdmin {
+		admin, err := u.hospitalRepo.GetHospitalAdminByUserID(user.ID)
+		if err != nil || admin == nil {
+			return "", "", "", "", false, errors.New("Your registration is under review")
+		}
 	}
 
 	// Create claims
@@ -459,21 +467,30 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 	// Generate Access Token
 	accessToken, err := u.auth.GenerateToken(claims, domainInterface.AccessToken)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", false, err
 	}
 
 	// Generate Refresh Token
 	refreshToken, err := u.auth.GenerateToken(claims, domainInterface.RefreshToken)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", false, err
 	}
 
 	// Save Refresh Token to DB
 	if err := u.userRepo.UpdateRefreshToken(ctx, user.ID, refreshToken); err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", false, err
 	}
 
-	return accessToken, refreshToken, user.Role, user.ID, nil
+	otpNeeded := false
+	if (user.Role == domain.RoleBloodCollector || user.Role == domain.RoleLabTech) && !user.IsActive {
+		otpNeeded = true
+		// Resend OTP if it's the first time
+		go func(email, otp string) {
+			_ = Infrastructure.SendOTP(email, otp)
+		}(user.Email, user.OTP)
+	}
+
+	return accessToken, refreshToken, user.Role, user.ID, otpNeeded, nil
 }
 
 func (u *UserUseCaseBase) RefreshToken(ctx context.Context, refreshTokenStr string) (string, string, error) {

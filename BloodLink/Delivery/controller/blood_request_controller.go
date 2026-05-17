@@ -20,7 +20,7 @@ func NewBloodRequestController(u Interfaces.IBloodRequestUsecase) *BloodRequestC
 func (c *BloodRequestController) CreateBloodRequest(ctx *gin.Context) {
 	hospitalAdminID := ctx.GetString("userID")
 
-	var req Domain.CreateBloodRequestDTO
+	var req Domain.CreateBloodRequestBatchDTO
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -45,36 +45,53 @@ func (c *BloodRequestController) GetHospitalRequests(ctx *gin.Context) {
 	filter := Domain.BloodRequestFilter{
 		HospitalID:   hospitalAdminID,
 		BloodType:    bloodType,
+		Component:    ctx.Query("component"),
 		Status:       ctx.Query("status"),
 		UrgencyLevel: ctx.Query("urgency_level"),
 		StartDate:    ctx.Query("start_date"),
 		EndDate:      ctx.Query("end_date"),
 	}
 
-	reqs, err := c.Usecase.GetHospitalRequests(filter)
+	if (filter.StartDate != "" && filter.EndDate == "") || (filter.StartDate == "" && filter.EndDate != "") {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Both start_date and end_date are required"})
+		return
+	}
+
+	res, err := c.Usecase.GetHospitalRequests(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusOK, reqs)
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *BloodRequestController) GetAllRequests(ctx *gin.Context) {
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := Domain.BloodRequestFilter{
 		HospitalID:   ctx.Query("hospital_id"),
-		BloodType:    ctx.Query("blood_type"),
+		BloodType:    bloodType,
+		Component:    ctx.Query("component"),
 		Status:       ctx.Query("status"),
 		UrgencyLevel: ctx.Query("urgency_level"),
 		StartDate:    ctx.Query("start_date"),
 		EndDate:      ctx.Query("end_date"),
 	}
 
-	reqs, err := c.Usecase.GetAllRequests(filter)
+	if (filter.StartDate != "" && filter.EndDate == "") || (filter.StartDate == "" && filter.EndDate != "") {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Both start_date and end_date are required"})
+		return
+	}
+
+	res, err := c.Usecase.GetAllRequests(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusOK, reqs)
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (c *BloodRequestController) ApproveRequest(ctx *gin.Context) {

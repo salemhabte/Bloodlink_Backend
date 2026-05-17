@@ -278,3 +278,12 @@ func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeS
 
 	return total, bloodTypes, nearExpiry, nil
 }
+
+func (r *adminAnalyticsRepository) GetHospitalStats() (int, int, int, int, error) {
+	var totalHospitals, activeContracts, pendingRequests, activeEmergencies int
+	_ = r.db.QueryRow(`SELECT COUNT(*) FROM hospitals`).Scan(&totalHospitals)
+	_ = r.db.QueryRow(`SELECT COUNT(*) FROM hospital_contracts WHERE status = 'FINALIZED' AND (contract_end IS NULL OR contract_end >= NOW())`).Scan(&activeContracts)
+	_ = r.db.QueryRow(`SELECT COUNT(*) FROM hospital_requests WHERE status = 'PENDING'`).Scan(&pendingRequests)
+	_ = r.db.QueryRow(`SELECT COUNT(*) FROM emergency_requests WHERE status = 'PUBLISHED'`).Scan(&activeEmergencies)
+	return totalHospitals, activeContracts, pendingRequests, activeEmergencies, nil
+}

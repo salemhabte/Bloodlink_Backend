@@ -11,6 +11,7 @@ type Campaign struct {
     StartDate  time.Time
     EndDate    time.Time
     CreatedAt  time.Time
+    Status     string
     IsDeleted  bool
 }
 

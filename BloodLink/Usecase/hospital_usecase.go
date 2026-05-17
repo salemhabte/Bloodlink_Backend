@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"os"
+	"regexp"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -18,40 +19,72 @@ import (
 
 type IHospitalUserRepository interface {
 	CreateUser(ctx context.Context, user *Domain.User) error
+	GetUserByPhone(ctx context.Context, phone string) (*Domain.User, error)
+	GetDonorByUserID(ctx context.Context, userID string) (*Domain.Donor, error)
 }
 
 type hospitalUsecase struct {
-	repo       Interfaces.IHospitalRepository
-	pdfService IPDFGeneratorService
-	userRepo   IHospitalUserRepository
-	notifUC    Interfaces.INotificationUsecase
+	repo         Interfaces.IHospitalRepository
+	pdfService   IPDFGeneratorService
+	userRepo     IHospitalUserRepository
+	notifUC      Interfaces.INotificationUsecase
+	donationRepo Interfaces.IDonationRepository
 }
 
-func NewHospitalUsecase(repo Interfaces.IHospitalRepository, pdfService IPDFGeneratorService, userRepo IHospitalUserRepository, notifUC Interfaces.INotificationUsecase) Interfaces.IHospitalUsecase {
+func NewHospitalUsecase(repo Interfaces.IHospitalRepository, pdfService IPDFGeneratorService, userRepo IHospitalUserRepository, notifUC Interfaces.INotificationUsecase, donationRepo Interfaces.IDonationRepository) Interfaces.IHospitalUsecase {
 	return &hospitalUsecase{
-		repo:       repo,
-		pdfService: pdfService,
-		userRepo:   userRepo,
-		notifUC:    notifUC,
+		repo:         repo,
+		pdfService:   pdfService,
+		userRepo:     userRepo,
+		notifUC:      notifUC,
+		donationRepo: donationRepo,
 	}
 }
 
 func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospitalRequestDTO) error {
+	// Validate phone formats first
+	phoneRegex := `^\+251[79]\d{8}$`
+	re := regexp.MustCompile(phoneRegex)
+	if !re.MatchString(req.Phone) {
+		return errors.New("hospital phone number must follow the +251 x[7,9]xxxxxxx format (e.g. +251912345678)")
+	}
+	if !re.MatchString(req.AdminPhone) {
+		return errors.New("admin phone number must follow the +251 x[7,9]xxxxxxx format (e.g. +251912345678)")
+	}
+
+	// Prevent using the same phone number for both hospital and admin in the same request
+	if req.Phone == req.AdminPhone {
+		return errors.New("hospital phone number and admin phone number cannot be the same")
+	}
+
+	// Validate password strength (at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special character)
+	if len(req.AdminPassword) < 8 {
+		return errors.New("password must be at least 8 characters long")
+	}
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(req.AdminPassword)
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString(req.AdminPassword)
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(req.AdminPassword)
+	hasSpecial := regexp.MustCompile(`[!@#~$%^&*()_+|<>?:{}]`).MatchString(req.AdminPassword)
+	if !hasUpper || !hasLower || !hasNumber || !hasSpecial {
+		return errors.New("password must contain at least one uppercase letter, one lowercase letter, one number, and one special character")
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.AdminPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
 
-	// Check if hospital phone already exists
-	existingHospital, _ := u.repo.GetHospitalByPhone(req.Phone)
-	if existingHospital != nil {
-		return errors.New("a hospital with this phone number is already registered")
+	// Check if hospital phone already exists or is pending
+	hospitalPhoneExists, _ := u.repo.IsPhoneRegisteredOrPending(req.Phone)
+	if hospitalPhoneExists {
+		return errors.New("this hospital phone number is already registered or has a pending registration request")
 	}
 
-	// Note: We don't have a direct GetUserByPhone in hospitalRepo's userRepo interface,
-	// but we can check if a request with this admin phone is already pending.
-	// Actually, the database will catch the user phone conflict if we approve,
-	// but for now let's at least validate the hospital phone.
+	// Check if admin phone already exists or is pending
+	adminPhoneExists, _ := u.repo.IsPhoneRegisteredOrPending(req.AdminPhone)
+	if adminPhoneExists {
+		return errors.New("this admin phone number is already registered or has a pending registration request")
+	}
 
 	requestID := uuid.New().String()
 	hospitalReq := &Domain.HospitalRequest{
@@ -66,11 +99,6 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 		Longitude:       req.Longitude,
 	}
 
-	err = u.repo.CreateHospitalRequest(hospitalReq)
-	if err != nil {
-		return err
-	}
-
 	adminReq := &Domain.HospitalRequestAdmin{
 		RequestAdminID:    uuid.New().String(),
 		RequestID:         requestID,
@@ -81,15 +109,36 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 		CreatedAt:         time.Now(),
 	}
 
-	err = u.repo.CreateHospitalRequestAdmin(adminReq)
+	err = u.repo.CreateHospitalRegistrationRequest(hospitalReq, adminReq)
 	if err == nil {
 		go u.notifUC.SendToRole(Domain.RoleBloodBankAdmin, "CONTRACT", "New Hospital Registration", fmt.Sprintf("A new registration request was submitted by %s", req.HospitalName))
 	}
 	return err
 }
 
-func (u *hospitalUsecase) GetPendingRequests(filter Domain.HospitalRequestFilter) ([]Domain.HospitalRequestResponse, error) {
-	return u.repo.GetPendingRequests(filter)
+func (u *hospitalUsecase) GetPendingRequests(filter Domain.HospitalRequestFilter) (*Domain.HospitalRequestListResponse, error) {
+	requests, err := u.repo.GetPendingRequests(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	var analytics Domain.SummaryAnalytics
+	analytics.TotalRequests = len(requests)
+	for _, r := range requests {
+		switch r.Status {
+		case Domain.RequestStatusApproved:
+			analytics.TotalFulfilled++
+		case Domain.RequestStatusPending:
+			analytics.TotalPending++
+		case Domain.RequestStatusRejected:
+			analytics.TotalCancelled++
+		}
+	}
+
+	return &Domain.HospitalRequestListResponse{
+		Requests:  requests,
+		Analytics: analytics,
+	}, nil
 }
 
 func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID string, payload *Domain.ApproveHospitalRequestDTO) error {
@@ -102,22 +151,32 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 		return errors.New("request is not pending")
 	}
 
-	// 1. Create real Hospital
-	hospitalID := uuid.New().String()
-	hospital := &Domain.Hospital{
-		HospitalID: hospitalID,
-		Name:       req.HospitalName,
-		Address:    req.Address,
-		Phone:      req.Phone,
-		CreatedAt:  time.Now(),
-		Latitude:   req.Latitude,
-		Longitude:  req.Longitude,
-	}
-	if err := u.repo.CreateHospital(hospital); err != nil {
-		return err
+	// Ensure the hospital phone number is still unique before creating the hospital
+	existingHospital, _ := u.repo.GetHospitalByPhone(req.Phone)
+	if existingHospital != nil {
+		return errors.New("cannot approve: a hospital with this phone number is already registered")
 	}
 
-	// 2. Create actual User
+	// Ensure the admin phone is still unique before creating the user
+	existingUser, _ := u.userRepo.GetUserByPhone(context.Background(), adminReq.AdminPhone)
+	if existingUser != nil {
+		return errors.New("cannot approve: the admin phone number is already associated with another account")
+	}
+
+	// 1. Prepare Hospital
+	hospitalID := uuid.New().String()
+	hospital := &Domain.Hospital{
+		HospitalID:      hospitalID,
+		Name:            req.HospitalName,
+		Address:         req.Address,
+		Phone:           req.Phone,
+		CreatedAt:       time.Now(),
+		Latitude:        req.Latitude,
+		Longitude:       req.Longitude,
+		LicenseDocument: req.LicenseDocument,
+	}
+
+	// 2. Prepare User
 	userID := uuid.New().String()
 	user := &Domain.User{
 		ID:        userID,
@@ -129,19 +188,13 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 		IsActive:  true,
 		CreatedAt: time.Now(),
 	}
-	if err := u.userRepo.CreateUser(context.Background(), user); err != nil {
-		return err
-	}
 
-	// 3. Create Hospital Admin record
+	// 3. Prepare Hospital Admin record
 	hospitalAdmin := &Domain.HospitalAdmin{
 		HospitalAdminID: uuid.New().String(),
 		UserID:          userID,
 		HospitalID:      hospitalID,
 		CreatedAt:       time.Now(),
-	}
-	if err := u.repo.CreateHospitalAdmin(hospitalAdmin); err != nil {
-		return err
 	}
 
 	// 4. Fetch Template and Generate Draft Contract
@@ -163,7 +216,7 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 		return err
 	}
 
-	// 5. Create Contract Record
+	// 5. Prepare Contract Record
 	contract := &Domain.HospitalContract{
 		ContractID:       contractID,
 		HospitalID:       hospitalID,
@@ -175,12 +228,9 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 		CreatedAt:        time.Now(),
 		TemplateID:       &payload.TemplateID,
 	}
-	if err := u.repo.CreateContract(contract); err != nil {
-		return err
-	}
 
-	// 6. Mark Request as Approved
-	return u.repo.UpdateHospitalRequestStatus(requestID, Domain.RequestStatusApproved)
+	// 6. Execute entire Approval Transactionally
+	return u.repo.ApproveHospitalRegistration(hospital, user, hospitalAdmin, contract, requestID)
 }
 
 func (u *hospitalUsecase) RejectRequest(requestID string) error {
@@ -343,14 +393,75 @@ func (u *hospitalUsecase) generateFinalPDF(contract *Domain.HospitalContract, ho
 	)
 }
 
-func (u *hospitalUsecase) GetHospitalContracts(userID string) ([]Domain.HospitalContract, error) {
+func (u *hospitalUsecase) GetHospitalContracts(userID string) (*Domain.HospitalContractListResponse, error) {
 	admin, err := u.repo.GetHospitalAdminByUserID(userID)
 	if err != nil {
 		return nil, err
 	}
-	return u.repo.GetContractsByHospitalID(admin.HospitalID)
+	contracts, err := u.repo.GetContractsByHospitalID(admin.HospitalID)
+	if err != nil {
+		return nil, err
+	}
+
+	var responses []Domain.HospitalContractResponse
+	for _, c := range contracts {
+		responses = append(responses, Domain.HospitalContractResponse{
+			ContractID:            c.ContractID,
+			HospitalID:            c.HospitalID,
+			BloodBankAdminID:      c.BloodBankAdminID,
+			Document:              c.Document,
+			Status:                c.Status,
+			ContractStart:         c.ContractStart,
+			ContractEnd:           c.ContractEnd,
+			CreatedAt:             c.CreatedAt,
+			HospitalSignaturePath: c.HospitalSignaturePath,
+			AdminSignaturePath:    c.AdminSignaturePath,
+		})
+	}
+
+	return &Domain.HospitalContractListResponse{
+		Contracts: responses,
+		Analytics: u.calculateContractAnalytics(responses),
+	}, nil
 }
 
+func (u *hospitalUsecase) calculateContractAnalytics(contracts []Domain.HospitalContractResponse) Domain.ContractAnalytics {
+	var analytics Domain.ContractAnalytics
+	analytics.TotalContracts = len(contracts)
+	now := time.Now()
+	for _, c := range contracts {
+		switch c.Status {
+		case Domain.ContractStatusFinalized:
+			if c.ContractEnd != nil && c.ContractEnd.Before(now) {
+				analytics.TotalExpired++
+			} else {
+				analytics.TotalActive++
+			}
+		case Domain.ContractStatusPending, Domain.ContractStatusApprovedByHospital:
+			analytics.TotalPending++
+		case Domain.ContractStatusRejected:
+			analytics.TotalRejected++
+		}
+	}
+	return analytics
+}
+func (u *hospitalUsecase) GetAllHospitals() (*Domain.HospitalListResponse, error) {
+	hospitals, err := u.repo.GetAllHospitals()
+	if err != nil {
+		return nil, err
+	}
+
+	var analytics Domain.HospitalAnalyticsSummary
+	analytics.TotalHospitals = len(hospitals)
+	// We could count active vs inactive if we had a status, 
+	// for now let's just assume all in the table are active or count by some other metric.
+	// Maybe we can count hospitals with active contracts.
+	
+	return &Domain.HospitalListResponse{
+		Hospitals: hospitals,
+		Analytics: analytics,
+	}, nil
+}
 func (u *hospitalUsecase) GetLatestHospitalContract(userID string) (*Domain.HospitalContract, error) {
 	admin, err := u.repo.GetHospitalAdminByUserID(userID)
 	if err != nil {
@@ -395,8 +506,16 @@ func (u *hospitalUsecase) DeleteContractTemplate(templateID string) error {
 	return u.repo.DeleteContractTemplate(templateID)
 }
 
-func (u *hospitalUsecase) GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error) {
-	return u.repo.GetSignedContracts(status)
+func (u *hospitalUsecase) GetSignedContracts(status string) (*Domain.HospitalContractListResponse, error) {
+	contracts, err := u.repo.GetSignedContracts(status)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Domain.HospitalContractListResponse{
+		Contracts: contracts,
+		Analytics: u.calculateContractAnalytics(contracts),
+	}, nil
 }
 
 func (u *hospitalUsecase) GetHospitalDashboard(userID string) (*Domain.HospitalDashboard, error) {
@@ -406,3 +525,125 @@ func (u *hospitalUsecase) GetHospitalDashboard(userID string) (*Domain.HospitalD
 	}
 	return u.repo.GetHospitalDashboard(admin.HospitalID)
 }
+
+func (u *hospitalUsecase) ConfirmHospitalDonation(donorPhone string, hospitalAdminUserID string) error {
+	_, err := u.repo.GetHospitalAdminByUserID(hospitalAdminUserID)
+	if err != nil {
+		return errors.New("unauthorized: not a hospital admin")
+	}
+
+	// Normalize phone number
+	donorPhone = strings.TrimSpace(donorPhone)
+	if strings.HasPrefix(donorPhone, " ") {
+		donorPhone = "+" + strings.TrimSpace(donorPhone[1:])
+	}
+	if strings.HasPrefix(donorPhone, "0") {
+		donorPhone = "+251" + donorPhone[1:]
+	}
+	if (strings.HasPrefix(donorPhone, "9") || strings.HasPrefix(donorPhone, "7")) && len(donorPhone) == 9 {
+		donorPhone = "+251" + donorPhone
+	}
+	if strings.HasPrefix(donorPhone, "251") {
+		donorPhone = "+" + donorPhone
+	}
+
+	user, err := u.userRepo.GetUserByPhone(context.Background(), donorPhone)
+	if err != nil || user == nil {
+		return errors.New("donor not found with the given phone number")
+	}
+
+	donor, err := u.userRepo.GetDonorByUserID(context.Background(), user.ID)
+	if err != nil || donor == nil {
+		return errors.New("user is not registered as a donor")
+	}
+
+	// Record donation
+	record := &Domain.DonationRecord{
+		DonationID:     uuid.New().String(),
+		DonorID:        donor.DonorID,
+		CollectedBy:    hospitalAdminUserID,
+		CollectionDate: time.Now(),
+		QuantityML:     450, // default standard for hospital direct donations
+		Status:         "APPROVED",
+		OverallStatus:  "CLEARED",
+		CreatedAt:      time.Now(),
+	}
+
+	err = u.donationRepo.CreateDonation(record)
+	if err != nil {
+		return err
+	}
+
+	// Update overall_status
+	_ = u.donationRepo.UpdateDonorOverallStatus(donor.DonorID, "CLEARED")
+
+	return nil
+}
+
+func (u *hospitalUsecase) GetDonorProfileByPhone(phone string) (*Domain.DonorMinimalProfile, error) {
+	// Normalize phone number
+	phone = strings.TrimSpace(phone)
+	if strings.HasPrefix(phone, " ") {
+		phone = "+" + strings.TrimSpace(phone[1:])
+	}
+	if strings.HasPrefix(phone, "0") {
+		phone = "+251" + phone[1:]
+	}
+	if (strings.HasPrefix(phone, "9") || strings.HasPrefix(phone, "7")) && len(phone) == 9 {
+		phone = "+251" + phone
+	}
+	if strings.HasPrefix(phone, "251") {
+		phone = "+" + phone
+	}
+
+	user, err := u.userRepo.GetUserByPhone(context.Background(), phone)
+	if err != nil || user == nil {
+		return nil, errors.New("donor not found with the given phone number")
+	}
+
+	donor, err := u.userRepo.GetDonorByUserID(context.Background(), user.ID)
+	if err != nil || donor == nil {
+		return nil, errors.New("user is not registered as a donor")
+	}
+
+	// Calculate Eligibility
+	isEligible := false
+	eligibilityStatus := "Not Eligible"
+	message := "Eligible — You can come and donate at any time. Thank you for your willingness to save lives."
+
+	if donor.OverallStatus == "PERMANENTLY_DEFERRED" {
+		message = "Not Eligible — You are permanently deferred from donating blood and cannot donate again. Thank you for your willingness and your past contribution to saving lives."
+	} else {
+		lastDonation, err := u.donationRepo.GetLastDonationByDonor(donor.DonorID)
+		if err == nil && lastDonation != nil {
+			daysSince := int(time.Since(lastDonation.CollectionDate).Hours() / 24)
+			remainingDays := 90 - daysSince
+			if daysSince >= 90 {
+				isEligible = true
+				eligibilityStatus = "Eligible"
+			} else {
+				isEligible = false
+				eligibilityStatus = "Not Eligible"
+				if donor.OverallStatus == "Pending" {
+					message = fmt.Sprintf("Not Eligible — Your overall lab status is pending. Please wait %d more days before your next donation.", remainingDays)
+				} else {
+					message = fmt.Sprintf("Not Eligible — You donated recently. Please wait %d more days before donating again.", remainingDays)
+				}
+			}
+		} else {
+			isEligible = true
+			eligibilityStatus = "Eligible"
+		}
+	}
+
+	return &Domain.DonorMinimalProfile{
+		FullName:          user.FullName,
+		Phone:             user.Phone,
+		Email:             user.Email,
+		BloodType:         donor.BloodType,
+		IsEligible:        isEligible,
+		EligibilityStatus: eligibilityStatus,
+		Message:           message,
+	}, nil
+}
+

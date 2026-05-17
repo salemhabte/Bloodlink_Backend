@@ -16,15 +16,15 @@ func NewBloodRequestRepository(db *sql.DB) Interfaces.IBloodRequestRepository {
 }
 
 func (r *bloodRequestRepository) CreateRequest(req *Domain.BloodRequest) error {
-	query := `INSERT INTO blood_requests (request_id, hospital_id, blood_type, quantity, urgency_level, status, created_at)
-			  VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	_, err := r.db.Exec(query, req.RequestID, req.HospitalID, req.BloodType, req.Quantity, req.UrgencyLevel, req.Status, req.CreatedAt)
+	query := `INSERT INTO blood_requests (request_id, hospital_id, blood_type, component, quantity, urgency_level, status, created_at)
+			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	_, err := r.db.Exec(query, req.RequestID, req.HospitalID, req.BloodType, req.Component, req.Quantity, req.UrgencyLevel, req.Status, req.CreatedAt)
 	return err
 }
 
 func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error) {
 	query := `SELECT br.request_id, br.hospital_id, h.name,
-	                 br.blood_type, br.quantity, br.urgency_level, br.status,
+	                 br.blood_type, br.component, br.quantity, br.urgency_level, br.status,
 	                 COALESCE(br.fulfilled_count, 0),
 	                 COALESCE(br.fulfilled_quantity_ml, 0),
 	                 COALESCE(br.notes, ''),
@@ -51,6 +51,16 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 		args = append(args, filter.UrgencyLevel)
 		placeholderID++
 	}
+	if filter.Component != "" {
+		query += fmt.Sprintf(" AND br.component = $%d", placeholderID)
+		args = append(args, filter.Component)
+		placeholderID++
+	}
+	if filter.Component != "" {
+		query += fmt.Sprintf(" AND br.component = $%d", placeholderID)
+		args = append(args, filter.Component)
+		placeholderID++
+	}
 	if filter.StartDate != "" {
 		query += fmt.Sprintf(" AND br.created_at >= $%d", placeholderID)
 		args = append(args, filter.StartDate)
@@ -61,7 +71,7 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 		args = append(args, filter.EndDate)
 		placeholderID++
 	}
-	query += " ORDER BY br.created_at DESC"
+	query += " ORDER BY CASE WHEN br.urgency_level = 'emergency' THEN 1 ELSE 2 END ASC, br.created_at ASC"
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -74,7 +84,7 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 		var req Domain.BloodRequestResponse
 		if err := rows.Scan(
 			&req.RequestID, &req.HospitalID, &req.HospitalName,
-			&req.BloodType, &req.Quantity, &req.UrgencyLevel, &req.Status,
+			&req.BloodType, &req.Component, &req.Quantity, &req.UrgencyLevel, &req.Status,
 			&req.FulfilledCount, &req.FulfilledQuantityMl, &req.Notes,
 			&req.CreatedAt, &req.ApprovedAt,
 		); err != nil {
@@ -87,7 +97,7 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 
 func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter) ([]Domain.BloodRequestResponse, error) {
 	query := `SELECT br.request_id, br.hospital_id, h.name,
-	                 br.blood_type, br.quantity, br.urgency_level, br.status,
+	                 br.blood_type, br.component, br.quantity, br.urgency_level, br.status,
 	                 COALESCE(br.fulfilled_count, 0),
 	                 COALESCE(br.fulfilled_quantity_ml, 0),
 	                 COALESCE(br.notes, ''),
@@ -114,6 +124,12 @@ func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter
 		args = append(args, filter.UrgencyLevel)
 		placeholderID++
 	}
+	if filter.Component != "" {
+		query += fmt.Sprintf(" AND br.component = $%d", placeholderID)
+		args = append(args, filter.Component)
+		placeholderID++
+	}
+
 	if filter.HospitalID != "" {
 		query += fmt.Sprintf(" AND br.hospital_id = $%d", placeholderID)
 		args = append(args, filter.HospitalID)
@@ -129,7 +145,7 @@ func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter
 		args = append(args, filter.EndDate)
 		placeholderID++
 	}
-	query += " ORDER BY br.created_at DESC"
+	query += " ORDER BY CASE WHEN br.urgency_level = 'emergency' THEN 1 ELSE 2 END ASC, br.created_at ASC"
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -142,7 +158,7 @@ func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter
 		var req Domain.BloodRequestResponse
 		if err := rows.Scan(
 			&req.RequestID, &req.HospitalID, &req.HospitalName,
-			&req.BloodType, &req.Quantity, &req.UrgencyLevel, &req.Status,
+			&req.BloodType, &req.Component, &req.Quantity, &req.UrgencyLevel, &req.Status,
 			&req.FulfilledCount, &req.FulfilledQuantityMl, &req.Notes,
 			&req.CreatedAt, &req.ApprovedAt,
 		); err != nil {
@@ -154,11 +170,11 @@ func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter
 }
 
 func (r *bloodRequestRepository) GetRequestByID(requestID string) (*Domain.BloodRequest, error) {
-	query := `SELECT request_id, hospital_id, blood_type, quantity, urgency_level, status, created_at, approved_at
+	query := `SELECT request_id, hospital_id, blood_type, component, quantity, urgency_level, status, created_at, approved_at
 	          FROM blood_requests WHERE request_id = $1`
 	req := &Domain.BloodRequest{}
 	err := r.db.QueryRow(query, requestID).Scan(
-		&req.RequestID, &req.HospitalID, &req.BloodType, &req.Quantity,
+		&req.RequestID, &req.HospitalID, &req.BloodType, &req.Component, &req.Quantity,
 		&req.UrgencyLevel, &req.Status, &req.CreatedAt, &req.ApprovedAt,
 	)
 	return req, err
@@ -192,7 +208,7 @@ func (r *bloodRequestRepository) UpdateRequestStatusWithDetails(
 // but whose reserved_at time has passed the cutoff (for auto-rejection by background job)
 func (r *bloodRequestRepository) GetExpiredReservationRequests(cutoff string) ([]Domain.BloodRequest, error) {
 	query := `
-	SELECT request_id, hospital_id, blood_type, quantity, urgency_level, status, created_at, approved_at
+	SELECT request_id, hospital_id, blood_type, component, quantity, urgency_level, status, created_at, approved_at
 	FROM blood_requests
 	WHERE status IN ('FULFILLED', 'APPROVED_PARTIALLY_FULFILLED')
 	  AND approved_at < $1
@@ -207,7 +223,7 @@ func (r *bloodRequestRepository) GetExpiredReservationRequests(cutoff string) ([
 	for rows.Next() {
 		var req Domain.BloodRequest
 		if err := rows.Scan(
-			&req.RequestID, &req.HospitalID, &req.BloodType, &req.Quantity,
+			&req.RequestID, &req.HospitalID, &req.BloodType, &req.Component, &req.Quantity,
 			&req.UrgencyLevel, &req.Status, &req.CreatedAt, &req.ApprovedAt,
 		); err != nil {
 			return nil, err

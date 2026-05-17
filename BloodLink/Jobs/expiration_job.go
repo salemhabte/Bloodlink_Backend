@@ -16,6 +16,8 @@ func StartExpirationJob(
 	notifUC Interfaces.INotificationUsecase,
 	donorBloodReqUC *Usecase.DonorBloodRequestUsecase,
 	userUC Interfaces.IUserUseCase,
+	emergencyUC Interfaces.IEmergencyRequestUsecase,
+	campaignRepo Interfaces.ICampaignRepository,
 ) {
 	for {
 		log.Println("[JOB] Running expiration and reservation cleanup...")
@@ -61,6 +63,16 @@ func StartExpirationJob(
 			log.Printf("[JOB ERROR] Failed to notify eligible donors: %v", err)
 		}
 		cancel()
+
+		// 5. Auto-complete expired emergencies
+		if err := emergencyUC.MarkCompletedEmergencies(); err != nil {
+			log.Printf("[JOB ERROR] Failed to mark completed emergencies: %v", err)
+		}
+
+		// 6. Auto-close expired campaigns
+		if err := campaignRepo.MarkClosedCampaigns(); err != nil {
+			log.Printf("[JOB ERROR] Failed to mark closed campaigns: %v", err)
+		}
 
 		time.Sleep(1 * time.Hour) // Check more frequently than 24h to be accurate
 	}

@@ -43,6 +43,7 @@ type Hospital struct {
 	CreatedAt  time.Time `json:"created_at" db:"created_at"`
 	Latitude   float64   `json:"latitude" db:"latitude"`
 	Longitude  float64   `json:"longitude" db:"longitude"`
+	LicenseDocument string `json:"license_document" db:"license_document"`
 }
 
 type HospitalAdmin struct {
@@ -109,6 +110,7 @@ type HospitalRequestResponse struct {
 	Status       string `json:"status"`
 	AdminName    string `json:"admin_name"`
 	AdminEmail   string `json:"admin_email"`
+	LicenseDocument string `json:"license_document"`
 }
 
 type HospitalContractResponse struct {
@@ -123,10 +125,36 @@ type HospitalContractResponse struct {
 	CreatedAt             time.Time  `json:"created_at"`
 	HospitalSignaturePath *string    `json:"hospital_signature_path"`
 	AdminSignaturePath    *string    `json:"admin_signature_path"`
+	LicenseDocument       string     `json:"license_document"`
 }
 
 type HospitalRequestFilter struct {
 	Status    string `json:"status"`
 	StartDate string `json:"start_date"`
 	EndDate   string `json:"end_date"`
+}
+
+type HospitalListResponse struct {
+	Hospitals []Hospital               `json:"hospitals"`
+	Analytics HospitalAnalyticsSummary `json:"analytics"`
+}
+
+type HospitalRequestListResponse struct {
+	Requests  []HospitalRequestResponse `json:"requests"`
+	Analytics SummaryAnalytics          `json:"analytics"`
+}
+
+type HospitalContractListResponse struct {
+	Contracts []HospitalContractResponse `json:"contracts"`
+	Analytics ContractAnalytics          `json:"analytics"`
+}
+
+type DonorMinimalProfile struct {
+	FullName          string `json:"full_name"`
+	Phone             string `json:"phone"`
+	Email             string `json:"email"`
+	BloodType         string `json:"blood_type"`
+	IsEligible        bool   `json:"is_eligible"`
+	EligibilityStatus string `json:"eligibility_status"`
+	Message           string `json:"message"`
 }

@@ -7,7 +7,7 @@ import (
 
 type IUserUseCase interface {
 	RegisterUser(ctx context.Context, user *domain.User) error
-	Login(ctx context.Context, email, password string) (string, string, string, string, error)
+	Login(ctx context.Context, email, password string) (string, string, string, string, bool, error)
 	RegisterDonor(ctx context.Context, req *domain.RegisterDonorRequest) error
 	VerifyOTP(ctx context.Context, email, otp string) error
 	GetProfile(ctx context.Context, userID string) (*domain.ProfileResponse, error)

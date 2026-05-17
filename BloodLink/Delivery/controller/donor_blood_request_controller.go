@@ -82,20 +82,25 @@ func (c *DonorBloodRequestController) GetMyRequests(ctx *gin.Context) {
 		Status:    ctx.Query("status"),
 	}
 
-	data, err := c.usecase.GetMyRequests(userID, filter)
+	if (filter.StartDate != "" && filter.EndDate == "") || (filter.StartDate == "" && filter.EndDate != "") {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Both start_date and end_date are required"})
+		return
+	}
+
+	res, err := c.usecase.GetMyRequests(userID, filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Just in case, ensure it's not null but [] if empty
-	if data == nil {
-		data = []Domain.DonorBloodRequest{}
+	if res.Requests == nil {
+		res.Requests = []Domain.DonorBloodRequest{}
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "My requests fetched successfully",
-		"data":    data,
+		"data":    res,
 	})
 }
 
@@ -123,15 +128,24 @@ func (c *DonorBloodRequestController) GetAllRequests(ctx *gin.Context) {
 ////////////////////////
 
 func (c *DonorBloodRequestController) GetAllAdminRequests(ctx *gin.Context) {
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
 
 	filter := Domain.DonorBloodRequestFilter{
 		StartDate: ctx.Query("start_date"),
 		EndDate:   ctx.Query("end_date"),
-		BloodType: ctx.Query("blood_type"),
+		BloodType: bloodType,
 		Status:    ctx.Query("status"),
 	}
 
-	data, err := c.usecase.GetAllAdminRequests(filter)
+	if (filter.StartDate != "" && filter.EndDate == "") || (filter.StartDate == "" && filter.EndDate != "") {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Both start_date and end_date are required"})
+		return
+	}
+
+	res, err := c.usecase.GetAllAdminRequests(filter)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -139,7 +153,7 @@ func (c *DonorBloodRequestController) GetAllAdminRequests(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": "Admin donor requests fetched successfully",
-		"data":    data,
+		"data":    res,
 	})
 }
 

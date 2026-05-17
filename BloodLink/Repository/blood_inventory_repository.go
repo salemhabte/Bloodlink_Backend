@@ -310,7 +310,7 @@ func (r *BloodInventoryRepository) ConsumeUnits(bloodType string, quantity int) 
 
 // ReserveUnitsForHospital reserves blood units (FIFO by expiry) for a specific hospital request.
 // Returns the list of reserved units (may be less than quantity if partially available).
-func (r *BloodInventoryRepository) ReserveUnitsForHospital(bloodType string, quantity int, hospitalID string, requestID string) ([]Domain.BloodUnit, error) {
+func (r *BloodInventoryRepository) ReserveUnitsForHospital(bloodType string, componentType string, quantity int, hospitalID string, requestID string) ([]Domain.BloodUnit, error) {
 	tx, err := r.DB.Begin()
 	if err != nil {
 		return nil, err
@@ -322,13 +322,17 @@ func (r *BloodInventoryRepository) ReserveUnitsForHospital(bloodType string, qua
 	// Select AVAILABLE units ordered by nearest expiry (FIFO), lock rows
 	selectQuery := `
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
-	       quantity_ml, collection_date, expiration_date, status, created_at
+	       quantity_ml, collection_date, expiration_date, status, created_at, is_deleted
 	FROM blood_units
-	WHERE blood_type = $1 AND status = 'AVAILABLE' AND expiration_date > NOW()
+	WHERE UPPER(blood_type) = UPPER($1) 
+	  AND (UPPER(component_type) = UPPER($2) OR UPPER(REPLACE(component_type, ' ', '_')) = UPPER(REPLACE($2, ' ', '_')) OR UPPER(REPLACE(component_type, '_', ' ')) = UPPER(REPLACE($2, '_', ' ')))
+	  AND status = 'AVAILABLE' 
+	  AND expiration_date > NOW()
+	  AND is_deleted = false
 	ORDER BY expiration_date ASC
 	FOR UPDATE SKIP LOCKED
 	`
-	rows, err := tx.Query(selectQuery, bloodType)
+	rows, err := tx.Query(selectQuery, bloodType, componentType)
 	if err != nil {
 		return nil, err
 	}

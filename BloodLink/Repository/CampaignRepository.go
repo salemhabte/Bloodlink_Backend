@@ -27,8 +27,8 @@ func (r *CampaignRepository) CreateCampaign(campaign *Domain.Campaign) error {
 
 	query := `
 	INSERT INTO campaigns 
-	(campaign_id, title, content, location, start_date, end_date, created_at) 
-	VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	(campaign_id, title, content, location, start_date, end_date, created_at, status) 
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	_, err := r.DB.Exec(
 		query,
@@ -39,6 +39,7 @@ func (r *CampaignRepository) CreateCampaign(campaign *Domain.Campaign) error {
 		campaign.StartDate,
 		campaign.EndDate,
 		campaign.CreatedAt,
+		campaign.Status,
 	)
 
 	return err
@@ -46,7 +47,7 @@ func (r *CampaignRepository) CreateCampaign(campaign *Domain.Campaign) error {
 
 func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter, liveOnly bool) ([]Domain.Campaign, error) {
 	query := `
-	SELECT campaign_id, title, content, location, start_date, end_date, created_at, is_deleted
+	SELECT campaign_id, title, content, location, start_date, end_date, created_at, is_deleted, status
 	FROM campaigns
 	WHERE is_deleted = false
 	`
@@ -111,6 +112,7 @@ func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter, liveO
 			&c.EndDate,
 			&c.CreatedAt,
 			&c.IsDeleted,
+			&c.Status,
 		)
 
 		if err != nil {
@@ -146,6 +148,7 @@ func (r *CampaignRepository) GetCampaignByID(id string) (*Domain.Campaign, error
 		&c.EndDate,
 		&c.CreatedAt,
 		&c.IsDeleted,
+		&c.Status,
 	)
 
 	if err != nil {
@@ -178,6 +181,7 @@ func (r *CampaignRepository) GetLiveCampaignByID(id string) (*Domain.Campaign, e
 		&c.EndDate,
 		&c.CreatedAt,
 		&c.IsDeleted,
+		&c.Status,
 	)
 
 	if err != nil {
@@ -220,8 +224,8 @@ func (r *CampaignRepository) UpdateCampaign(campaign *Domain.Campaign) error {
 
 	query := `
 	UPDATE campaigns
-	SET title=$1, content=$2, location=$3, start_date=$4, end_date=$5
-	WHERE campaign_id=$6
+	SET title=$1, content=$2, location=$3, start_date=$4, end_date=$5, status=$6
+	WHERE campaign_id=$7
 	`
 
 	_, err = r.DB.Exec(
@@ -231,6 +235,7 @@ func (r *CampaignRepository) UpdateCampaign(campaign *Domain.Campaign) error {
 		existing.Location,
 		existing.StartDate,
 		existing.EndDate,
+		existing.Status,
 		existing.CampaignID,
 	)
 
@@ -244,6 +249,12 @@ func (r *CampaignRepository) DeleteCampaign(id string) error {
 
 	_, err := r.DB.Exec(query, id)
 
+	return err
+}
+
+func (r *CampaignRepository) MarkClosedCampaigns() error {
+	query := `UPDATE campaigns SET status = 'CLOSED' WHERE status != 'CLOSED' AND end_date <= $1`
+	_, err := r.DB.Exec(query, time.Now())
 	return err
 }
 

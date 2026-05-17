@@ -23,16 +23,17 @@ type EmergencyRequest struct {
 	CreatedAt         time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at" db:"updated_at"`
 	PublishedAt       *time.Time `json:"published_at,omitempty" db:"published_at"`
+	EndDate           *time.Time `json:"end_date,omitempty" db:"end_date"`
 	Latitude          float64    `json:"latitude" db:"latitude"`
 	Longitude         float64    `json:"longitude" db:"longitude"`
 }
 
 type CreateEmergencyRequestDTO struct {
 	BloodType        string  `json:"blood_type" binding:"required,oneof='A+' 'A-' 'B+' 'B-' 'AB+' 'AB-' 'O+' 'O-'"`
-	QuantityRequired int     `json:"quantity_required" binding:"required,gt=0"`
-	UrgencyLevel     string  `json:"urgency_level" binding:"required"`
+	QuantityRequired int     `json:"quantity_required" binding:"omitempty,gt=0"`
 	HospitalName     string  `json:"hospital_name" binding:"required"`
 	Location         string  `json:"location" binding:"required"`
+	EndDate          string  `json:"end_date" binding:"required"`
 	Latitude         float64 `json:"latitude,string" binding:"required"`
 	Longitude        float64 `json:"longitude,string" binding:"required"`
 }
@@ -43,4 +44,9 @@ type EmergencyRequestFilter struct {
 	UrgencyLevel string `json:"urgency_level"`
 	StartDate    string `json:"start_date"`
 	EndDate      string `json:"end_date"`
+}
+
+type EmergencyListResponse struct {
+	Emergencies []EmergencyRequest `json:"emergencies"`
+	Analytics   EmergencyAnalytics `json:"analytics"`
 }

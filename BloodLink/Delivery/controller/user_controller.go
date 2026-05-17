@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 
 	domain "bloodlink/Domain"
 	domainInterface "bloodlink/Domain/Interfaces"
@@ -85,19 +86,26 @@ func (c *UserController) HandleLogin(ctx *gin.Context) {
 	cCtx, cancel := context.WithCancel(ctx.Request.Context())
 	defer cancel()
 
-	accessToken, refreshToken, role, userID, err := c.UserUseCase.Login(cCtx, req.Email, req.Password)
+	accessToken, refreshToken, role, userID, otpNeeded, err := c.UserUseCase.Login(cCtx, req.Email, req.Password)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"message":       "Login successful",
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"role":          role,
 		"user_id":       userID,
-	})
+	}
+
+	// Add otp_needed for specific roles
+	if role == domain.RoleBloodCollector || role == domain.RoleLabTech {
+		response["otp_needed"] = otpNeeded
+	}
+
+	ctx.JSON(http.StatusOK, response)
 }
 
 func (c *UserController) VerifyOTP(ctx *gin.Context) {
@@ -323,8 +331,13 @@ func (c *UserController) ResetPassword(ctx *gin.Context) {
 }
 
 func (c *UserController) GetDonors(ctx *gin.Context) {
+	bloodType := ctx.Query("blood_type")
+	if bloodType != "" {
+		bloodType = strings.ReplaceAll(bloodType, " ", "+")
+	}
+
 	filter := domain.DonorFilter{
-		BloodType:     ctx.Query("blood_type"),
+		BloodType:     bloodType,
 		OverallStatus: ctx.Query("overall_status"),
 		StartDate:     ctx.Query("start_date"),
 		EndDate:       ctx.Query("end_date"),

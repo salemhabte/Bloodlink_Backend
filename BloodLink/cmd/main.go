@@ -4,6 +4,7 @@ import (
 	"bloodlink/Delivery/controller"
 	"bloodlink/Delivery/router"
 	"bloodlink/Infrastructure"
+	jobs "bloodlink/Jobs"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
 	"bloodlink/Jobs"
@@ -47,7 +48,7 @@ func main() {
 
 	// --- Usecases ---
 	notifUsecase := Usecase.NewNotificationUsecase(notifRepo)
-	userUseCase := Usecase.NewUserUseCase(userRepo, profileRepo, donationRepo, jwtService, passwordService, notifUsecase)
+	userUseCase := Usecase.NewUserUseCase(userRepo, profileRepo, donationRepo, jwtService, passwordService, notifUsecase, hospitalRepo)
 	userController := controller.NewUserController(userUseCase)
 
 	badgeUsecase := Usecase.NewDonorBadgeUsecase(badgeRepo)
@@ -56,19 +57,19 @@ func main() {
 	labUsecase := Usecase.NewLabUsecase(labRepo, badgeUsecase, notifUsecase)
 	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
 	pdfService := Usecase.NewPDFGeneratorService("./uploads")
-	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo, notifUsecase)
+	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo, notifUsecase, donationRepo)
 	donorBloodReqUsecase := Usecase.NewDonorBloodRequestUsecase(donorBloodReqRepo)
 
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)
-	
+
 	// Start background jobs after all dependencies are initialized
-	go jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo, notifUsecase, donorBloodReqUsecase, userUseCase)
+	emergencyUsecase := Usecase.NewEmergencyRequestUsecase(emergencyRepo, inventoryRepo, hospitalRepo, bloodReqRepo, userRepo, profileRepo, notifUsecase)
+	go jobs.StartExpirationJob(inventoryUsecase, bloodReqRepo, notifUsecase, donorBloodReqUsecase, userUseCase, emergencyUsecase, campaignRepo)
 
 	campaignAnalyticsUsecase := Usecase.NewCampaignAnalyticsUsecase(campaignAnalyticsRepo)
 	collectorAnalyticsUsecase := Usecase.NewCollectorAnalyticsUsecase(collectorAnalyticsRepo)
 	labAnalyticsUsecase := Usecase.NewLabAnalyticsUsecase(labAnalyticsRepo)
 	adminAnalyticsUsecase := Usecase.NewAdminAnalyticsUsecase(adminAnalyticsRepo)
-	emergencyUsecase := Usecase.NewEmergencyRequestUsecase(emergencyRepo, inventoryRepo, hospitalRepo, bloodReqRepo, userRepo, profileRepo, notifUsecase)
 	bloodReqUsecase := Usecase.NewBloodRequestUsecase(bloodReqRepo, hospitalRepo, inventoryRepo, emergencyUsecase, notifUsecase)
 
 	// --- Controllers ---

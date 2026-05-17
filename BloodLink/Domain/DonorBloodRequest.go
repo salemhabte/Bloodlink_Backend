@@ -43,3 +43,8 @@ type DonorBloodRequestFilter struct {
 	BloodType string
 	Status    string
 }
+
+type DonorBloodRequestListResponse struct {
+	Requests  []DonorBloodRequest `json:"requests"`
+	Analytics SummaryAnalytics    `json:"analytics"`
+}
