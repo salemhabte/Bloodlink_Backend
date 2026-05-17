@@ -52,27 +52,38 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 		return errors.New("admin phone number must follow the +251 x[7,9]xxxxxxx format (e.g. +251912345678)")
 	}
 
+	// Prevent using the same phone number for both hospital and admin in the same request
+	if req.Phone == req.AdminPhone {
+		return errors.New("hospital phone number and admin phone number cannot be the same")
+	}
+
+	// Validate password strength (at least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special character)
+	if len(req.AdminPassword) < 8 {
+		return errors.New("password must be at least 8 characters long")
+	}
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(req.AdminPassword)
+	hasLower := regexp.MustCompile(`[a-z]`).MatchString(req.AdminPassword)
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(req.AdminPassword)
+	hasSpecial := regexp.MustCompile(`[!@#~$%^&*()_+|<>?:{}]`).MatchString(req.AdminPassword)
+	if !hasUpper || !hasLower || !hasNumber || !hasSpecial {
+		return errors.New("password must contain at least one uppercase letter, one lowercase letter, one number, and one special character")
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.AdminPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
 
-	// Check if hospital phone already exists in hospitals table
-	existingHospital, _ := u.repo.GetHospitalByPhone(req.Phone)
-	if existingHospital != nil {
-		return errors.New("a hospital with this phone number is already registered")
+	// Check if hospital phone already exists or is pending
+	hospitalPhoneExists, _ := u.repo.IsPhoneRegisteredOrPending(req.Phone)
+	if hospitalPhoneExists {
+		return errors.New("this hospital phone number is already registered or has a pending registration request")
 	}
 
-	// Check if hospital phone already exists in users table (across all roles)
-	existingUser, _ := u.userRepo.GetUserByPhone(context.Background(), req.Phone)
-	if existingUser != nil {
-		return errors.New("this phone number is already associated with another account")
-	}
-
-	// Check if admin phone already exists
-	existingAdmin, _ := u.userRepo.GetUserByPhone(context.Background(), req.AdminPhone)
-	if existingAdmin != nil {
-		return errors.New("admin phone number already registered")
+	// Check if admin phone already exists or is pending
+	adminPhoneExists, _ := u.repo.IsPhoneRegisteredOrPending(req.AdminPhone)
+	if adminPhoneExists {
+		return errors.New("this admin phone number is already registered or has a pending registration request")
 	}
 
 	requestID := uuid.New().String()
@@ -88,11 +99,6 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 		Longitude:       req.Longitude,
 	}
 
-	err = u.repo.CreateHospitalRequest(hospitalReq)
-	if err != nil {
-		return err
-	}
-
 	adminReq := &Domain.HospitalRequestAdmin{
 		RequestAdminID:    uuid.New().String(),
 		RequestID:         requestID,
@@ -103,7 +109,7 @@ func (u *hospitalUsecase) SubmitRegistrationRequest(req *Domain.RegisterHospital
 		CreatedAt:         time.Now(),
 	}
 
-	err = u.repo.CreateHospitalRequestAdmin(adminReq)
+	err = u.repo.CreateHospitalRegistrationRequest(hospitalReq, adminReq)
 	if err == nil {
 		go u.notifUC.SendToRole(Domain.RoleBloodBankAdmin, "CONTRACT", "New Hospital Registration", fmt.Sprintf("A new registration request was submitted by %s", req.HospitalName))
 	}
@@ -145,22 +151,32 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 		return errors.New("request is not pending")
 	}
 
-	// 1. Create real Hospital
-	hospitalID := uuid.New().String()
-	hospital := &Domain.Hospital{
-		HospitalID: hospitalID,
-		Name:       req.HospitalName,
-		Address:    req.Address,
-		Phone:      req.Phone,
-		CreatedAt:  time.Now(),
-		Latitude:   req.Latitude,
-		Longitude:  req.Longitude,
-	}
-	if err := u.repo.CreateHospital(hospital); err != nil {
-		return err
+	// Ensure the hospital phone number is still unique before creating the hospital
+	existingHospital, _ := u.repo.GetHospitalByPhone(req.Phone)
+	if existingHospital != nil {
+		return errors.New("cannot approve: a hospital with this phone number is already registered")
 	}
 
-	// 2. Create actual User
+	// Ensure the admin phone is still unique before creating the user
+	existingUser, _ := u.userRepo.GetUserByPhone(context.Background(), adminReq.AdminPhone)
+	if existingUser != nil {
+		return errors.New("cannot approve: the admin phone number is already associated with another account")
+	}
+
+	// 1. Prepare Hospital
+	hospitalID := uuid.New().String()
+	hospital := &Domain.Hospital{
+		HospitalID:      hospitalID,
+		Name:            req.HospitalName,
+		Address:         req.Address,
+		Phone:           req.Phone,
+		CreatedAt:       time.Now(),
+		Latitude:        req.Latitude,
+		Longitude:       req.Longitude,
+		LicenseDocument: req.LicenseDocument,
+	}
+
+	// 2. Prepare User
 	userID := uuid.New().String()
 	user := &Domain.User{
 		ID:        userID,
@@ -172,19 +188,13 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 		IsActive:  true,
 		CreatedAt: time.Now(),
 	}
-	if err := u.userRepo.CreateUser(context.Background(), user); err != nil {
-		return err
-	}
 
-	// 3. Create Hospital Admin record
+	// 3. Prepare Hospital Admin record
 	hospitalAdmin := &Domain.HospitalAdmin{
 		HospitalAdminID: uuid.New().String(),
 		UserID:          userID,
 		HospitalID:      hospitalID,
 		CreatedAt:       time.Now(),
-	}
-	if err := u.repo.CreateHospitalAdmin(hospitalAdmin); err != nil {
-		return err
 	}
 
 	// 4. Fetch Template and Generate Draft Contract
@@ -206,7 +216,7 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 		return err
 	}
 
-	// 5. Create Contract Record
+	// 5. Prepare Contract Record
 	contract := &Domain.HospitalContract{
 		ContractID:       contractID,
 		HospitalID:       hospitalID,
@@ -218,12 +228,9 @@ func (u *hospitalUsecase) ApproveRequest(requestID string, bloodBankAdminID stri
 		CreatedAt:        time.Now(),
 		TemplateID:       &payload.TemplateID,
 	}
-	if err := u.repo.CreateContract(contract); err != nil {
-		return err
-	}
 
-	// 6. Mark Request as Approved
-	return u.repo.UpdateHospitalRequestStatus(requestID, Domain.RequestStatusApproved)
+	// 6. Execute entire Approval Transactionally
+	return u.repo.ApproveHospitalRegistration(hospital, user, hospitalAdmin, contract, requestID)
 }
 
 func (u *hospitalUsecase) RejectRequest(requestID string) error {

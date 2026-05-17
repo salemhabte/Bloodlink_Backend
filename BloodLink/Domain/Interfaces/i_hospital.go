@@ -5,6 +5,8 @@ import "bloodlink/Domain"
 type IHospitalRepository interface {
 	CreateHospitalRequest(req *Domain.HospitalRequest) error
 	CreateHospitalRequestAdmin(admin *Domain.HospitalRequestAdmin) error
+	CreateHospitalRegistrationRequest(req *Domain.HospitalRequest, admin *Domain.HospitalRequestAdmin) error
+	ApproveHospitalRegistration(hospital *Domain.Hospital, user *Domain.User, admin *Domain.HospitalAdmin, contract *Domain.HospitalContract, requestID string) error
 	GetPendingRequests(filter Domain.HospitalRequestFilter) ([]Domain.HospitalRequestResponse, error)
 	GetHospitalRequestByID(requestID string) (*Domain.HospitalRequest, *Domain.HospitalRequestAdmin, error)
 	UpdateHospitalRequestStatus(requestID string, status string) error
@@ -28,6 +30,8 @@ type IHospitalRepository interface {
 	GetHospitalDashboard(hospitalID string) (*Domain.HospitalDashboard, error)
 	GetHospitalByPhone(phone string) (*Domain.Hospital, error)
 	GetAllHospitals() ([]Domain.Hospital, error)
+	IsPhoneRegisteredOrPending(phone string) (bool, error)
+	IsAdminEmailPending(email string) (bool, error)
 }
 
 type IHospitalUsecase interface {

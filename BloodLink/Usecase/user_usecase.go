@@ -415,14 +415,14 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 	// Hardcoded BloodBank Admin bypass
 	if email == "admin@bloodlink.com" && password == "Admin123!" {
 		claims := &domain.UserClaims{
-			UserID:      "admin-system-id",
+			UserID:      "00000000-0000-0000-0000-000000000000",
 			Email:       "admin@bloodlink.com",
 			AccountType: "bloodbankadmin",
 			IsVerified:  true,
 		}
 		at, _ := u.auth.GenerateToken(claims, domainInterface.AccessToken)
 		rt, _ := u.auth.GenerateToken(claims, domainInterface.RefreshToken)
-		return at, rt, "bloodbankadmin", "admin-system-id", false, nil
+		return at, rt, "bloodbankadmin", "00000000-0000-0000-0000-000000000000", false, nil
 	}
 
 	// Normal User flow
@@ -432,6 +432,11 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 		return "", "", "", "", false, err
 	}
 	if user == nil {
+		// Check if there is a pending hospital registration request for this email
+		isPending, _ := u.hospitalRepo.IsAdminEmailPending(email)
+		if isPending {
+			return "", "", "", "", false, errors.New("Your registration is under review")
+		}
 		return "", "", "", "", false, errors.New("invalid credentials") // Avoid "user not found" for security
 	}
 
@@ -445,10 +450,6 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 	if user.Role == domain.RoleHospitalAdmin {
 		admin, err := u.hospitalRepo.GetHospitalAdminByUserID(user.ID)
 		if err != nil || admin == nil {
-			return "", "", "", "", false, errors.New("Your registration is under review")
-		}
-		contracts, err := u.hospitalRepo.GetContractsByHospitalID(admin.HospitalID)
-		if err != nil || len(contracts) == 0 || contracts[0].Status != domain.ContractStatusFinalized {
 			return "", "", "", "", false, errors.New("Your registration is under review")
 		}
 	}

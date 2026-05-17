@@ -29,6 +29,86 @@ func (r *hospitalRepository) CreateHospitalRequestAdmin(admin *Domain.HospitalRe
 	return err
 }
 
+func (r *hospitalRepository) CreateHospitalRegistrationRequest(req *Domain.HospitalRequest, admin *Domain.HospitalRequestAdmin) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	// 1. Insert Hospital Request
+	queryReq := `INSERT INTO hospital_requests (request_id, hospital_name, address, phone, license_document, status, created_at, latitude, longitude, location_geo)
+			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ST_SetSRID(ST_MakePoint($9, $8), 4326)::geography)`
+	_, err = tx.Exec(queryReq, req.RequestID, req.HospitalName, req.Address, req.Phone, req.LicenseDocument, req.Status, req.CreatedAt, req.Latitude, req.Longitude)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 2. Insert Request Admin
+	queryAdmin := `INSERT INTO hospital_request_admins (request_admin_id, request_id, admin_full_name, admin_email, admin_phone, admin_password_hash, created_at)
+			  VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	_, err = tx.Exec(queryAdmin, admin.RequestAdminID, admin.RequestID, admin.AdminFullName, admin.AdminEmail, admin.AdminPhone, admin.AdminPasswordHash, admin.CreatedAt)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *hospitalRepository) ApproveHospitalRegistration(hospital *Domain.Hospital, user *Domain.User, admin *Domain.HospitalAdmin, contract *Domain.HospitalContract, requestID string) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	// 1. Create real Hospital
+	queryHospital := `INSERT INTO hospitals (hospital_id, name, address, phone, created_at, latitude, longitude, location_geo, license_document)
+					  VALUES ($1, $2, $3, $4, $5, $6, $7, ST_SetSRID(ST_MakePoint($7, $6), 4326)::geography, $8)`
+	_, err = tx.Exec(queryHospital, hospital.HospitalID, hospital.Name, hospital.Address, hospital.Phone, hospital.CreatedAt, hospital.Latitude, hospital.Longitude, hospital.LicenseDocument)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 2. Create actual User
+	queryUser := `INSERT INTO users (user_id, email, full_name, phone, password_hash, role, is_active, created_at)
+				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	_, err = tx.Exec(queryUser, user.ID, user.Email, user.FullName, user.Phone, user.Password, user.Role, user.IsActive, user.CreatedAt)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 3. Create Hospital Admin record
+	queryAdmin := `INSERT INTO hospital_admins (hospital_admin_id, user_id, hospital_id, created_at)
+				   VALUES ($1, $2, $3, $4)`
+	_, err = tx.Exec(queryAdmin, admin.HospitalAdminID, admin.UserID, admin.HospitalID, admin.CreatedAt)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 4. Create Contract Record
+	queryContract := `INSERT INTO hospital_contracts (contract_id, hospital_id, blood_bank_admin_id, status, document, contract_start, contract_end, created_at, template_id)
+					  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	_, err = tx.Exec(queryContract, contract.ContractID, contract.HospitalID, contract.BloodBankAdminID, contract.Status, contract.Document, contract.ContractStart, contract.ContractEnd, contract.CreatedAt, contract.TemplateID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 5. Update Request Status to Approved
+	queryRequest := `UPDATE hospital_requests SET status = $1 WHERE request_id = $2`
+	_, err = tx.Exec(queryRequest, Domain.RequestStatusApproved, requestID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (r *hospitalRepository) GetPendingRequests(filter Domain.HospitalRequestFilter) ([]Domain.HospitalRequestResponse, error) {
 	query := `SELECT r.request_id, r.hospital_name, r.address, r.phone, r.status, a.admin_full_name, a.admin_email, r.license_document
 			  FROM hospital_requests r
@@ -370,4 +450,56 @@ func (r *hospitalRepository) GetAllHospitals() ([]Domain.Hospital, error) {
 		hospitals = append(hospitals, h)
 	}
 	return hospitals, nil
+}
+
+func (r *hospitalRepository) IsPhoneRegisteredOrPending(phone string) (bool, error) {
+	var exists bool
+
+	// 1. Check users table
+	err := r.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE phone = $1)`, phone).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	if exists {
+		return true, nil
+	}
+
+	// 2. Check hospitals table
+	err = r.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM hospitals WHERE phone = $1)`, phone).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	if exists {
+		return true, nil
+	}
+
+	// 3. Check pending hospital requests
+	err = r.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM hospital_requests WHERE phone = $1 AND status = 'PENDING')`, phone).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	if exists {
+		return true, nil
+	}
+
+	// 4. Check pending hospital request admins
+	err = r.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM hospital_request_admins WHERE admin_phone = $1 AND request_id IN (SELECT request_id FROM hospital_requests WHERE status = 'PENDING'))`, phone).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+func (r *hospitalRepository) IsAdminEmailPending(email string) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(
+		SELECT 1 FROM hospital_request_admins a
+		JOIN hospital_requests r ON a.request_id = r.request_id
+		WHERE a.admin_email = $1 AND r.status = 'PENDING'
+	)`
+	err := r.db.QueryRow(query, email).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
 }
