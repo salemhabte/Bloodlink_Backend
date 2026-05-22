@@ -4,7 +4,7 @@ import (
 	"bloodlink/Delivery/controller"
 	"bloodlink/Delivery/router"
 	"bloodlink/Infrastructure"
-	jobs "bloodlink/jobs"
+	jobs "bloodlink/Jobs"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
 
