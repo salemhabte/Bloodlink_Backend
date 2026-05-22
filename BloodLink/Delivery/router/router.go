@@ -45,6 +45,8 @@ func SetupRouter(
 			authRoutes.POST("/register", userCtrl.RegisterUser)
 			authRoutes.POST("/register-donor", userCtrl.RegisterDonor)
 			authRoutes.POST("/login", userCtrl.HandleLogin)
+			authRoutes.POST("/send-otp", userCtrl.SendOTP)
+			authRoutes.POST("/resend-otp", userCtrl.ResendOTP)
 			authRoutes.POST("/verify-otp", userCtrl.VerifyOTP)
 			authRoutes.POST("/forgot-password", userCtrl.ForgotPassword)
 			authRoutes.POST("/reset-password", userCtrl.ResetPassword)
@@ -196,28 +198,27 @@ func SetupRouter(
 		bloodCollector.GET("/donation/my", donationController.GetMyDonations)
 	}
 
-lab := r.Group("/api/lab")
-lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
-{
-	lab.POST("/tests", labController.SubmitTestResult)
-	lab.PUT("/tests/:donation_id", labController.UpdateTest)
-	lab.PATCH("/tests/:donation_id/reject", labController.RejectBlood)
+	lab := r.Group("/api/lab")
+	lab.Use(Infrastructure.AuthMiddleware(auth, domain.RoleLabTech))
+	{
+		lab.POST("/tests", labController.SubmitTestResult)
+		lab.PUT("/tests/:donation_id", labController.UpdateTest)
+		lab.PATCH("/tests/:donation_id/reject", labController.RejectBlood)
 
-	// SINGLE test
-	lab.GET("/tests/:donation_id", labController.GetTestResult)
+		// SINGLE test
+		lab.GET("/tests/:donation_id", labController.GetTestResult)
 
-	// PRIMARY TEST LIST (History + Filters)
-	lab.GET("/all-tests", labController.GetAllTestHistory)
+		// PRIMARY TEST LIST (History + Filters)
+		lab.GET("/all-tests", labController.GetAllTestHistory)
 
-	// MY tests
-	lab.GET("/tests/my", labController.GetMyTests)
- 
-	//  donations (fetch before testing)
-	lab.GET("/pending-donations", labController.GetPendingDonations)
-	lab.GET("/pending-donations/:donation_id", labController.GetPendingDonation)
-}
+		// MY tests
+		lab.GET("/tests/my", labController.GetMyTests)
 
-	
+		//  donations (fetch before testing)
+		lab.GET("/pending-donations", labController.GetPendingDonations)
+		lab.GET("/pending-donations/:donation_id", labController.GetPendingDonation)
+	}
+
 	inventory := r.Group("/api/inventory")
 	inventory.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin, domain.RoleLabTech))
 	{

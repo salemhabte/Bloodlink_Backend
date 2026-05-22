@@ -25,7 +25,7 @@ type IUserRepository interface {
 	DeleteUser(ctx context.Context, userID string) error
 	FilterDonors(ctx context.Context, filter domain.DonorFilter) ([]domain.DonorResponse, error)
 	GetDonorStats(ctx context.Context) (*domain.AllDonorsResponse, error)
-	SetOTP(ctx context.Context, email, otp string) error
+	SetOTP(ctx context.Context, email, otp string, expiresAt time.Time) error
 	ResetPassword(ctx context.Context, email, hashedPassword string) error
 	UpdateDonorStatus(ctx context.Context, donorID, status string) error
 	GetUsersByRole(ctx context.Context, filter domain.UserFilter) ([]domain.UserResponse, error)
@@ -38,6 +38,8 @@ type IUserRepository interface {
 	GetEligibleDonorByID(ctx context.Context, id string) (*domain.DonorResponse, error)
 	GetDonorsBecomingEligibleToday(ctx context.Context) ([]domain.DonorResponse, error)
 }
+
+const otpTTL = 10 * time.Minute
 
 type IProfileRepository interface {
 	CreateProfile(ctx context.Context, profile *domain.UserProfile) error
@@ -114,7 +116,6 @@ func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) e
 	user.ID = uuid.New().String()
 	user.IsActive = false // Default to false for OTP verification
 	user.CreatedAt = time.Now()
-	user.OTP = Infrastructure.GenerateOTP()
 
 	// Ensure role is valid
 	if user.Role == domain.RoleDonor {
@@ -130,12 +131,40 @@ func (u *UserUseCaseBase) RegisterUser(ctx context.Context, user *domain.User) e
 		return err
 	}
 
-	// 2. Send OTP Email (Asynchronously to avoid timeouts on Render)
+	return nil
+}
+
+func (u *UserUseCaseBase) SendOTP(ctx context.Context, email string) error {
+	return u.sendVerificationOTP(ctx, email)
+}
+
+func (u *UserUseCaseBase) ResendOTP(ctx context.Context, email string) error {
+	return u.sendVerificationOTP(ctx, email)
+}
+
+func (u *UserUseCaseBase) sendVerificationOTP(ctx context.Context, email string) error {
+	user, err := u.userRepo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+	if user.IsActive {
+		return errors.New("user is already verified")
+	}
+
+	otp := Infrastructure.GenerateOTP()
+	expiresAt := time.Now().Add(otpTTL)
+	if err := u.userRepo.SetOTP(ctx, email, otp, expiresAt); err != nil {
+		return err
+	}
+
 	go func(email, otp string) {
 		if err := Infrastructure.SendOTP(email, otp); err != nil {
 			log.Printf("[ERROR] Failed to send verification email to %s: %v", email, err)
 		}
-	}(user.Email, user.OTP)
+	}(email, otp)
 
 	return nil
 }
@@ -225,6 +254,9 @@ func (u *UserUseCaseBase) VerifyOTP(ctx context.Context, email, otp string) erro
 
 	if user.OTP != otp {
 		return errors.New("invalid OTP")
+	}
+	if user.OTPExpiresAt == nil || time.Now().After(*user.OTPExpiresAt) {
+		return errors.New("OTP has expired")
 	}
 
 	// Activate user
@@ -338,7 +370,7 @@ func (u *UserUseCaseBase) FilterDonors(ctx context.Context, filter domain.DonorF
 
 	stats, err := u.userRepo.GetDonorStats(ctx)
 	if err != nil {
-		// Log error but don't fail the whole request if only stats fail? 
+		// Log error but don't fail the whole request if only stats fail?
 		// Usually better to fail or return partial stats.
 		log.Printf("[ERROR] Failed to fetch donor stats: %v", err)
 		stats = &domain.AllDonorsResponse{}
@@ -377,7 +409,8 @@ func (u *UserUseCaseBase) ForgotPassword(ctx context.Context, email string) erro
 
 	// Generate and store OTP
 	otp := Infrastructure.GenerateOTP()
-	if err := u.userRepo.SetOTP(ctx, email, otp); err != nil {
+	expiresAt := time.Now().Add(otpTTL)
+	if err := u.userRepo.SetOTP(ctx, email, otp, expiresAt); err != nil {
 		return err
 	}
 
@@ -402,6 +435,9 @@ func (u *UserUseCaseBase) ResetPassword(ctx context.Context, email, otp, newPass
 	}
 	if user.OTP != otp {
 		return errors.New("invalid OTP")
+	}
+	if user.OTPExpiresAt == nil || time.Now().After(*user.OTPExpiresAt) {
+		return errors.New("OTP has expired")
 	}
 
 	// Validate and hash new password
@@ -484,10 +520,6 @@ func (u *UserUseCaseBase) Login(ctx context.Context, email, password string) (st
 	otpNeeded := false
 	if (user.Role == domain.RoleBloodCollector || user.Role == domain.RoleLabTech) && !user.IsActive {
 		otpNeeded = true
-		// Resend OTP if it's the first time
-		go func(email, otp string) {
-			_ = Infrastructure.SendOTP(email, otp)
-		}(user.Email, user.OTP)
 	}
 
 	return accessToken, refreshToken, user.Role, user.ID, otpNeeded, nil

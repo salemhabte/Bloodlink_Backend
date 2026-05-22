@@ -29,16 +29,17 @@ type UserClaims struct {
 }
 
 type User struct {
-	ID           string    `json:"id" db:"user_id"`
-	FullName     string    `json:"full_name" db:"full_name"`
-	Email        string    `json:"email" db:"email"`
-	Phone        string    `json:"phone" db:"phone"`
-	Password     string    `json:"password" db:"password"`
-	Role         string    `json:"role" db:"role"`
-	IsActive     bool      `json:"is_active" db:"is_active"`
-	CreatedAt    time.Time `json:"created_at" db:"created_at"`
-	OTP          string    `json:"otp" db:"otp"`
-	RefreshToken string    `json:"-" db:"refresh_token"`
+	ID           string     `json:"id" db:"user_id"`
+	FullName     string     `json:"full_name" db:"full_name"`
+	Email        string     `json:"email" db:"email"`
+	Phone        string     `json:"phone" db:"phone"`
+	Password     string     `json:"password" db:"password"`
+	Role         string     `json:"role" db:"role"`
+	IsActive     bool       `json:"is_active" db:"is_active"`
+	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
+	OTP          string     `json:"otp" db:"otp"`
+	OTPExpiresAt *time.Time `json:"otp_expires_at,omitempty" db:"otp_expires_at"`
+	RefreshToken string     `json:"-" db:"refresh_token"`
 }
 
 type UserProfile struct {
@@ -75,32 +76,32 @@ type Donor struct {
 }
 
 type DonorResponse struct {
-	DonorID          string    `json:"donor_id" db:"donor_id"`
-	UserID           string    `json:"user_id" db:"user_id"`
-	FullName         string    `json:"full_name" db:"full_name"`
-	Email            string    `json:"email" db:"email"`
-	Phone            string    `json:"phone" db:"phone"`
-	Address          string    `json:"address" db:"address"`
-	BloodType        *string   `json:"blood_type" db:"blood_type"`
-	Status           string    `json:"status" db:"status"`
-	OverallStatus    string    `json:"overall_status" db:"overall_status"`
-	RegistrationDate time.Time `json:"registration_date" db:"created_at"`
+	DonorID          string     `json:"donor_id" db:"donor_id"`
+	UserID           string     `json:"user_id" db:"user_id"`
+	FullName         string     `json:"full_name" db:"full_name"`
+	Email            string     `json:"email" db:"email"`
+	Phone            string     `json:"phone" db:"phone"`
+	Address          string     `json:"address" db:"address"`
+	BloodType        *string    `json:"blood_type" db:"blood_type"`
+	Status           string     `json:"status" db:"status"`
+	OverallStatus    string     `json:"overall_status" db:"overall_status"`
+	RegistrationDate time.Time  `json:"registration_date" db:"created_at"`
 	LastDonationDate *time.Time `json:"last_donation_date,omitempty" db:"last_donation"`
 }
 
 type EligibleDonorsResponse struct {
-	TotalEligible      int             `json:"total_eligible"`
-	ReturningEligible  int             `json:"returning_eligible"`
-	NewEligibleDonors  int             `json:"new_eligible_donors"`
-	Donors             []DonorResponse `json:"donors"`
+	TotalEligible     int             `json:"total_eligible"`
+	ReturningEligible int             `json:"returning_eligible"`
+	NewEligibleDonors int             `json:"new_eligible_donors"`
+	Donors            []DonorResponse `json:"donors"`
 }
 
 type AllDonorsResponse struct {
-	TotalDonors          int             `json:"total_donors"`
-	Cleared              int             `json:"cleared"`
-	TemporarilyDeferred  int             `json:"temporarily_deferred"`
-	PermanentlyDeferred  int             `json:"permanently_deferred"`
-	Donors               []DonorResponse `json:"donors"`
+	TotalDonors         int             `json:"total_donors"`
+	Cleared             int             `json:"cleared"`
+	TemporarilyDeferred int             `json:"temporarily_deferred"`
+	PermanentlyDeferred int             `json:"permanently_deferred"`
+	Donors              []DonorResponse `json:"donors"`
 }
 
 type DonorFilter struct {
@@ -168,6 +169,10 @@ type LoginRequest struct {
 type VerifyOTPRequest struct {
 	Email string `json:"email" binding:"required"`
 	OTP   string `json:"otp" binding:"required"`
+}
+
+type SendOTPRequest struct {
+	Email string `json:"email" binding:"required,email"`
 }
 
 type RefreshTokenRequestDTO struct {

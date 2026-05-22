@@ -128,6 +128,42 @@ func (c *UserController) VerifyOTP(ctx *gin.Context) {
 	})
 }
 
+func (c *UserController) SendOTP(ctx *gin.Context) {
+	var req domain.SendOTPRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	if err := c.UserUseCase.SendOTP(cCtx, req.Email); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "OTP sent to your email"})
+}
+
+func (c *UserController) ResendOTP(ctx *gin.Context) {
+	var req domain.SendOTPRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cCtx, cancel := context.WithCancel(ctx.Request.Context())
+	defer cancel()
+
+	if err := c.UserUseCase.ResendOTP(cCtx, req.Email); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "OTP resent to your email"})
+}
+
 func (c *UserController) GetProfile(ctx *gin.Context) {
 	userID := ctx.GetString("userID") // Match middleware key
 	if userID == "" {

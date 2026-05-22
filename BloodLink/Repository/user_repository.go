@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	domain "bloodlink/Domain"
 	"strings"
@@ -21,8 +22,8 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 
 // CreateUser inserts a newly registered user into the database
 func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) error {
-	query := `INSERT INTO users (user_id, email, full_name, phone, password_hash, role, is_active, otp, created_at) 
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	query := `INSERT INTO users (user_id, email, full_name, phone, password_hash, role, is_active, otp, otp_expires_at, created_at) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
 	// Note: ER diagram says password_hash, domain says password.
 	// We'll map the db columns according to ER diagram or logic.
@@ -35,6 +36,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) erro
 		user.Role,
 		user.IsActive,
 		user.OTP,
+		user.OTPExpiresAt,
 		user.CreatedAt,
 	)
 
@@ -48,11 +50,12 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) erro
 
 // GetUserByEmail retrieves a user by their email address for login verification
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query := `SELECT user_id, full_name, email, COALESCE(phone, ''), password_hash, role, is_active, COALESCE(otp, ''), created_at, COALESCE(refresh_token, '') FROM users WHERE email = $1`
+	query := `SELECT user_id, full_name, email, COALESCE(phone, ''), password_hash, role, is_active, COALESCE(otp, ''), otp_expires_at, created_at, COALESCE(refresh_token, '') FROM users WHERE email = $1`
 
 	row := r.DB.QueryRowContext(ctx, query, email)
 
 	var user domain.User
+	var otpExpiresAt sql.NullTime
 	err := row.Scan(
 		&user.ID,
 		&user.FullName,
@@ -62,6 +65,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 		&user.Role,
 		&user.IsActive,
 		&user.OTP,
+		&otpExpiresAt,
 		&user.CreatedAt,
 		&user.RefreshToken,
 	)
@@ -73,14 +77,19 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 		return nil, err
 	}
 
+	if otpExpiresAt.Valid {
+		user.OTPExpiresAt = &otpExpiresAt.Time
+	}
+
 	return &user, nil
 }
 
 // GetUserByPhone retrieves a user by their phone number
 func (r *UserRepository) GetUserByPhone(ctx context.Context, phone string) (*domain.User, error) {
-	query := `SELECT user_id, full_name, email, phone, password_hash, role, is_active, COALESCE(otp, ''), created_at FROM users WHERE phone = $1`
+	query := `SELECT user_id, full_name, email, phone, password_hash, role, is_active, COALESCE(otp, ''), otp_expires_at, created_at FROM users WHERE phone = $1`
 
 	var user domain.User
+	var otpExpiresAt sql.NullTime
 	err := r.DB.QueryRowContext(ctx, query, phone).Scan(
 		&user.ID,
 		&user.FullName,
@@ -90,6 +99,7 @@ func (r *UserRepository) GetUserByPhone(ctx context.Context, phone string) (*dom
 		&user.Role,
 		&user.IsActive,
 		&user.OTP,
+		&otpExpiresAt,
 		&user.CreatedAt,
 	)
 
@@ -100,12 +110,16 @@ func (r *UserRepository) GetUserByPhone(ctx context.Context, phone string) (*dom
 		return nil, err
 	}
 
+	if otpExpiresAt.Valid {
+		user.OTPExpiresAt = &otpExpiresAt.Time
+	}
+
 	return &user, nil
 }
 
 // ActivateUser updates the user's status to active and clears the OTP
 func (r *UserRepository) ActivateUser(ctx context.Context, userID string) error {
-	query := `UPDATE users SET is_active = true, otp = NULL WHERE user_id = $1`
+	query := `UPDATE users SET is_active = true, otp = NULL, otp_expires_at = NULL WHERE user_id = $1`
 	_, err := r.DB.ExecContext(ctx, query, userID)
 	return err
 }
@@ -150,10 +164,10 @@ func (r *UserRepository) DeleteUser(ctx context.Context, userID string) error {
 	return nil
 }
 
-// SetOTP stores an OTP for the user identified by email (used for forgot password)
-func (r *UserRepository) SetOTP(ctx context.Context, email, otp string) error {
-	query := `UPDATE users SET otp = $1 WHERE email = $2`
-	result, err := r.DB.ExecContext(ctx, query, otp, email)
+// SetOTP stores an OTP for the user identified by email.
+func (r *UserRepository) SetOTP(ctx context.Context, email, otp string, expiresAt time.Time) error {
+	query := `UPDATE users SET otp = $1, otp_expires_at = $2 WHERE email = $3`
+	result, err := r.DB.ExecContext(ctx, query, otp, expiresAt, email)
 	if err != nil {
 		log.Printf("[DATABASE ERROR] SetOTP failed: %v", err)
 		return err
@@ -167,7 +181,7 @@ func (r *UserRepository) SetOTP(ctx context.Context, email, otp string) error {
 
 // ResetPassword updates the password and clears the OTP for the user identified by email
 func (r *UserRepository) ResetPassword(ctx context.Context, email, hashedPassword string) error {
-	query := `UPDATE users SET password_hash = $1, otp = NULL WHERE email = $2`
+	query := `UPDATE users SET password_hash = $1, otp = NULL, otp_expires_at = NULL WHERE email = $2`
 	_, err := r.DB.ExecContext(ctx, query, hashedPassword, email)
 	if err != nil {
 		log.Printf("[DATABASE ERROR] ResetPassword failed: %v", err)
