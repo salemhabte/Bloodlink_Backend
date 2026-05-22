@@ -4,9 +4,9 @@ import (
 	"bloodlink/Delivery/controller"
 	"bloodlink/Delivery/router"
 	"bloodlink/Infrastructure"
-	jobs "bloodlink/Jobs"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
+	jobs "bloodlink/jobs"
 
 	"bloodlink/config"
 	"log"
