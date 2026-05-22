@@ -3,6 +3,7 @@ package controller
 import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
+	"bloodlink/Usecase"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -12,11 +13,16 @@ import (
 )
 
 type HospitalController struct {
-	Usecase Interfaces.IHospitalUsecase
+	Usecase    Interfaces.IHospitalUsecase
+	auditLogger *Usecase.AuditLogUsecase
 }
 
 func NewHospitalController(u Interfaces.IHospitalUsecase) *HospitalController {
 	return &HospitalController{Usecase: u}
+}
+
+func (c *HospitalController) SetAuditLogger(logger *Usecase.AuditLogUsecase) {
+	c.auditLogger = logger
 }
 
 func (c *HospitalController) SubmitRegistrationRequest(ctx *gin.Context) {
@@ -69,6 +75,10 @@ func (c *HospitalController) ApproveRequest(ctx *gin.Context) {
 		return
 	}
 
+	if c.auditLogger != nil {
+		c.auditLogger.LogAction(bloodBankAdminID, "APPROVE_HOSPITAL_REQUEST", "hospital_requests", requestID, "Approved hospital request and drafted contract")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Hospital request approved and contract drafted"})
 }
 
@@ -77,6 +87,11 @@ func (c *HospitalController) RejectRequest(ctx *gin.Context) {
 	if err := c.Usecase.RejectRequest(requestID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "REJECT_HOSPITAL_REQUEST", "hospital_requests", requestID, "Rejected hospital request")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Hospital request rejected"})
@@ -113,6 +128,11 @@ func (c *HospitalController) AdminSignContract(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	if c.auditLogger != nil {
+		c.auditLogger.LogAction(adminID, "SIGN_CONTRACT", "hospital_contracts", contractID, "Finalized hospital contract")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract finalized"})
 }
 
@@ -125,6 +145,11 @@ func (c *HospitalController) RejectContract(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	if c.auditLogger != nil && role == Domain.RoleBloodBankAdmin {
+		c.auditLogger.LogAction(userID, "REJECT_CONTRACT", "hospital_contracts", contractID, "Rejected hospital contract")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract rejected"})
 }
 
@@ -195,6 +220,11 @@ func (c *HospitalController) CreateContractTemplate(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	if c.auditLogger != nil {
+		c.auditLogger.LogAction(adminID, "CREATE_CONTRACT_TEMPLATE", "contract_templates", "", "Created contract template: "+req.Name)
+	}
+
 	ctx.JSON(http.StatusCreated, gin.H{"message": "Contract template created"})
 }
 
@@ -219,6 +249,12 @@ func (c *HospitalController) UpdateContractTemplate(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "UPDATE_CONTRACT_TEMPLATE", "contract_templates", templateID, "Updated contract template: "+req.Name)
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract template updated"})
 }
 
@@ -228,6 +264,12 @@ func (c *HospitalController) DeleteContractTemplate(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "DELETE_CONTRACT_TEMPLATE", "contract_templates", templateID, "Deleted contract template")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Contract template deleted"})
 }
 

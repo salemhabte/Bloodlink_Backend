@@ -8,18 +8,24 @@ import (
 
 	domain "bloodlink/Domain"
 	domainInterface "bloodlink/Domain/Interfaces"
+	"bloodlink/Usecase"
 
 	"github.com/gin-gonic/gin"
 )
 
 type UserController struct {
 	UserUseCase domainInterface.IUserUseCase
+	auditLogger *Usecase.AuditLogUsecase
 }
 
 func NewUserController(userUseCase domainInterface.IUserUseCase) *UserController {
 	return &UserController{
 		UserUseCase: userUseCase,
 	}
+}
+
+func (c *UserController) SetAuditLogger(logger *Usecase.AuditLogUsecase) {
+	c.auditLogger = logger
 }
 
 func (c *UserController) RegisterUser(ctx *gin.Context) {
@@ -45,6 +51,20 @@ func (c *UserController) RegisterUser(ctx *gin.Context) {
 		log.Printf("[ERROR] RegisterUser failed: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		// if the request comes from an authenticated admin, log it
+		if adminID != "" {
+			action := "REGISTER_USER"
+			if user.Role == domain.RoleLabTech {
+				action = "REGISTER_LAB_TECH"
+			} else if user.Role == domain.RoleBloodCollector {
+				action = "REGISTER_BLOOD_COLLECTOR"
+			}
+			c.auditLogger.LogAction(adminID, action, "users", user.ID, "Registered user with role: "+string(user.Role))
+		}
 	}
 
 	ctx.JSON(http.StatusCreated, gin.H{

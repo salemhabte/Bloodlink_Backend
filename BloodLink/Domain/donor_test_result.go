@@ -43,6 +43,7 @@ type TestFilter struct {
 	BloodType       string
 	ComponentType   string
 	StorageLocation string
+	DonationNumber  string
 	StartDate       string
 	EndDate         string
 }

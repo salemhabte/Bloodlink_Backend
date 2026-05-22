@@ -3,6 +3,7 @@ package controller
 import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
+	"bloodlink/Usecase"
 	"net/http"
 	"strings"
 
@@ -10,11 +11,16 @@ import (
 )
 
 type BloodRequestController struct {
-	Usecase Interfaces.IBloodRequestUsecase
+	Usecase    Interfaces.IBloodRequestUsecase
+	auditLogger *Usecase.AuditLogUsecase
 }
 
 func NewBloodRequestController(u Interfaces.IBloodRequestUsecase) *BloodRequestController {
 	return &BloodRequestController{Usecase: u}
+}
+
+func (c *BloodRequestController) SetAuditLogger(logger *Usecase.AuditLogUsecase) {
+	c.auditLogger = logger
 }
 
 func (c *BloodRequestController) CreateBloodRequest(ctx *gin.Context) {
@@ -103,6 +109,11 @@ func (c *BloodRequestController) ApproveRequest(ctx *gin.Context) {
 		return
 	}
 
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "APPROVE_BLOOD_REQUEST", "blood_requests", requestID, "Approved blood request")
+	}
+
 	ctx.JSON(http.StatusOK, result)
 }
 
@@ -112,6 +123,11 @@ func (c *BloodRequestController) RejectRequest(ctx *gin.Context) {
 	if err := c.Usecase.RejectRequest(requestID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "REJECT_BLOOD_REQUEST", "blood_requests", requestID, "Rejected blood request")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Blood request rejected successfully"})

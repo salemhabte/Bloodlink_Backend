@@ -27,6 +27,7 @@ func SetupRouter(
 	emergencyController *controller.EmergencyRequestController,
 	donorBloodReqController *controller.DonorBloodRequestController,
 	notifController *controller.NotificationController,
+	auditLogController *controller.AuditLogController,
 ) *gin.Engine {
 
 	r := gin.Default()
@@ -164,6 +165,10 @@ func SetupRouter(
 		}
 
 		admin.GET("/hospitals", hospitalController.GetAllHospitals)
+		admin.GET("/audit-logs", auditLogController.GetLogs)
+		admin.GET("/audit-logs/export", auditLogController.ExportLogs)
+		admin.GET("/audit-logs/:id", auditLogController.GetLogByID)
+		admin.DELETE("/audit-logs/:id", auditLogController.DeleteLog)
 	}
 
 	// Donor Routes

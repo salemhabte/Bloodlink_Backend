@@ -102,11 +102,12 @@ type DonationUsecase struct {
 	repo         Interface.IDonationRepository
 	campaignRepo Interface.ICampaignRepository
 	notifUC      Interface.INotificationUsecase
+	seqRepo      Interface.ISequenceRepository
 }
 
 // Constructor
-func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interface.ICampaignRepository, notifUC Interface.INotificationUsecase) *DonationUsecase {
-	return &DonationUsecase{repo: repo, campaignRepo: campaignRepo, notifUC: notifUC}
+func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interface.ICampaignRepository, notifUC Interface.INotificationUsecase, seqRepo Interface.ISequenceRepository) *DonationUsecase {
+	return &DonationUsecase{repo: repo, campaignRepo: campaignRepo, notifUC: notifUC, seqRepo: seqRepo}
 }
 
 // CreateDonation handles the business logic for recording a new donation
@@ -116,6 +117,14 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	// 1. Generate donation ID
 	// ================================
 	record.DonationID = uuid.New().String()
+
+	// Generate Friendly Donation Number
+	year := time.Now().Year()
+	nextVal, seqErr := u.seqRepo.GetNextSequenceValue("DONATION", year)
+	if seqErr != nil {
+		return fmt.Errorf("failed to generate donation number: %v", seqErr)
+	}
+	record.DonationNumber = fmt.Sprintf("DON-%d-%06d", year, nextVal)
 
 	// ================================
 	// 2. Validate status field is provided
@@ -417,10 +426,11 @@ func (u *DonationUsecase) GetMyDonations(collectorID string, filter Domain.Donat
 
 type BloodInventoryUsecase struct {
 	repo Interface.IBloodInventoryRepository
+	seqRepo Interface.ISequenceRepository
 }
 
-func NewBloodInventoryUsecase(r Interface.IBloodInventoryRepository) *BloodInventoryUsecase {
-	return &BloodInventoryUsecase{repo: r}
+func NewBloodInventoryUsecase(r Interface.IBloodInventoryRepository, seqRepo Interface.ISequenceRepository) *BloodInventoryUsecase {
+	return &BloodInventoryUsecase{repo: r, seqRepo: seqRepo}
 }
 
 // 🔹 Get All
@@ -587,7 +597,7 @@ func (u *BloodInventoryUsecase) ExpireReservations() ([]string, error) {
 	return u.repo.ExpireStaleReservations(cutoff)
 }
 
-func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQuantity int, cryoPoorQuantity *int) error {
+func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQuantity int, cryoPoorQuantity *int, cryoPosition string, cryoPoorPosition string) error {
 	plasma, err := u.repo.GetBloodUnitByID(plasmaUnitID)
 	if err != nil {
 		return err
@@ -601,6 +611,48 @@ func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQua
 	}
 	if cryoQuantity <= 0 || cryoQuantity >= plasma.QuantityML {
 		return errors.New("cryoprecipitate quantity must be greater than 0 and less than total plasma quantity")
+	}
+	if strings.TrimSpace(cryoPosition) == "" || strings.TrimSpace(cryoPoorPosition) == "" {
+		return errors.New("cryo_position_number and cryo_poor_position_number are required")
+	}
+	if cryoPosition == cryoPoorPosition {
+		return errors.New("cryo_position_number and cryo_poor_position_number cannot be the same")
+	}
+
+	// Slot and capacity checks
+	// Since we are replacing 1 unit with 2 units in the same cell, net capacity change is +1
+	occupiedCount, err := u.repo.GetOccupiedSlotCount(plasma.StorageLocation, plasma.RackNumber, plasma.ShelfNumber)
+	if err != nil {
+		return err
+	}
+	
+	// Subtract the plasma unit itself since it will be deleted
+	occupiedCount--
+	
+	if 12 - occupiedCount < 2 {
+		return fmt.Errorf("Only %d positions available in this cell. You are trying to store 2 components.", 12-occupiedCount)
+	}
+
+	// Check if cryoPosition is occupied
+	if cryoPosition != plasma.PositionNumber {
+		occupied, err := u.repo.IsSlotOccupied(plasma.StorageLocation, plasma.RackNumber, plasma.ShelfNumber, cryoPosition)
+		if err != nil {
+			return err
+		}
+		if occupied {
+			return fmt.Errorf("Slot [Rack %s, Shelf %s, Pos %s] is already occupied", plasma.RackNumber, plasma.ShelfNumber, cryoPosition)
+		}
+	}
+
+	// Check if cryoPoorPosition is occupied
+	if cryoPoorPosition != plasma.PositionNumber {
+		occupied, err := u.repo.IsSlotOccupied(plasma.StorageLocation, plasma.RackNumber, plasma.ShelfNumber, cryoPoorPosition)
+		if err != nil {
+			return err
+		}
+		if occupied {
+			return fmt.Errorf("Slot [Rack %s, Shelf %s, Pos %s] is already occupied", plasma.RackNumber, plasma.ShelfNumber, cryoPoorPosition)
+		}
 	}
 
 	// Calculate default poor plasma quantity
@@ -619,9 +671,24 @@ func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQua
 
 	now := time.Now()
 	
+	// Generate Unit Numbers
+	year := time.Now().Year()
+	cryoNextVal, err := u.seqRepo.GetNextSequenceValue("BLOOD_UNIT", year)
+	if err != nil {
+		return fmt.Errorf("failed to generate unit number: %v", err)
+	}
+	cryoUnitNumber := fmt.Sprintf("UNIT-%d-%06d", year, cryoNextVal)
+
+	cryoPoorNextVal, err := u.seqRepo.GetNextSequenceValue("BLOOD_UNIT", year)
+	if err != nil {
+		return fmt.Errorf("failed to generate unit number: %v", err)
+	}
+	cryoPoorUnitNumber := fmt.Sprintf("UNIT-%d-%06d", year, cryoPoorNextVal)
+
 	// Create new Cryoprecipitate unit
 	cryoUnit := &Domain.BloodUnit{
 		BloodUnitID:     uuid.New().String(),
+		UnitNumber:      cryoUnitNumber,
 		DonationID:      plasma.DonationID,
 		BloodType:       plasma.BloodType,
 		ComponentType:   "CRYOPRECIPITATE",
@@ -632,12 +699,14 @@ func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQua
 		StorageLocation: plasma.StorageLocation,
 		RackNumber:      plasma.RackNumber,
 		ShelfNumber:     plasma.ShelfNumber,
+		PositionNumber:  cryoPosition,
 		CreatedAt:       now,
 	}
 
 	// Create new Cryo-poor Plasma unit
 	cryoPoorUnit := &Domain.BloodUnit{
 		BloodUnitID:     uuid.New().String(),
+		UnitNumber:      cryoPoorUnitNumber,
 		DonationID:      plasma.DonationID,
 		BloodType:       plasma.BloodType,
 		ComponentType:   "CRYO_POOR_PLASMA",
@@ -648,6 +717,7 @@ func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQua
 		StorageLocation: plasma.StorageLocation,
 		RackNumber:      plasma.RackNumber,
 		ShelfNumber:     plasma.ShelfNumber,
+		PositionNumber:  cryoPoorPosition,
 		CreatedAt:       now,
 	}
 

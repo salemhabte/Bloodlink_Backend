@@ -22,7 +22,7 @@ type CollectorDonorInsights struct {
 }
 type CollectorTodayStats struct {
 	TodaysDonations int `json:"todays_donations"`
-	PendingDonors   int `json:"pending_donors"`
+	EligibleDonors  int `json:"eligible_donors"`
 	ApprovedToday   int `json:"approved_today"`
 	RejectedToday   int `json:"rejected_today"`
 }

@@ -54,11 +54,12 @@ func (r *LabRepository) CreateTestResult(result *Domain.DonorTestResult) error {
 func (r *LabRepository) CreateBloodUnit(unit *Domain.BloodUnit) error {
 	query := `
 	INSERT INTO blood_units
-	(blood_unit_id, donation_id, blood_type, component_type, quantity_ml, collection_date, expiration_date, status, storage_location, rack_number, shelf_number)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	(blood_unit_id, unit_number, donation_id, blood_type, component_type, quantity_ml, collection_date, expiration_date, status, storage_location, rack_number, shelf_number, position_number)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 	_, err := r.DB.Exec(query,
 		unit.BloodUnitID,
+		unit.UnitNumber,
 		unit.DonationID,
 		unit.BloodType,
 		unit.ComponentType,
@@ -69,6 +70,7 @@ func (r *LabRepository) CreateBloodUnit(unit *Domain.BloodUnit) error {
 		unit.StorageLocation,
 		unit.RackNumber,
 		unit.ShelfNumber,
+		unit.PositionNumber,
 	)
 	return err
 }
@@ -219,6 +221,7 @@ func (r *LabRepository) GetPendingDonations() ([]Domain.DonationRecord, error) {
 	query := `
 	SELECT 
 		d.donation_id,
+		COALESCE(d.donation_number, ''),
 		d.donor_id,
 		u.full_name,
 		d.collected_by,
@@ -253,6 +256,7 @@ func (r *LabRepository) GetPendingDonations() ([]Domain.DonationRecord, error) {
 
 		err := rows.Scan(
 			&d.DonationID,
+			&d.DonationNumber,
 			&d.DonorID,
 			&d.DonorName,
 			&d.CollectedBy,
@@ -424,15 +428,15 @@ func (r *LabRepository) DeleteBloodUnitsByDonationID(donationID string) error {
 
 // GetBloodUnitByDonationID returns the first blood unit for a donation (backward compat)
 func (r *LabRepository) GetBloodUnitByDonationID(donationID string) (*Domain.BloodUnit, error) {
-	query := `SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''), quantity_ml, collection_date, expiration_date, status,
-	          COALESCE(storage_location,''), COALESCE(rack_number,''), COALESCE(shelf_number,'')
+	query := `SELECT blood_unit_id, COALESCE(unit_number,''), donation_id, blood_type, COALESCE(component_type,''), quantity_ml, collection_date, expiration_date, status,
+	          COALESCE(storage_location,''), COALESCE(rack_number,''), COALESCE(shelf_number,''), COALESCE(position_number,'')
 	          FROM blood_units WHERE donation_id=$1 LIMIT 1`
 	row := r.DB.QueryRow(query, donationID)
 
 	var unit Domain.BloodUnit
-	err := row.Scan(&unit.BloodUnitID, &unit.DonationID, &unit.BloodType, &unit.ComponentType,
+	err := row.Scan(&unit.BloodUnitID, &unit.UnitNumber, &unit.DonationID, &unit.BloodType, &unit.ComponentType,
 		&unit.QuantityML, &unit.CollectionDate, &unit.ExpirationDate, &unit.Status,
-		&unit.StorageLocation, &unit.RackNumber, &unit.ShelfNumber)
+		&unit.StorageLocation, &unit.RackNumber, &unit.ShelfNumber, &unit.PositionNumber)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -445,8 +449,8 @@ func (r *LabRepository) GetBloodUnitByDonationID(donationID string) (*Domain.Blo
 
 // GetBloodUnitsByDonationID returns ALL blood units for a donation
 func (r *LabRepository) GetBloodUnitsByDonationID(donationID string) ([]Domain.BloodUnit, error) {
-	query := `SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''), quantity_ml, collection_date, expiration_date, status,
-	          COALESCE(storage_location,''), COALESCE(rack_number,''), COALESCE(shelf_number,'')
+	query := `SELECT blood_unit_id, COALESCE(unit_number,''), donation_id, blood_type, COALESCE(component_type,''), quantity_ml, collection_date, expiration_date, status,
+	          COALESCE(storage_location,''), COALESCE(rack_number,''), COALESCE(shelf_number,''), COALESCE(position_number,'')
 	          FROM blood_units WHERE donation_id=$1`
 	rows, err := r.DB.Query(query, donationID)
 	if err != nil {
@@ -457,9 +461,9 @@ func (r *LabRepository) GetBloodUnitsByDonationID(donationID string) ([]Domain.B
 	var units []Domain.BloodUnit
 	for rows.Next() {
 		var u Domain.BloodUnit
-		err := rows.Scan(&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
+		err := rows.Scan(&u.BloodUnitID, &u.UnitNumber, &u.DonationID, &u.BloodType, &u.ComponentType,
 			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
-			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber)
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber)
 		if err != nil {
 			return nil, err
 		}
@@ -472,10 +476,10 @@ func (r *LabRepository) GetBloodUnitsByDonationID(donationID string) ([]Domain.B
 func (r *LabRepository) UpdateBloodUnit(unit *Domain.BloodUnit) error {
 	query := `
 	UPDATE blood_units 
-	SET blood_type=$1, status=$2, storage_location=$3, rack_number=$4, shelf_number=$5
-	WHERE donation_id=$6
+	SET blood_type=$1, status=$2, storage_location=$3, rack_number=$4, shelf_number=$5, position_number=$6
+	WHERE donation_id=$7
 	`
-	_, err := r.DB.Exec(query, unit.BloodType, unit.Status, unit.StorageLocation, unit.RackNumber, unit.ShelfNumber, unit.DonationID)
+	_, err := r.DB.Exec(query, unit.BloodType, unit.Status, unit.StorageLocation, unit.RackNumber, unit.ShelfNumber, unit.PositionNumber, unit.DonationID)
 	return err
 }
 
@@ -546,6 +550,7 @@ func (r *LabRepository) FilterTestResults(filter Domain.TestFilter) ([]Domain.Do
 		t.created_at
 	FROM donor_test_results t
 	LEFT JOIN blood_units bu ON t.donation_id = bu.donation_id
+	LEFT JOIN donation_records d ON t.donation_id = d.donation_id
 	WHERE 1=1
 	`
 
@@ -585,6 +590,11 @@ func (r *LabRepository) FilterTestResults(filter Domain.TestFilter) ([]Domain.Do
 	if filter.EndDate != "" {
 		query += fmt.Sprintf(" AND t.created_at <= $%d", i)
 		args = append(args, filter.EndDate)
+		i++
+	}
+	if filter.DonationNumber != "" {
+		query += fmt.Sprintf(" AND d.donation_number = $%d", i)
+		args = append(args, filter.DonationNumber)
 		i++
 	}
 
@@ -672,4 +682,29 @@ func (r *LabRepository) GetLatestTestResultByDonor(donorID string) (*Domain.Dono
 	}
 
 	return &result, nil
+}
+
+func (r *LabRepository) IsSlotOccupied(location, rack, shelf, position string) (bool, error) {
+	query := `
+		SELECT COUNT(*) FROM blood_units 
+		WHERE storage_location = $1 AND rack_number = $2 AND shelf_number = $3 AND position_number = $4
+		AND status != 'USED' AND is_deleted = false
+	`
+	var count int
+	err := r.DB.QueryRow(query, location, rack, shelf, position).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *LabRepository) GetOccupiedSlotCount(location, rack, shelf string) (int, error) {
+	query := `
+		SELECT COUNT(*) FROM blood_units 
+		WHERE storage_location = $1 AND rack_number = $2 AND shelf_number = $3
+		AND status != 'USED' AND is_deleted = false
+	`
+	var count int
+	err := r.DB.QueryRow(query, location, rack, shelf).Scan(&count)
+	return count, err
 }

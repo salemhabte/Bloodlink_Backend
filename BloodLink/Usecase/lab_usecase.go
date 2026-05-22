@@ -15,17 +15,20 @@ type LabUsecase struct {
 	repo          Interface.ILabRepository
 	badgeUsecase  *DonorBadgeUsecase
 	notifUC       Interface.INotificationUsecase
+	seqRepo       Interface.ISequenceRepository
 }
 
 func NewLabUsecase(
 	repo Interface.ILabRepository,
 	badgeUsecase *DonorBadgeUsecase,
 	notifUC Interface.INotificationUsecase,
+	seqRepo Interface.ISequenceRepository,
 ) *LabUsecase {
 	return &LabUsecase{
 		repo:         repo,
 		badgeUsecase: badgeUsecase,
 		notifUC:      notifUC,
+		seqRepo:      seqRepo,
 	}
 }
 
@@ -104,6 +107,36 @@ func (u *LabUsecase) ProcessTestResult(result *Domain.DonorTestResult) error {
 		if strings.TrimSpace(result.StorageLocation) == "" {
 			return errors.New("storage_location is required when overall_status is CLEARED")
 		}
+
+		posMap := make(map[string]bool)
+		for _, comp := range result.Components {
+			pos := strings.TrimSpace(comp.PositionNumber)
+			if pos == "" {
+				return errors.New("position_number is required for all components when overall_status is CLEARED")
+			}
+			if posMap[pos] {
+				return fmt.Errorf("duplicate position_number '%s' found in request", pos)
+			}
+			posMap[pos] = true
+
+			// Check if slot is taken
+			occupied, err := u.repo.IsSlotOccupied(result.StorageLocation, result.RackNumber, result.ShelfNumber, pos)
+			if err != nil {
+				return err
+			}
+			if occupied {
+				return fmt.Errorf("Slot [Rack %s, Shelf %s, Pos %s] in %s is already occupied", result.RackNumber, result.ShelfNumber, pos, result.StorageLocation)
+			}
+		}
+
+		// Capacity Check (Max 12 slots per cell)
+		occupiedCount, err := u.repo.GetOccupiedSlotCount(result.StorageLocation, result.RackNumber, result.ShelfNumber)
+		if err != nil {
+			return err
+		}
+		if 12 - occupiedCount < len(result.Components) {
+			return fmt.Errorf("Only %d positions available in this cell. You are trying to store %d components.", 12-occupiedCount, len(result.Components))
+		}
 	}
 
 	// === VALIDATION for PERMANENTLY_DEFERRED ===
@@ -143,6 +176,8 @@ func (u *LabUsecase) ProcessTestResult(result *Domain.DonorTestResult) error {
 
 	// If CLEARED, create blood units (one per component)
 	if result.OverallStatus == "CLEARED" {
+		year := time.Now().Year()
+
 		for _, comp := range result.Components {
 			componentType := strings.ToUpper(comp.ComponentType)
 			// Normalize CRBC → PRBC for storage
@@ -150,18 +185,26 @@ func (u *LabUsecase) ProcessTestResult(result *Domain.DonorTestResult) error {
 				componentType = "PRBC"
 			}
 
+			nextVal, seqErr := u.seqRepo.GetNextSequenceValue("BLOOD_UNIT", year)
+			if seqErr != nil {
+				return fmt.Errorf("failed to generate unit number: %v", seqErr)
+			}
+			unitNumber := fmt.Sprintf("UNIT-%d-%06d", year, nextVal)
+
 			bloodUnit := &Domain.BloodUnit{
 				BloodUnitID:     uuid.New().String(),
+				UnitNumber:      unitNumber,
 				DonationID:      donation.DonationID,
 				BloodType:       result.BloodType,
 				ComponentType:   componentType,
-				QuantityML:        comp.Quantity,
+				QuantityML:      comp.Quantity,
 				CollectionDate:  donation.CollectionDate,
 				ExpirationDate:  calculateExpiration(donation.CollectionDate, componentType),
 				Status:          "AVAILABLE",
 				StorageLocation: result.StorageLocation,
 				RackNumber:      result.RackNumber,
 				ShelfNumber:     result.ShelfNumber,
+				PositionNumber:  comp.PositionNumber,
 				CreatedAt:       time.Now(),
 			}
 
@@ -296,6 +339,59 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult, currentLab
 		if strings.TrimSpace(result.StorageLocation) == "" {
 			return errors.New("storage_location is required when overall_status is CLEARED")
 		}
+
+		posMap := make(map[string]bool)
+		for _, comp := range result.Components {
+			pos := strings.TrimSpace(comp.PositionNumber)
+			if pos == "" {
+				return errors.New("position_number is required for all components when overall_status is CLEARED")
+			}
+			if posMap[pos] {
+				return fmt.Errorf("duplicate position_number '%s' found in request", pos)
+			}
+			posMap[pos] = true
+
+			// Check if slot is taken
+			occupied, err := u.repo.IsSlotOccupied(result.StorageLocation, result.RackNumber, result.ShelfNumber, pos)
+			if err != nil {
+				return err
+			}
+			if occupied {
+				// If we are updating, it's possible the occupied slot belongs to the SAME donation we are replacing.
+				// We need to check if the unit occupying this slot belongs to this donation.
+				// If so, it's okay because we will delete it. We can just ignore the occupancy error.
+				oldUnits, _ := u.repo.GetBloodUnitsByDonationID(result.DonationID)
+				isSelf := false
+				for _, ou := range oldUnits {
+					if !ou.IsDeleted && ou.StorageLocation == result.StorageLocation && ou.RackNumber == result.RackNumber && ou.ShelfNumber == result.ShelfNumber && ou.PositionNumber == pos {
+						isSelf = true
+						break
+					}
+				}
+				if !isSelf {
+					return fmt.Errorf("Slot [Rack %s, Shelf %s, Pos %s] in %s is already occupied", result.RackNumber, result.ShelfNumber, pos, result.StorageLocation)
+				}
+			}
+		}
+
+		// Capacity Check (Max 12 slots per cell)
+		occupiedCount, err := u.repo.GetOccupiedSlotCount(result.StorageLocation, result.RackNumber, result.ShelfNumber)
+		if err != nil {
+			return err
+		}
+		
+		// If updating, subtract the units from the SAME donation that are in this same cell 
+		// because they will be deleted.
+		oldUnits, _ := u.repo.GetBloodUnitsByDonationID(result.DonationID)
+		for _, ou := range oldUnits {
+			if !ou.IsDeleted && ou.Status != "USED" && ou.StorageLocation == result.StorageLocation && ou.RackNumber == result.RackNumber && ou.ShelfNumber == result.ShelfNumber {
+				occupiedCount--
+			}
+		}
+
+		if 12 - occupiedCount < len(result.Components) {
+			return fmt.Errorf("Only %d positions available in this cell. You are trying to store %d components.", 12-occupiedCount, len(result.Components))
+		}
 	}
 
 	if result.OverallStatus == "PERMANENTLY_DEFERRED" {
@@ -347,6 +443,7 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult, currentLab
 				StorageLocation: result.StorageLocation,
 				RackNumber:      result.RackNumber,
 				ShelfNumber:     result.ShelfNumber,
+				PositionNumber:  comp.PositionNumber,
 				CreatedAt:       time.Now(),
 			}
 
@@ -438,8 +535,9 @@ func (u *LabUsecase) populateTestComponents(test *Domain.DonorTestResult) {
 			var comps []Domain.BloodComponentInput
 			for _, unit := range units {
 				comps = append(comps, Domain.BloodComponentInput{
-					ComponentType: unit.ComponentType,
-					Quantity:        unit.QuantityML,
+					ComponentType:  unit.ComponentType,
+					Quantity:       unit.QuantityML,
+					PositionNumber: unit.PositionNumber,
 				})
 			}
 			test.Components = comps

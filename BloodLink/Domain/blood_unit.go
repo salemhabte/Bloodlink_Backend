@@ -22,6 +22,8 @@ type BloodUnit struct {
 	StorageLocation string `json:"storage_location,omitempty"`
 	RackNumber      string `json:"rack_number,omitempty"`
 	ShelfNumber     string `json:"shelf_number,omitempty"`
+	PositionNumber  string `json:"position_number,omitempty"`
+	UnitNumber      string `json:"unit_number"`
 
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -32,8 +34,9 @@ type BloodUnitFilter struct {
 	Status        string `json:"status"`
 	StartDate     string `json:"start_date"`
 	EndDate       string `json:"end_date"`
-	Quantity        int    `json:"quantity"`
+	Quantity      int    `json:"quantity"`
 	NearExpired   bool   `json:"near_expired"`
+	UnitNumber    string `json:"unit_number"`
 }
 
 // ReservedUnitInfo is returned when units are reserved for a hospital request
@@ -57,6 +60,8 @@ type ApproveRequestResult struct {
 type ConvertCryoRequest struct {
 	CryoprecipitateQuantity int  `json:"cryoprecipitate_quantity" binding:"required"`
 	CryoPoorPlasmaQuantity  *int `json:"cryo_poor_plasma_quantity,omitempty"`
+	CryoPositionNumber      string `json:"cryo_position_number" binding:"required"`
+	CryoPoorPositionNumber  string `json:"cryo_poor_position_number" binding:"required"`
 }
 
 type InventoryListResponse struct {

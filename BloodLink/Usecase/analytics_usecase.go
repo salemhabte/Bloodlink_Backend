@@ -64,10 +64,7 @@ func (u *LabAnalyticsUsecase) GetDashboard(labID string) (*Domain.LabDashboard, 
 	}
 
 	// inject GLOBAL pending tests
-	pending, err := u.repo.(interface {
-		GetPendingTests() (int, error)
-	}).GetPendingTests()
-
+	pending, err := u.repo.GetPendingTests()
 	if err == nil {
 		data.PendingTests = pending
 	}
