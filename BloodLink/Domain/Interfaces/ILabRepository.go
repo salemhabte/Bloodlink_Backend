@@ -23,4 +23,6 @@ type ILabRepository interface {
 	FilterTestResults(filter Domain.TestFilter) ([]Domain.DonorTestResult, error)
 	GetMyTestResultsFiltered(filter Domain.TestFilter) ([]Domain.DonorTestResult, error)
 	GetLatestTestResultByDonor(donorID string) (*Domain.DonorTestResult, error)
+	IsSlotOccupied(location, rack, shelf, position string) (bool, error)
+	GetOccupiedSlotCount(location, rack, shelf string) (int, error)
 }

@@ -27,4 +27,6 @@ type IBloodInventoryRepository interface {
 	DeleteWithAudit(unitID string) error
 
 	ConvertPlasmaToCryo(plasmaUnitID string, cryo *Domain.BloodUnit, cryoPoor *Domain.BloodUnit) error
+	IsSlotOccupied(location, rack, shelf, position string) (bool, error)
+	GetOccupiedSlotCount(location, rack, shelf string) (int, error)
 }

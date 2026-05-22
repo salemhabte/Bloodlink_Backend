@@ -25,7 +25,8 @@ func (r *labAnalyticsRepository) GetLabDashboard(labID string) (*Domain.LabDashb
 		COALESCE(SUM(CASE WHEN overall_status = 'PERMANENTLY_DEFERRED' THEN 1 ELSE 0 END),0),
 
 		COALESCE(SUM(CASE WHEN hiv_result = 'POSITIVE' THEN 1 ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN hepatitis_result = 'POSITIVE' THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN hepatitis_b_result = 'POSITIVE' THEN 1 ELSE 0 END),0),
+		COALESCE(SUM(CASE WHEN hepatitis_c_result = 'POSITIVE' THEN 1 ELSE 0 END),0),
 		COALESCE(SUM(CASE WHEN syphilis_result = 'POSITIVE' THEN 1 ELSE 0 END),0)
 
 	FROM donor_test_results
@@ -41,7 +42,8 @@ func (r *labAnalyticsRepository) GetLabDashboard(labID string) (*Domain.LabDashb
 		&temp,
 		&perm,
 		&d.HIVPositive,
-		&d.HepatitisPositive,
+		&d.HepatitisBPositive,
+		&d.HepatitisCPositive,
 		&d.SyphilisPositive,
 	)
 

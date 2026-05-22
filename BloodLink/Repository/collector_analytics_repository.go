@@ -76,15 +76,22 @@ func (r *collectorAnalyticsRepository) GetTodayStats(collectorID string) (*Domai
 			ELSE 0 
 		END), 0) AS rejected_today,
 
-		(
+		COALESCE((
 			SELECT COUNT(*)
 			FROM donors d
-			WHERE NOT EXISTS (
-				SELECT 1 
-				FROM donation_records dr 
-				WHERE dr.donor_id = d.donor_id
+			WHERE d.overall_status != 'PERMANENTLY_DEFERRED'
+			AND (
+				NOT EXISTS (
+					SELECT 1 FROM donation_records dr
+					WHERE dr.donor_id = d.donor_id AND dr.status = 'APPROVED'
+				)
+				OR (
+					SELECT MAX(collection_date)
+					FROM donation_records dr
+					WHERE dr.donor_id = d.donor_id AND dr.status = 'APPROVED'
+				) <= NOW() - INTERVAL '90 days'
 			)
-		) AS pending_donors
+		), 0) AS eligible_donors
 
 	FROM donation_records
 	WHERE collected_by = $1
@@ -97,7 +104,7 @@ func (r *collectorAnalyticsRepository) GetTodayStats(collectorID string) (*Domai
 		&s.TodaysDonations,
 		&s.ApprovedToday,
 		&s.RejectedToday,
-		&s.PendingDonors,
+		&s.EligibleDonors,
 	)
 
 	if err != nil {

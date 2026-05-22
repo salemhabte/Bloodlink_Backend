@@ -21,7 +21,7 @@ func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilte
 	SELECT blood_unit_id, '', blood_type, COALESCE(component_type,''),
 	       quantity_ml, collection_date, expiration_date, status,
 	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
-		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, '')
 	FROM blood_units
 	WHERE is_deleted = false
 	`
@@ -77,7 +77,7 @@ func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilte
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
 			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
-			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber,
 		)
 		if err != nil {
 			return nil, err
@@ -93,7 +93,7 @@ func (r *BloodInventoryRepository) GetBloodUnitByID(id string) (*Domain.BloodUni
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
 	       quantity_ml, collection_date, expiration_date, status,
 	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
-		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, '')
 	FROM blood_units WHERE blood_unit_id = $1 AND is_deleted = false
 	`
 	var u Domain.BloodUnit
@@ -101,7 +101,7 @@ func (r *BloodInventoryRepository) GetBloodUnitByID(id string) (*Domain.BloodUni
 		&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
 		&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 		&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
-		&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
+		&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber,
 	)
 	if err != nil {
 		return nil, err
@@ -197,7 +197,7 @@ func (r *BloodInventoryRepository) FilterBloodUnits(filter Domain.BloodUnitFilte
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
 	       quantity_ml, collection_date, expiration_date, status,
 	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
-		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, '')
 	FROM blood_units
 	WHERE is_deleted = false
 	`
@@ -245,7 +245,7 @@ func (r *BloodInventoryRepository) FilterBloodUnits(filter Domain.BloodUnitFilte
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
 			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
-			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -465,7 +465,7 @@ func (r *BloodInventoryRepository) GetReservedUnitsByHospitalID(hospitalID strin
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
 	       quantity_ml, collection_date, expiration_date, status,
 	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
-		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, '')
 	FROM blood_units
 	WHERE status = 'RESERVED' AND reserved_for_hospital_id = $1 AND is_deleted = false
 	ORDER BY expiration_date ASC
@@ -483,7 +483,7 @@ func (r *BloodInventoryRepository) GetReservedUnitsByHospitalID(hospitalID strin
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
 			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
-			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -497,7 +497,7 @@ func (r *BloodInventoryRepository) GetReservedUnitsByRequestID(requestID string)
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
 	       quantity_ml, collection_date, expiration_date, status,
 	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
-		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, '')
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, '')
 	FROM blood_units
 	WHERE status = 'RESERVED' AND request_id = $1 AND is_deleted = false
 	ORDER BY expiration_date ASC
@@ -515,7 +515,7 @@ func (r *BloodInventoryRepository) GetReservedUnitsByRequestID(requestID string)
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
 			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
-			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -589,14 +589,14 @@ func (r *BloodInventoryRepository) ConvertPlasmaToCryo(plasmaUnitID string, cryo
 	insertQuery := `
 	INSERT INTO blood_units (
 		blood_unit_id, donation_id, blood_type, component_type,
-		quantity_ml, collection_date, expiration_date, status, created_at, storage_location, rack_number, shelf_number
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
+		quantity_ml, collection_date, expiration_date, status, created_at, storage_location, rack_number, shelf_number, position_number
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
 
 	// Insert Cryoprecipitate
 	_, err = tx.Exec(insertQuery,
 		cryo.BloodUnitID, cryo.DonationID, cryo.BloodType, cryo.ComponentType,
 		cryo.QuantityML, cryo.CollectionDate, cryo.ExpirationDate, cryo.Status, cryo.CreatedAt,
-		cryo.StorageLocation, cryo.RackNumber, cryo.ShelfNumber,
+		cryo.StorageLocation, cryo.RackNumber, cryo.ShelfNumber, cryo.PositionNumber,
 	)
 	if err != nil {
 		return err
@@ -606,11 +606,36 @@ func (r *BloodInventoryRepository) ConvertPlasmaToCryo(plasmaUnitID string, cryo
 	_, err = tx.Exec(insertQuery,
 		cryoPoor.BloodUnitID, cryoPoor.DonationID, cryoPoor.BloodType, cryoPoor.ComponentType,
 		cryoPoor.QuantityML, cryoPoor.CollectionDate, cryoPoor.ExpirationDate, cryoPoor.Status, cryoPoor.CreatedAt,
-		cryoPoor.StorageLocation, cryoPoor.RackNumber, cryoPoor.ShelfNumber,
+		cryoPoor.StorageLocation, cryoPoor.RackNumber, cryoPoor.ShelfNumber, cryoPoor.PositionNumber,
 	)
 	if err != nil {
 		return err
 	}
 
 	return tx.Commit()
+}
+
+func (r *BloodInventoryRepository) IsSlotOccupied(location, rack, shelf, position string) (bool, error) {
+	query := `
+		SELECT COUNT(*) FROM blood_units 
+		WHERE storage_location = $1 AND rack_number = $2 AND shelf_number = $3 AND position_number = $4
+		AND status != 'USED' AND is_deleted = false
+	`
+	var count int
+	err := r.DB.QueryRow(query, location, rack, shelf, position).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *BloodInventoryRepository) GetOccupiedSlotCount(location, rack, shelf string) (int, error) {
+	query := `
+		SELECT COUNT(*) FROM blood_units 
+		WHERE storage_location = $1 AND rack_number = $2 AND shelf_number = $3
+		AND status != 'USED' AND is_deleted = false
+	`
+	var count int
+	err := r.DB.QueryRow(query, location, rack, shelf).Scan(&count)
+	return count, err
 }

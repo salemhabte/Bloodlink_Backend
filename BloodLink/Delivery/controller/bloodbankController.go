@@ -22,11 +22,16 @@ import (
 //
 // ==============================
 type CampaignController struct {
-	Usecase *Usecase.CampaignUsecase
+	Usecase    *Usecase.CampaignUsecase
+	auditLogger *Usecase.AuditLogUsecase
 }
 
 func NewCampaignController(usecase *Usecase.CampaignUsecase) *CampaignController {
 	return &CampaignController{Usecase: usecase}
+}
+
+func (c *CampaignController) SetAuditLogger(logger *Usecase.AuditLogUsecase) {
+	c.auditLogger = logger
 }
 
 func (c *CampaignController) CreateCampaign(ctx *gin.Context) {
@@ -54,6 +59,11 @@ func (c *CampaignController) CreateCampaign(ctx *gin.Context) {
 	if err := c.Usecase.CreateCampaign(campaign); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "CREATE_CAMPAIGN", "campaigns", campaign.CampaignID, "Created campaign: "+campaign.Title)
 	}
 
 	ctx.JSON(http.StatusCreated, campaign)
@@ -135,6 +145,11 @@ func (c *CampaignController) UpdateCampaign(ctx *gin.Context) {
 		return
 	}
 
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "UPDATE_CAMPAIGN", "campaigns", id, "Updated campaign: "+campaign.Title)
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Campaign updated successfully"})
 }
 
@@ -144,6 +159,11 @@ func (c *CampaignController) DeleteCampaign(ctx *gin.Context) {
 	if err := c.Usecase.DeleteCampaign(id); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "DELETE_CAMPAIGN", "campaigns", id, "Deleted campaign")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Campaign deleted successfully"})
@@ -611,11 +631,16 @@ func (c *LabController) wrapTestResults(tests []Domain.DonorTestResult) Domain.T
 
 // BloodInventoryController
 type BloodInventoryController struct {
-	usecase *Usecase.BloodInventoryUsecase
+	usecase     *Usecase.BloodInventoryUsecase
+	auditLogger *Usecase.AuditLogUsecase
 }
 
 func NewBloodInventoryController(u *Usecase.BloodInventoryUsecase) *BloodInventoryController {
 	return &BloodInventoryController{usecase: u}
+}
+
+func (c *BloodInventoryController) SetAuditLogger(logger *Usecase.AuditLogUsecase) {
+	c.auditLogger = logger
 }
 
 // 🔹 GET /inventory
@@ -684,6 +709,11 @@ func (c *BloodInventoryController) MarkUsed(ctx *gin.Context) {
 		return
 	}
 
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "MARK_UNIT_USED", "blood_units", id, "Marked blood unit as used")
+	}
+
 	ctx.JSON(200, gin.H{"message": "Blood unit marked as USED"})
 }
 
@@ -695,6 +725,11 @@ func (c *BloodInventoryController) Delete(ctx *gin.Context) {
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
+	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "DELETE_UNIT", "blood_units", id, "Deleted blood unit")
 	}
 
 	ctx.JSON(200, gin.H{"message": "Deleted successfully"})
@@ -747,9 +782,9 @@ func (c *BloodInventoryController) ConvertPlasma(ctx *gin.Context) {
 		return
 	}
 
-	err := c.usecase.ConvertPlasmaToCryo(id, req.CryoprecipitateQuantity, req.CryoPoorPlasmaQuantity)
+	err := c.usecase.ConvertPlasmaToCryo(id, req.CryoprecipitateQuantity, req.CryoPoorPlasmaQuantity, req.CryoPositionNumber, req.CryoPoorPositionNumber)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -794,6 +829,7 @@ func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 		"storage_location",
 		"rack_number",
 		"shelf_number",
+		"position_number",
 	})
 
 	for _, u := range units {
@@ -808,6 +844,7 @@ func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 			u.StorageLocation,
 			u.RackNumber,
 			u.ShelfNumber,
+			u.PositionNumber,
 		})
 	}
 }
@@ -853,6 +890,7 @@ func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 	colStore := 40.0
 	colRack := 15.0
 	colShelf := 15.0
+	colPos := 15.0
 
 	pdf.CellFormat(colID, 10, "Blood Unit ID", "1", 0, "C", false, 0, "")
 	pdf.CellFormat(colType, 10, "Blood Type", "1", 0, "C", false, 0, "")
@@ -863,6 +901,7 @@ func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 	pdf.CellFormat(colStore, 10, "Location", "1", 0, "C", false, 0, "")
 	pdf.CellFormat(colRack, 10, "Rack", "1", 0, "C", false, 0, "")
 	pdf.CellFormat(colShelf, 10, "Shelf", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colPos, 10, "Pos", "1", 0, "C", false, 0, "")
 	pdf.Ln(-1)
 
 	// 🔹 Data Rows
@@ -884,6 +923,7 @@ func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 		pdf.CellFormat(colStore, 8, u.StorageLocation, "1", 0, "L", false, 0, "")
 		pdf.CellFormat(colRack, 8, u.RackNumber, "1", 0, "C", false, 0, "")
 		pdf.CellFormat(colShelf, 8, u.ShelfNumber, "1", 0, "C", false, 0, "")
+		pdf.CellFormat(colPos, 8, u.PositionNumber, "1", 0, "C", false, 0, "")
 		pdf.Ln(-1)
 	}
 

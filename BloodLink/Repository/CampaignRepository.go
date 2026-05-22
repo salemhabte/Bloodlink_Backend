@@ -129,7 +129,7 @@ func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter, liveO
 func (r *CampaignRepository) GetCampaignByID(id string) (*Domain.Campaign, error) {
 
 	query := `
-	SELECT campaign_id, title, content, location, start_date, end_date, created_at, is_deleted
+	SELECT campaign_id, title, content, location, start_date, end_date, created_at, is_deleted, status
 	FROM campaigns
 	WHERE campaign_id = $1 AND is_deleted = false
 	LIMIT 1
@@ -162,7 +162,7 @@ func (r *CampaignRepository) GetCampaignByID(id string) (*Domain.Campaign, error
 func (r *CampaignRepository) GetLiveCampaignByID(id string) (*Domain.Campaign, error) {
 
 	query := `
-	SELECT campaign_id, title, content, location, start_date, end_date, created_at, is_deleted
+	SELECT campaign_id, title, content, location, start_date, end_date, created_at, is_deleted, status
 	FROM campaigns
 	WHERE campaign_id = $1 AND start_date <= NOW() AND end_date >= NOW() AND is_deleted = false
 	LIMIT 1

@@ -44,6 +44,7 @@ func main() {
 	emergencyRepo := Repository.NewEmergencyRequestRepository(db)
 	donorBloodReqRepo := Repository.NewDonorBloodRequestRepository(db)
 	notifRepo := Repository.NewNotificationRepository(db)
+	auditLogRepo := Repository.NewAdminAuditLogRepository(db)
 
 	// --- Usecases ---
 	notifUsecase := Usecase.NewNotificationUsecase(notifRepo)
@@ -58,6 +59,7 @@ func main() {
 	pdfService := Usecase.NewPDFGeneratorService("./uploads")
 	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo, notifUsecase, donationRepo)
 	donorBloodReqUsecase := Usecase.NewDonorBloodRequestUsecase(donorBloodReqRepo)
+	auditLogUsecase := Usecase.NewAuditLogUsecase(auditLogRepo)
 
 	bloodReqRepo := Repository.NewBloodRequestRepository(db)
 
@@ -86,6 +88,16 @@ func main() {
 	emergencyController := controller.NewEmergencyRequestController(emergencyUsecase)
 	donorBloodReqController := controller.NewDonorBloodRequestController(donorBloodReqUsecase)
 	notifController := controller.NewNotificationController(notifUsecase)
+	auditLogController := controller.NewAuditLogController(auditLogUsecase)
+
+	// Inject audit log usecase into relevant controllers
+	campaignController.SetAuditLogger(auditLogUsecase)
+	hospitalController.SetAuditLogger(auditLogUsecase)
+	bloodReqController.SetAuditLogger(auditLogUsecase)
+	emergencyController.SetAuditLogger(auditLogUsecase)
+	inventoryController.SetAuditLogger(auditLogUsecase)
+	donorBloodReqController.SetAuditLogger(auditLogUsecase)
+	userController.SetAuditLogger(auditLogUsecase)
 
 	// 5. Initialize Router
 	r := router.SetupRouter(
@@ -105,6 +117,7 @@ func main() {
 		emergencyController,
 		donorBloodReqController,
 		notifController,
+		auditLogController,
 	)
 
 	// 7. Start the Server

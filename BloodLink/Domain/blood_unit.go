@@ -22,6 +22,7 @@ type BloodUnit struct {
 	StorageLocation string `json:"storage_location,omitempty"`
 	RackNumber      string `json:"rack_number,omitempty"`
 	ShelfNumber     string `json:"shelf_number,omitempty"`
+	PositionNumber  string `json:"position_number,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -57,6 +58,8 @@ type ApproveRequestResult struct {
 type ConvertCryoRequest struct {
 	CryoprecipitateQuantity int  `json:"cryoprecipitate_quantity" binding:"required"`
 	CryoPoorPlasmaQuantity  *int `json:"cryo_poor_plasma_quantity,omitempty"`
+	CryoPositionNumber      string `json:"cryo_position_number" binding:"required"`
+	CryoPoorPositionNumber  string `json:"cryo_poor_position_number" binding:"required"`
 }
 
 type InventoryListResponse struct {

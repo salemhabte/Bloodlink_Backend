@@ -10,7 +10,8 @@ import (
 )
 
 type DonorBloodRequestController struct {
-	usecase *Usecase.DonorBloodRequestUsecase
+	usecase    *Usecase.DonorBloodRequestUsecase
+	auditLogger *Usecase.AuditLogUsecase
 }
 
 func NewDonorBloodRequestController(
@@ -19,6 +20,10 @@ func NewDonorBloodRequestController(
 	return &DonorBloodRequestController{
 		usecase: u,
 	}
+}
+
+func (c *DonorBloodRequestController) SetAuditLogger(logger *Usecase.AuditLogUsecase) {
+	c.auditLogger = logger
 }
 
 ////////////////////////
@@ -177,6 +182,11 @@ func (c *DonorBloodRequestController) ApproveRequest(ctx *gin.Context) {
 		return
 	}
 
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "APPROVE_DONOR_BLOOD_REQUEST", "donor_blood_requests", id, "Approved donor blood request")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"message": message,
 		"data":    updatedReq,
@@ -197,6 +207,11 @@ func (c *DonorBloodRequestController) RejectRequest(ctx *gin.Context) {
 			"error": err.Error(),
 		})
 		return
+	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "REJECT_DONOR_BLOOD_REQUEST", "donor_blood_requests", id, "Rejected donor blood request")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
@@ -222,6 +237,11 @@ func (c *DonorBloodRequestController) FulfillRequest(ctx *gin.Context) {
 			"error": err.Error(),
 		})
 		return
+	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "FULFILL_DONOR_BLOOD_REQUEST", "donor_blood_requests", id, "Fulfilled donor blood request")
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{

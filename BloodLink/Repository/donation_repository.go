@@ -417,8 +417,6 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 			&d.QuantityML,
 			&d.Status,
 			&d.RejectionReason,
-			&d.CampaignTitle,
-			&d.CampaignAddress,
 			&d.CreatedAt,
 		)
 		if err != nil {

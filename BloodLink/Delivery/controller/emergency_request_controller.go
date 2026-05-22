@@ -3,6 +3,7 @@ package controller
 import (
 	"bloodlink/Domain"
 	Interfaces "bloodlink/Domain/Interfaces"
+	"bloodlink/Usecase"
 	"net/http"
 	"strings"
 
@@ -10,11 +11,16 @@ import (
 )
 
 type EmergencyRequestController struct {
-	Usecase Interfaces.IEmergencyRequestUsecase
+	Usecase    Interfaces.IEmergencyRequestUsecase
+	auditLogger *Usecase.AuditLogUsecase
 }
 
 func NewEmergencyRequestController(u Interfaces.IEmergencyRequestUsecase) *EmergencyRequestController {
 	return &EmergencyRequestController{Usecase: u}
+}
+
+func (c *EmergencyRequestController) SetAuditLogger(logger *Usecase.AuditLogUsecase) {
+	c.auditLogger = logger
 }
 
 func (c *EmergencyRequestController) CreateManualEmergency(ctx *gin.Context) {
@@ -25,6 +31,12 @@ func (c *EmergencyRequestController) CreateManualEmergency(ctx *gin.Context) {
 			ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		if c.auditLogger != nil {
+			adminID := ctx.GetString("userID")
+			c.auditLogger.LogAction(adminID, "CREATE_MANUAL_EMERGENCY", "emergency_requests", "", "Created bulk manual emergency requests")
+		}
+
 		ctx.JSON(http.StatusCreated, gin.H{"message": "Manual emergency request(s) created and published successfully"})
 		return
 	}
@@ -41,6 +53,11 @@ func (c *EmergencyRequestController) CreateManualEmergency(ctx *gin.Context) {
 		return
 	}
 
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "CREATE_MANUAL_EMERGENCY", "emergency_requests", "", "Created manual emergency request")
+	}
+
 	ctx.JSON(http.StatusCreated, gin.H{"message": "Manual emergency request created and published successfully"})
 }
 
@@ -50,6 +67,12 @@ func (c *EmergencyRequestController) PublishEmergency(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "PUBLISH_EMERGENCY", "emergency_requests", id, "Published emergency request")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Emergency request published successfully"})
 }
 
@@ -59,6 +82,12 @@ func (c *EmergencyRequestController) RejectEmergency(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "REJECT_EMERGENCY", "emergency_requests", id, "Rejected emergency request")
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{"message": "Emergency request rejected successfully"})
 }
 
