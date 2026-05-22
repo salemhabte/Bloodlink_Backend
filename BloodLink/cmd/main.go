@@ -4,7 +4,7 @@ import (
 	"bloodlink/Delivery/controller"
 	"bloodlink/Delivery/router"
 	"bloodlink/Infrastructure"
-	jobs "bloodlink/Jobs"
+	jobs "bloodlink/jobs"
 	"bloodlink/Repository"
 	"bloodlink/Usecase"
 
@@ -53,9 +53,10 @@ func main() {
 
 	badgeUsecase := Usecase.NewDonorBadgeUsecase(badgeRepo)
 	campaignUsecase := Usecase.NewCampaignUsecase(campaignRepo, notifUsecase)
-	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo, notifUsecase)
-	labUsecase := Usecase.NewLabUsecase(labRepo, badgeUsecase, notifUsecase)
-	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo)
+	seqRepo := Repository.NewSequenceRepository(db)
+	donationUsecase := Usecase.NewDonationUsecase(donationRepo, campaignRepo, notifUsecase, seqRepo)
+	labUsecase := Usecase.NewLabUsecase(labRepo, badgeUsecase, notifUsecase, seqRepo)
+	inventoryUsecase := Usecase.NewBloodInventoryUsecase(inventoryRepo, seqRepo)
 	pdfService := Usecase.NewPDFGeneratorService("./uploads")
 	hospitalUsecase := Usecase.NewHospitalUsecase(hospitalRepo, pdfService, userRepo, notifUsecase, donationRepo)
 	donorBloodReqUsecase := Usecase.NewDonorBloodRequestUsecase(donorBloodReqRepo)

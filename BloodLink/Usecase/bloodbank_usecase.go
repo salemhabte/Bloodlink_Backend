@@ -102,11 +102,12 @@ type DonationUsecase struct {
 	repo         Interface.IDonationRepository
 	campaignRepo Interface.ICampaignRepository
 	notifUC      Interface.INotificationUsecase
+	seqRepo      Interface.ISequenceRepository
 }
 
 // Constructor
-func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interface.ICampaignRepository, notifUC Interface.INotificationUsecase) *DonationUsecase {
-	return &DonationUsecase{repo: repo, campaignRepo: campaignRepo, notifUC: notifUC}
+func NewDonationUsecase(repo Interface.IDonationRepository, campaignRepo Interface.ICampaignRepository, notifUC Interface.INotificationUsecase, seqRepo Interface.ISequenceRepository) *DonationUsecase {
+	return &DonationUsecase{repo: repo, campaignRepo: campaignRepo, notifUC: notifUC, seqRepo: seqRepo}
 }
 
 // CreateDonation handles the business logic for recording a new donation
@@ -116,6 +117,14 @@ func (u *DonationUsecase) CreateDonation(record *Domain.DonationRecord) error {
 	// 1. Generate donation ID
 	// ================================
 	record.DonationID = uuid.New().String()
+
+	// Generate Friendly Donation Number
+	year := time.Now().Year()
+	nextVal, seqErr := u.seqRepo.GetNextSequenceValue("DONATION", year)
+	if seqErr != nil {
+		return fmt.Errorf("failed to generate donation number: %v", seqErr)
+	}
+	record.DonationNumber = fmt.Sprintf("DON-%d-%06d", year, nextVal)
 
 	// ================================
 	// 2. Validate status field is provided
@@ -417,10 +426,11 @@ func (u *DonationUsecase) GetMyDonations(collectorID string, filter Domain.Donat
 
 type BloodInventoryUsecase struct {
 	repo Interface.IBloodInventoryRepository
+	seqRepo Interface.ISequenceRepository
 }
 
-func NewBloodInventoryUsecase(r Interface.IBloodInventoryRepository) *BloodInventoryUsecase {
-	return &BloodInventoryUsecase{repo: r}
+func NewBloodInventoryUsecase(r Interface.IBloodInventoryRepository, seqRepo Interface.ISequenceRepository) *BloodInventoryUsecase {
+	return &BloodInventoryUsecase{repo: r, seqRepo: seqRepo}
 }
 
 // 🔹 Get All
@@ -661,9 +671,24 @@ func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQua
 
 	now := time.Now()
 	
+	// Generate Unit Numbers
+	year := time.Now().Year()
+	cryoNextVal, err := u.seqRepo.GetNextSequenceValue("BLOOD_UNIT", year)
+	if err != nil {
+		return fmt.Errorf("failed to generate unit number: %v", err)
+	}
+	cryoUnitNumber := fmt.Sprintf("UNIT-%d-%06d", year, cryoNextVal)
+
+	cryoPoorNextVal, err := u.seqRepo.GetNextSequenceValue("BLOOD_UNIT", year)
+	if err != nil {
+		return fmt.Errorf("failed to generate unit number: %v", err)
+	}
+	cryoPoorUnitNumber := fmt.Sprintf("UNIT-%d-%06d", year, cryoPoorNextVal)
+
 	// Create new Cryoprecipitate unit
 	cryoUnit := &Domain.BloodUnit{
 		BloodUnitID:     uuid.New().String(),
+		UnitNumber:      cryoUnitNumber,
 		DonationID:      plasma.DonationID,
 		BloodType:       plasma.BloodType,
 		ComponentType:   "CRYOPRECIPITATE",
@@ -681,6 +706,7 @@ func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQua
 	// Create new Cryo-poor Plasma unit
 	cryoPoorUnit := &Domain.BloodUnit{
 		BloodUnitID:     uuid.New().String(),
+		UnitNumber:      cryoPoorUnitNumber,
 		DonationID:      plasma.DonationID,
 		BloodType:       plasma.BloodType,
 		ComponentType:   "CRYO_POOR_PLASMA",

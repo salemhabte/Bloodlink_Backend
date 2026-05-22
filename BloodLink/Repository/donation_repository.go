@@ -20,11 +20,11 @@ func NewDonationRepository(db *sql.DB) Interfaces.IDonationRepository {
 func (r *donationRepository) CreateDonation(record *Domain.DonationRecord) error {
 	query := `
 INSERT INTO donation_records (
-    donation_id, donor_id, campaign_id, collected_by, collection_date,
+    donation_id, donation_number, donor_id, campaign_id, collected_by, collection_date,
     weight, blood_pressure, hemoglobin, temperature, pulse,
     quantity_ml, status, rejection_reason
 )
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 `
 
 	var campaignID interface{}
@@ -37,18 +37,19 @@ if record.CampaignID != nil {
 _, err := r.db.Exec(
     query,
     record.DonationID,      // $1
-    record.DonorID,         // $2
-    campaignID,             // $3 
-    record.CollectedBy,     // $4
-    record.CollectionDate,  // $5
-    record.Weight,          // $6
-    record.BloodPressure,   // $7
-    record.Hemoglobin,      // $8
-    record.Temperature,     // $9
-    record.Pulse,           // $10
-    record.QuantityML,      // $11
-    record.Status,          // $12
-    record.RejectionReason, // $13
+    record.DonationNumber,  // $2
+    record.DonorID,         // $3
+    campaignID,             // $4 
+    record.CollectedBy,     // $5
+    record.CollectionDate,  // $6
+    record.Weight,          // $7
+    record.BloodPressure,   // $8
+    record.Hemoglobin,      // $9
+    record.Temperature,     // $10
+    record.Pulse,           // $11
+    record.QuantityML,      // $12
+    record.Status,          // $13
+    record.RejectionReason, // $14
 )
 	
 
@@ -103,6 +104,7 @@ func (r *donationRepository) GetDonationByID(id string) (*Domain.DonationRecord,
 	query := `
 	SELECT 
 		d.donation_id,
+		COALESCE(d.donation_number, ''),
 		d.donor_id,
 		d.campaign_id,
 		d.collected_by,
@@ -132,6 +134,7 @@ func (r *donationRepository) GetDonationByID(id string) (*Domain.DonationRecord,
 
 	err := r.db.QueryRow(query, id).Scan(
 		&d.DonationID,
+		&d.DonationNumber,
 		&d.DonorID,
 		&d.CampaignID,
 		&d.CollectedBy,
@@ -362,6 +365,7 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 	query := `
 	SELECT 
 		d.donation_id,
+		COALESCE(d.donation_number, ''),
 		d.donor_id,
 		d.campaign_id,
 		d.collected_by,
@@ -401,6 +405,7 @@ func (r *donationRepository) GetAllDonationsByDonor(donorID string) ([]Domain.Do
 
 		err := rows.Scan(
 			&d.DonationID,
+			&d.DonationNumber,
 			&d.DonorID,
 			&d.CampaignID,
 			&d.CollectedBy,
@@ -450,6 +455,7 @@ func (r *donationRepository) GetDonationsByCollector(collectorID string) ([]Doma
 	query := `
 	SELECT 
 		d.donation_id,
+		COALESCE(d.donation_number, ''),
 		d.donor_id,
 		d.campaign_id,
 		d.collected_by,
@@ -489,6 +495,7 @@ func (r *donationRepository) GetDonationsByCollector(collectorID string) ([]Doma
 
 		err := rows.Scan(
 			&d.DonationID,
+			&d.DonationNumber,
 			&d.DonorID,
 			&d.CampaignID,
 			&d.CollectedBy,
@@ -521,6 +528,7 @@ func (r *donationRepository) GetDonations(filter Domain.DonationFilter) ([]Domai
 
 	query := `SELECT 
 	d.donation_id,
+	COALESCE(d.donation_number, ''),
 	d.donor_id,
 	d.campaign_id,
 	d.collected_by,
@@ -590,6 +598,12 @@ if filter.EndDate != "" {
 	argIndex++
 }
 
+if filter.DonationNumber != "" {
+	query += fmt.Sprintf(" AND d.donation_number = $%d", argIndex)
+	args = append(args, filter.DonationNumber)
+	argIndex++
+}
+
 	query += " ORDER BY d.collection_date DESC"
 
 	rows, err := r.db.Query(query, args...)
@@ -605,6 +619,7 @@ if filter.EndDate != "" {
 
 		err := rows.Scan(
 			&d.DonationID,
+			&d.DonationNumber,
 			&d.DonorID,
 			&d.CampaignID,
 			&d.CollectedBy,

@@ -305,11 +305,12 @@ func (c *DonationController) GetAllDonationsByDonor(ctx *gin.Context) {
 func (c *DonationController) GetAllDonations(ctx *gin.Context) {
 
 	filter := Domain.DonationFilter{
-		DonorID:     ctx.Query("donor_id"),
-		CollectorID: ctx.Query("collector_id"),
-		Status:      ctx.Query("status"),
-		StartDate:   ctx.Query("start_date"),
-		EndDate:     ctx.Query("end_date"),
+		DonorID:        ctx.Query("donor_id"),
+		CollectorID:    ctx.Query("collector_id"),
+		Status:         ctx.Query("status"),
+		DonationNumber: ctx.Query("donation_number"),
+		StartDate:      ctx.Query("start_date"),
+		EndDate:        ctx.Query("end_date"),
 	}
 
 	data, err := c.usecase.GetAllDonations(filter)
@@ -338,9 +339,10 @@ func (c *DonationController) GetMyDonations(ctx *gin.Context) {
 	collectorID := ctx.GetString("userID")
 
 	filter := Domain.DonationFilter{
-		Status:    ctx.Query("status"),
-		StartDate: ctx.Query("start_date"),
-		EndDate:   ctx.Query("end_date"),
+		Status:         ctx.Query("status"),
+		DonationNumber: ctx.Query("donation_number"),
+		StartDate:      ctx.Query("start_date"),
+		EndDate:        ctx.Query("end_date"),
 	}
 
 	data, err := c.usecase.GetMyDonations(collectorID, filter)
@@ -572,6 +574,7 @@ func (c *LabController) GetMyTests(ctx *gin.Context) {
 		BloodType:       normalizeBloodType(ctx.Query("blood_type")),
 		ComponentType:   strings.ToUpper(strings.TrimSpace(ctx.Query("component_type"))),
 		StorageLocation: ctx.Query("storage_location"),
+		DonationNumber:  ctx.Query("donation_number"),
 		StartDate:       ctx.Query("start_date"),
 		EndDate:         ctx.Query("end_date"),
 	}
@@ -597,6 +600,7 @@ func (c *LabController) GetAllTestHistory(ctx *gin.Context) {
 		BloodType:       normalizeBloodType(ctx.Query("blood_type")),
 		ComponentType:   strings.ToUpper(strings.TrimSpace(ctx.Query("component_type"))),
 		StorageLocation: ctx.Query("storage_location"),
+		DonationNumber:  ctx.Query("donation_number"),
 		StartDate:       ctx.Query("start_date"),
 		EndDate:         ctx.Query("end_date"),
 	}
@@ -657,8 +661,9 @@ func (c *BloodInventoryController) GetAll(ctx *gin.Context) {
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
 		EndDate:       ctx.Query("end_date"),
-		Quantity:        vol,
+		Quantity:      vol,
 		NearExpired:   ctx.Query("near_expired") == "true",
+		UnitNumber:    ctx.Query("unit_number"),
 	}
 
 	if (filter.StartDate != "" && filter.EndDate == "") || (filter.StartDate == "" && filter.EndDate != "") {
@@ -819,7 +824,7 @@ func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 	defer writer.Flush()
 
 	writer.Write([]string{
-		"blood_unit_id",
+		"unit_number",
 		"blood_type",
 		"component_type",
 		"quantity_ml",
@@ -834,7 +839,7 @@ func (c *BloodInventoryController) ExportCSV(ctx *gin.Context) {
 
 	for _, u := range units {
 		writer.Write([]string{
-			u.BloodUnitID,
+			u.UnitNumber,
 			u.BloodType,
 			u.ComponentType,
 			strconv.Itoa(u.QuantityML),
@@ -861,8 +866,9 @@ func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 		Status:        ctx.Query("status"),
 		StartDate:     ctx.Query("start_date"),
 		EndDate:       ctx.Query("end_date"),
-		Quantity:        vol,
+		Quantity:      vol,
 		NearExpired:   ctx.Query("near_expired") == "true",
+		UnitNumber:    ctx.Query("unit_number"),
 	}
 
 	res, err := c.usecase.GetAllUnits(filter)
@@ -892,7 +898,7 @@ func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 	colShelf := 15.0
 	colPos := 15.0
 
-	pdf.CellFormat(colID, 10, "Blood Unit ID", "1", 0, "C", false, 0, "")
+	pdf.CellFormat(colID, 10, "Unit Number", "1", 0, "C", false, 0, "")
 	pdf.CellFormat(colType, 10, "Blood Type", "1", 0, "C", false, 0, "")
 	pdf.CellFormat(colComp, 10, "Component", "1", 0, "C", false, 0, "")
 	pdf.CellFormat(colQty, 10, "Qty (ml)", "1", 0, "C", false, 0, "")
@@ -914,7 +920,7 @@ func (c *BloodInventoryController) ExportPDF(ctx *gin.Context) {
 			pdf.SetTextColor(0, 0, 0)
 		}
 
-		pdf.CellFormat(colID, 8, u.BloodUnitID, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(colID, 8, u.UnitNumber, "1", 0, "L", false, 0, "")
 		pdf.CellFormat(colType, 8, u.BloodType, "1", 0, "C", false, 0, "")
 		pdf.CellFormat(colComp, 8, u.ComponentType, "1", 0, "C", false, 0, "")
 		pdf.CellFormat(colQty, 8, strconv.Itoa(u.QuantityML), "1", 0, "C", false, 0, "")

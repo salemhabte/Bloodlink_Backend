@@ -23,6 +23,7 @@ type BloodUnit struct {
 	RackNumber      string `json:"rack_number,omitempty"`
 	ShelfNumber     string `json:"shelf_number,omitempty"`
 	PositionNumber  string `json:"position_number,omitempty"`
+	UnitNumber      string `json:"unit_number"`
 
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -33,8 +34,9 @@ type BloodUnitFilter struct {
 	Status        string `json:"status"`
 	StartDate     string `json:"start_date"`
 	EndDate       string `json:"end_date"`
-	Quantity        int    `json:"quantity"`
+	Quantity      int    `json:"quantity"`
 	NearExpired   bool   `json:"near_expired"`
+	UnitNumber    string `json:"unit_number"`
 }
 
 // ReservedUnitInfo is returned when units are reserved for a hospital request

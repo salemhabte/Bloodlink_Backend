@@ -15,17 +15,20 @@ type LabUsecase struct {
 	repo          Interface.ILabRepository
 	badgeUsecase  *DonorBadgeUsecase
 	notifUC       Interface.INotificationUsecase
+	seqRepo       Interface.ISequenceRepository
 }
 
 func NewLabUsecase(
 	repo Interface.ILabRepository,
 	badgeUsecase *DonorBadgeUsecase,
 	notifUC Interface.INotificationUsecase,
+	seqRepo Interface.ISequenceRepository,
 ) *LabUsecase {
 	return &LabUsecase{
 		repo:         repo,
 		badgeUsecase: badgeUsecase,
 		notifUC:      notifUC,
+		seqRepo:      seqRepo,
 	}
 }
 
@@ -173,6 +176,8 @@ func (u *LabUsecase) ProcessTestResult(result *Domain.DonorTestResult) error {
 
 	// If CLEARED, create blood units (one per component)
 	if result.OverallStatus == "CLEARED" {
+		year := time.Now().Year()
+
 		for _, comp := range result.Components {
 			componentType := strings.ToUpper(comp.ComponentType)
 			// Normalize CRBC → PRBC for storage
@@ -180,12 +185,19 @@ func (u *LabUsecase) ProcessTestResult(result *Domain.DonorTestResult) error {
 				componentType = "PRBC"
 			}
 
+			nextVal, seqErr := u.seqRepo.GetNextSequenceValue("BLOOD_UNIT", year)
+			if seqErr != nil {
+				return fmt.Errorf("failed to generate unit number: %v", seqErr)
+			}
+			unitNumber := fmt.Sprintf("UNIT-%d-%06d", year, nextVal)
+
 			bloodUnit := &Domain.BloodUnit{
 				BloodUnitID:     uuid.New().String(),
+				UnitNumber:      unitNumber,
 				DonationID:      donation.DonationID,
 				BloodType:       result.BloodType,
 				ComponentType:   componentType,
-				QuantityML:        comp.Quantity,
+				QuantityML:      comp.Quantity,
 				CollectionDate:  donation.CollectionDate,
 				ExpirationDate:  calculateExpiration(donation.CollectionDate, componentType),
 				Status:          "AVAILABLE",

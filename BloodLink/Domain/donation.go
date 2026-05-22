@@ -25,13 +25,15 @@ type DonationRecord struct {
     Status         string    `json:"status"`
     RejectionReason string   `json:"rejection_reason"`
     OverallStatus  string    `json:"overall_status"`
+    DonationNumber  string   `json:"donation_number"`
     CreatedAt      time.Time `json:"created_at"`
 }
 
 type DonationFilter struct {
-	CollectorID string
-	DonorID     string
-	Status      string
+	CollectorID    string
+	DonorID        string
+	Status         string
+	DonationNumber string
 
 	StartDate   string
 	EndDate     string

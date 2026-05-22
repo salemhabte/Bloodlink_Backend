@@ -54,11 +54,12 @@ func (r *LabRepository) CreateTestResult(result *Domain.DonorTestResult) error {
 func (r *LabRepository) CreateBloodUnit(unit *Domain.BloodUnit) error {
 	query := `
 	INSERT INTO blood_units
-	(blood_unit_id, donation_id, blood_type, component_type, quantity_ml, collection_date, expiration_date, status, storage_location, rack_number, shelf_number, position_number)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	(blood_unit_id, unit_number, donation_id, blood_type, component_type, quantity_ml, collection_date, expiration_date, status, storage_location, rack_number, shelf_number, position_number)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 	_, err := r.DB.Exec(query,
 		unit.BloodUnitID,
+		unit.UnitNumber,
 		unit.DonationID,
 		unit.BloodType,
 		unit.ComponentType,
@@ -220,6 +221,7 @@ func (r *LabRepository) GetPendingDonations() ([]Domain.DonationRecord, error) {
 	query := `
 	SELECT 
 		d.donation_id,
+		COALESCE(d.donation_number, ''),
 		d.donor_id,
 		u.full_name,
 		d.collected_by,
@@ -254,6 +256,7 @@ func (r *LabRepository) GetPendingDonations() ([]Domain.DonationRecord, error) {
 
 		err := rows.Scan(
 			&d.DonationID,
+			&d.DonationNumber,
 			&d.DonorID,
 			&d.DonorName,
 			&d.CollectedBy,
@@ -425,13 +428,13 @@ func (r *LabRepository) DeleteBloodUnitsByDonationID(donationID string) error {
 
 // GetBloodUnitByDonationID returns the first blood unit for a donation (backward compat)
 func (r *LabRepository) GetBloodUnitByDonationID(donationID string) (*Domain.BloodUnit, error) {
-	query := `SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''), quantity_ml, collection_date, expiration_date, status,
+	query := `SELECT blood_unit_id, COALESCE(unit_number,''), donation_id, blood_type, COALESCE(component_type,''), quantity_ml, collection_date, expiration_date, status,
 	          COALESCE(storage_location,''), COALESCE(rack_number,''), COALESCE(shelf_number,''), COALESCE(position_number,'')
 	          FROM blood_units WHERE donation_id=$1 LIMIT 1`
 	row := r.DB.QueryRow(query, donationID)
 
 	var unit Domain.BloodUnit
-	err := row.Scan(&unit.BloodUnitID, &unit.DonationID, &unit.BloodType, &unit.ComponentType,
+	err := row.Scan(&unit.BloodUnitID, &unit.UnitNumber, &unit.DonationID, &unit.BloodType, &unit.ComponentType,
 		&unit.QuantityML, &unit.CollectionDate, &unit.ExpirationDate, &unit.Status,
 		&unit.StorageLocation, &unit.RackNumber, &unit.ShelfNumber, &unit.PositionNumber)
 	if err != nil {
@@ -446,7 +449,7 @@ func (r *LabRepository) GetBloodUnitByDonationID(donationID string) (*Domain.Blo
 
 // GetBloodUnitsByDonationID returns ALL blood units for a donation
 func (r *LabRepository) GetBloodUnitsByDonationID(donationID string) ([]Domain.BloodUnit, error) {
-	query := `SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''), quantity_ml, collection_date, expiration_date, status,
+	query := `SELECT blood_unit_id, COALESCE(unit_number,''), donation_id, blood_type, COALESCE(component_type,''), quantity_ml, collection_date, expiration_date, status,
 	          COALESCE(storage_location,''), COALESCE(rack_number,''), COALESCE(shelf_number,''), COALESCE(position_number,'')
 	          FROM blood_units WHERE donation_id=$1`
 	rows, err := r.DB.Query(query, donationID)
@@ -458,7 +461,7 @@ func (r *LabRepository) GetBloodUnitsByDonationID(donationID string) ([]Domain.B
 	var units []Domain.BloodUnit
 	for rows.Next() {
 		var u Domain.BloodUnit
-		err := rows.Scan(&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
+		err := rows.Scan(&u.BloodUnitID, &u.UnitNumber, &u.DonationID, &u.BloodType, &u.ComponentType,
 			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber)
 		if err != nil {
@@ -547,6 +550,7 @@ func (r *LabRepository) FilterTestResults(filter Domain.TestFilter) ([]Domain.Do
 		t.created_at
 	FROM donor_test_results t
 	LEFT JOIN blood_units bu ON t.donation_id = bu.donation_id
+	LEFT JOIN donation_records d ON t.donation_id = d.donation_id
 	WHERE 1=1
 	`
 
@@ -586,6 +590,11 @@ func (r *LabRepository) FilterTestResults(filter Domain.TestFilter) ([]Domain.Do
 	if filter.EndDate != "" {
 		query += fmt.Sprintf(" AND t.created_at <= $%d", i)
 		args = append(args, filter.EndDate)
+		i++
+	}
+	if filter.DonationNumber != "" {
+		query += fmt.Sprintf(" AND d.donation_number = $%d", i)
+		args = append(args, filter.DonationNumber)
 		i++
 	}
 

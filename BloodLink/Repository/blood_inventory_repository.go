@@ -21,7 +21,7 @@ func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilte
 	SELECT blood_unit_id, '', blood_type, COALESCE(component_type,''),
 	       quantity_ml, collection_date, expiration_date, status,
 	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
-		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, '')
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, ''), COALESCE(unit_number, '')
 	FROM blood_units
 	WHERE is_deleted = false
 	`
@@ -61,6 +61,11 @@ func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilte
 	if filter.NearExpired {
 		query += " AND expiration_date > CURRENT_DATE AND expiration_date <= CURRENT_DATE + 7"
 	}
+	if filter.UnitNumber != "" {
+		query += fmt.Sprintf(" AND unit_number = $%d", placeholderID)
+		args = append(args, filter.UnitNumber)
+		placeholderID++
+	}
 
 	query += " ORDER BY expiration_date ASC"
 
@@ -77,7 +82,7 @@ func (r *BloodInventoryRepository) GetAllBloodUnits(filter Domain.BloodUnitFilte
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
 			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
-			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber, &u.UnitNumber,
 		)
 		if err != nil {
 			return nil, err
@@ -93,7 +98,7 @@ func (r *BloodInventoryRepository) GetBloodUnitByID(id string) (*Domain.BloodUni
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
 	       quantity_ml, collection_date, expiration_date, status,
 	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
-		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, '')
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, ''), COALESCE(unit_number, '')
 	FROM blood_units WHERE blood_unit_id = $1 AND is_deleted = false
 	`
 	var u Domain.BloodUnit
@@ -101,7 +106,7 @@ func (r *BloodInventoryRepository) GetBloodUnitByID(id string) (*Domain.BloodUni
 		&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
 		&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 		&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
-		&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber,
+		&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber, &u.UnitNumber,
 	)
 	if err != nil {
 		return nil, err
@@ -127,9 +132,9 @@ func (r *BloodInventoryRepository) DeleteBloodUnitByID(id string) error {
 func (r *BloodInventoryRepository) GetFullBloodUnitDetails(id string) (map[string]interface{}, error) {
 	query := `
 SELECT
-    bu.blood_unit_id, bu.blood_type, bu.quantity_ml,
+    bu.blood_unit_id, COALESCE(bu.unit_number, ''), bu.blood_type, bu.quantity_ml,
     bu.collection_date, bu.expiration_date, bu.status,
-    d.donation_id, d.donor_id, d.collected_by,
+    d.donation_id, COALESCE(d.donation_number, ''), d.donor_id, d.collected_by,
     u.full_name, u.email, u.phone
 FROM blood_units bu
 JOIN donation_records d ON bu.donation_id = d.donation_id
@@ -141,13 +146,13 @@ WHERE bu.blood_unit_id = $1
 	row := r.DB.QueryRow(query, id)
 
 	var bloodUnit Domain.BloodUnit
-	var donationID, donorID, collectedBy string
+	var donationID, donationNumber, donorID, collectedBy string
 	var donorName, donorEmail, donorPhone string
 
 	err := row.Scan(
-		&bloodUnit.BloodUnitID, &bloodUnit.BloodType, &bloodUnit.QuantityML,
+		&bloodUnit.BloodUnitID, &bloodUnit.UnitNumber, &bloodUnit.BloodType, &bloodUnit.QuantityML,
 		&bloodUnit.CollectionDate, &bloodUnit.ExpirationDate, &bloodUnit.Status,
-		&donationID, &donorID, &collectedBy,
+		&donationID, &donationNumber, &donorID, &collectedBy,
 		&donorName, &donorEmail, &donorPhone,
 	)
 	if err != nil {
@@ -155,9 +160,10 @@ WHERE bu.blood_unit_id = $1
 	}
 
 	donation := map[string]interface{}{
-		"donation_id":  donationID,
-		"donor_id":     donorID,
-		"collected_by": collectedBy,
+		"donation_id":     donationID,
+		"donation_number": donationNumber,
+		"donor_id":        donorID,
+		"collected_by":    collectedBy,
 	}
 	donor := map[string]interface{}{
 		"name":  donorName,
@@ -197,7 +203,7 @@ func (r *BloodInventoryRepository) FilterBloodUnits(filter Domain.BloodUnitFilte
 	SELECT blood_unit_id, donation_id, blood_type, COALESCE(component_type,''),
 	       quantity_ml, collection_date, expiration_date, status,
 	       COALESCE(reserved_for_hospital_id,''), reserved_at, COALESCE(request_id,''), created_at, is_deleted,
-		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, '')
+		   COALESCE(storage_location, ''), COALESCE(rack_number, ''), COALESCE(shelf_number, ''), COALESCE(position_number, ''), COALESCE(unit_number, '')
 	FROM blood_units
 	WHERE is_deleted = false
 	`
@@ -245,7 +251,7 @@ func (r *BloodInventoryRepository) FilterBloodUnits(filter Domain.BloodUnitFilte
 			&u.BloodUnitID, &u.DonationID, &u.BloodType, &u.ComponentType,
 			&u.QuantityML, &u.CollectionDate, &u.ExpirationDate, &u.Status,
 			&u.ReservedForHospitalID, &u.ReservedAt, &u.RequestID, &u.CreatedAt, &u.IsDeleted,
-			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber,
+			&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber, &u.UnitNumber,
 		); err != nil {
 			return nil, err
 		}
