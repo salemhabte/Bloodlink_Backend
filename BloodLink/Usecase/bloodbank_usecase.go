@@ -597,7 +597,13 @@ func (u *BloodInventoryUsecase) ExpireReservations() ([]string, error) {
 	return u.repo.ExpireStaleReservations(cutoff)
 }
 
-func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQuantity int, cryoPoorQuantity *int, cryoPosition string, cryoPoorPosition string) error {
+func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(
+	plasmaUnitID string,
+	cryoQuantity int,
+	cryoPoorQuantity *int,
+	cryoStorage, cryoRack, cryoShelf, cryoPosition string,
+	cryoPoorStorage, cryoPoorRack, cryoPoorShelf, cryoPoorPosition string,
+) error {
 	plasma, err := u.repo.GetBloodUnitByID(plasmaUnitID)
 	if err != nil {
 		return err
@@ -613,52 +619,50 @@ func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQua
 		return errors.New("cryoprecipitate quantity must be greater than 0 and less than total plasma quantity")
 	}
 	if strings.TrimSpace(cryoPosition) == "" || strings.TrimSpace(cryoPoorPosition) == "" {
-		return errors.New("cryo_position_number and cryo_poor_position_number are required")
+		return errors.New("position numbers are required for both components")
 	}
-	if cryoPosition == cryoPoorPosition {
-		return errors.New("cryo_position_number and cryo_poor_position_number cannot be the same")
+	if strings.TrimSpace(cryoStorage) == "" || strings.TrimSpace(cryoRack) == "" || strings.TrimSpace(cryoShelf) == "" {
+		return errors.New("storage_location, rack_number, and shelf_number are required for CRYOPRECIPITATE")
+	}
+	if strings.TrimSpace(cryoPoorStorage) == "" || strings.TrimSpace(cryoPoorRack) == "" || strings.TrimSpace(cryoPoorShelf) == "" {
+		return errors.New("storage_location, rack_number, and shelf_number are required for CRYO_POOR_PLASMA")
 	}
 
-	// Slot and capacity checks
-	// Since we are replacing 1 unit with 2 units in the same cell, net capacity change is +1
-	occupiedCount, err := u.repo.GetOccupiedSlotCount(plasma.StorageLocation, plasma.RackNumber, plasma.ShelfNumber)
+	// Same cell: check capacity (net +1 since plasma is removed)
+	if cryoStorage == cryoPoorStorage && cryoRack == cryoPoorRack && cryoShelf == cryoPoorShelf {
+		if cryoPosition == cryoPoorPosition {
+			return errors.New("cryo_position_number and cryo_poor_position_number cannot be the same")
+		}
+		occupiedCount, err := u.repo.GetOccupiedSlotCount(cryoStorage, cryoRack, cryoShelf)
+		if err != nil {
+			return err
+		}
+		occupiedCount-- // plasma will be removed
+		if 12-occupiedCount < 2 {
+			return fmt.Errorf("only %d positions available in this cell, need 2", 12-occupiedCount)
+		}
+	}
+
+	// Check cryo slot not occupied (skip if reusing plasma's own slot)
+	occupied, err := u.repo.IsSlotOccupied(cryoStorage, cryoRack, cryoShelf, cryoPosition)
 	if err != nil {
 		return err
 	}
-	
-	// Subtract the plasma unit itself since it will be deleted
-	occupiedCount--
-	
-	if 12 - occupiedCount < 2 {
-		return fmt.Errorf("Only %d positions available in this cell. You are trying to store 2 components.", 12-occupiedCount)
+	if occupied && !(cryoStorage == plasma.StorageLocation && cryoRack == plasma.RackNumber && cryoShelf == plasma.ShelfNumber && cryoPosition == plasma.PositionNumber) {
+		return fmt.Errorf("slot [%s Rack %s, Shelf %s, Pos %s] is already occupied", cryoStorage, cryoRack, cryoShelf, cryoPosition)
 	}
 
-	// Check if cryoPosition is occupied
-	if cryoPosition != plasma.PositionNumber {
-		occupied, err := u.repo.IsSlotOccupied(plasma.StorageLocation, plasma.RackNumber, plasma.ShelfNumber, cryoPosition)
-		if err != nil {
-			return err
-		}
-		if occupied {
-			return fmt.Errorf("Slot [Rack %s, Shelf %s, Pos %s] is already occupied", plasma.RackNumber, plasma.ShelfNumber, cryoPosition)
-		}
+	// Check cryo-poor slot not occupied
+	occupied, err = u.repo.IsSlotOccupied(cryoPoorStorage, cryoPoorRack, cryoPoorShelf, cryoPoorPosition)
+	if err != nil {
+		return err
+	}
+	if occupied && !(cryoPoorStorage == plasma.StorageLocation && cryoPoorRack == plasma.RackNumber && cryoPoorShelf == plasma.ShelfNumber && cryoPoorPosition == plasma.PositionNumber) {
+		return fmt.Errorf("slot [%s Rack %s, Shelf %s, Pos %s] is already occupied", cryoPoorStorage, cryoPoorRack, cryoPoorShelf, cryoPoorPosition)
 	}
 
-	// Check if cryoPoorPosition is occupied
-	if cryoPoorPosition != plasma.PositionNumber {
-		occupied, err := u.repo.IsSlotOccupied(plasma.StorageLocation, plasma.RackNumber, plasma.ShelfNumber, cryoPoorPosition)
-		if err != nil {
-			return err
-		}
-		if occupied {
-			return fmt.Errorf("Slot [Rack %s, Shelf %s, Pos %s] is already occupied", plasma.RackNumber, plasma.ShelfNumber, cryoPoorPosition)
-		}
-	}
-
-	// Calculate default poor plasma quantity
+	// Calculate cryo-poor quantity
 	finalCryoPoorQuantity := plasma.QuantityML - cryoQuantity
-
-	// If user provided a specific quantity, use it (handle loss)
 	if cryoPoorQuantity != nil {
 		if *cryoPoorQuantity > finalCryoPoorQuantity {
 			return errors.New("cryo-poor plasma quantity cannot exceed the remaining plasma quantity")
@@ -670,9 +674,12 @@ func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQua
 	}
 
 	now := time.Now()
-	
-	// Generate Unit Numbers
-	year := time.Now().Year()
+
+	// Expiration = collection_date + 1 year (NOT inherited from plasma)
+	expirationDate := plasma.CollectionDate.AddDate(1, 0, 0)
+
+	// Generate unit numbers from sequence
+	year := now.Year()
 	cryoNextVal, err := u.seqRepo.GetNextSequenceValue("BLOOD_UNIT", year)
 	if err != nil {
 		return fmt.Errorf("failed to generate unit number: %v", err)
@@ -685,38 +692,38 @@ func (u *BloodInventoryUsecase) ConvertPlasmaToCryo(plasmaUnitID string, cryoQua
 	}
 	cryoPoorUnitNumber := fmt.Sprintf("UNIT-%d-%06d", year, cryoPoorNextVal)
 
-	// Create new Cryoprecipitate unit
+	// Build CRYOPRECIPITATE unit
 	cryoUnit := &Domain.BloodUnit{
 		BloodUnitID:     uuid.New().String(),
 		UnitNumber:      cryoUnitNumber,
 		DonationID:      plasma.DonationID,
 		BloodType:       plasma.BloodType,
 		ComponentType:   "CRYOPRECIPITATE",
-		QuantityML:        cryoQuantity,
+		QuantityML:      cryoQuantity,
 		CollectionDate:  plasma.CollectionDate,
-		ExpirationDate:  plasma.ExpirationDate, // Or calculate dynamically if different
+		ExpirationDate:  expirationDate,
 		Status:          "AVAILABLE",
-		StorageLocation: plasma.StorageLocation,
-		RackNumber:      plasma.RackNumber,
-		ShelfNumber:     plasma.ShelfNumber,
+		StorageLocation: cryoStorage,
+		RackNumber:      cryoRack,
+		ShelfNumber:     cryoShelf,
 		PositionNumber:  cryoPosition,
 		CreatedAt:       now,
 	}
 
-	// Create new Cryo-poor Plasma unit
+	// Build CRYO_POOR_PLASMA unit
 	cryoPoorUnit := &Domain.BloodUnit{
 		BloodUnitID:     uuid.New().String(),
 		UnitNumber:      cryoPoorUnitNumber,
 		DonationID:      plasma.DonationID,
 		BloodType:       plasma.BloodType,
 		ComponentType:   "CRYO_POOR_PLASMA",
-		QuantityML:        finalCryoPoorQuantity,
+		QuantityML:      finalCryoPoorQuantity,
 		CollectionDate:  plasma.CollectionDate,
-		ExpirationDate:  plasma.ExpirationDate, // Or calculate dynamically if different
+		ExpirationDate:  expirationDate,
 		Status:          "AVAILABLE",
-		StorageLocation: plasma.StorageLocation,
-		RackNumber:      plasma.RackNumber,
-		ShelfNumber:     plasma.ShelfNumber,
+		StorageLocation: cryoPoorStorage,
+		RackNumber:      cryoPoorRack,
+		ShelfNumber:     cryoPoorShelf,
 		PositionNumber:  cryoPoorPosition,
 		CreatedAt:       now,
 	}

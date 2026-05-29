@@ -109,6 +109,9 @@ func (r *BloodInventoryRepository) GetBloodUnitByID(id string) (*Domain.BloodUni
 		&u.StorageLocation, &u.RackNumber, &u.ShelfNumber, &u.PositionNumber, &u.UnitNumber,
 	)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("blood unit not found: %s", id)
+		}
 		return nil, err
 	}
 	return &u, nil
@@ -588,40 +591,40 @@ func (r *BloodInventoryRepository) ConvertPlasmaToCryo(plasmaUnitID string, cryo
 	}
 	defer tx.Rollback()
 
-	// Soft delete the original plasma unit
-	res, err := tx.Exec(`UPDATE blood_units SET is_deleted = true WHERE blood_unit_id = $1 AND component_type = 'PLASMA' AND is_deleted = false AND status = 'AVAILABLE'`, plasmaUnitID)
-	if err != nil {
-		return err
-	}
-	affected, _ := res.RowsAffected()
-	if affected == 0 {
-		return fmt.Errorf("plasma unit not found or not eligible for conversion")
-	}
-
 	insertQuery := `
 	INSERT INTO blood_units (
 		blood_unit_id, unit_number, donation_id, blood_type, component_type,
 		quantity_ml, collection_date, expiration_date, status, created_at, storage_location, rack_number, shelf_number, position_number
 	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
 
-	// Insert Cryoprecipitate
+	// Insert Cryoprecipitate FIRST
 	_, err = tx.Exec(insertQuery,
 		cryo.BloodUnitID, cryo.UnitNumber, cryo.DonationID, cryo.BloodType, cryo.ComponentType,
 		cryo.QuantityML, cryo.CollectionDate, cryo.ExpirationDate, cryo.Status, cryo.CreatedAt,
 		cryo.StorageLocation, cryo.RackNumber, cryo.ShelfNumber, cryo.PositionNumber,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to insert CRYOPRECIPITATE: %v", err)
 	}
 
-	// Insert Cryo-poor Plasma
+	// Insert Cryo-poor Plasma SECOND
 	_, err = tx.Exec(insertQuery,
 		cryoPoor.BloodUnitID, cryoPoor.UnitNumber, cryoPoor.DonationID, cryoPoor.BloodType, cryoPoor.ComponentType,
 		cryoPoor.QuantityML, cryoPoor.CollectionDate, cryoPoor.ExpirationDate, cryoPoor.Status, cryoPoor.CreatedAt,
 		cryoPoor.StorageLocation, cryoPoor.RackNumber, cryoPoor.ShelfNumber, cryoPoor.PositionNumber,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to insert CRYO_POOR_PLASMA: %v", err)
+	}
+
+	// Only delete the plasma AFTER both inserts succeed
+	res, err := tx.Exec(`DELETE FROM blood_units WHERE blood_unit_id = $1 AND component_type = 'PLASMA' AND status = 'AVAILABLE'`, plasmaUnitID)
+	if err != nil {
+		return fmt.Errorf("failed to delete plasma unit: %v", err)
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("plasma unit not found or not eligible for conversion")
 	}
 
 	return tx.Commit()

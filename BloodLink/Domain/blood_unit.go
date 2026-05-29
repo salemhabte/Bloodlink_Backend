@@ -58,9 +58,17 @@ type ApproveRequestResult struct {
 }
 
 type ConvertCryoRequest struct {
-	CryoprecipitateQuantity int  `json:"cryoprecipitate_quantity" binding:"required"`
-	CryoPoorPlasmaQuantity  *int `json:"cryo_poor_plasma_quantity,omitempty"`
+	CryoprecipitateQuantity int    `json:"cryoprecipitate_quantity" binding:"required"`
+	CryoPoorPlasmaQuantity  *int   `json:"cryo_poor_plasma_quantity,omitempty"`
+	// Storage for CRYOPRECIPITATE
+	CryoStorageLocation     string `json:"cryo_storage_location" binding:"required"`
+	CryoRackNumber          string `json:"cryo_rack_number" binding:"required"`
+	CryoShelfNumber         string `json:"cryo_shelf_number" binding:"required"`
 	CryoPositionNumber      string `json:"cryo_position_number" binding:"required"`
+	// Storage for CRYO_POOR_PLASMA
+	CryoPoorStorageLocation string `json:"cryo_poor_storage_location" binding:"required"`
+	CryoPoorRackNumber      string `json:"cryo_poor_rack_number" binding:"required"`
+	CryoPoorShelfNumber     string `json:"cryo_poor_shelf_number" binding:"required"`
 	CryoPoorPositionNumber  string `json:"cryo_poor_position_number" binding:"required"`
 }
 

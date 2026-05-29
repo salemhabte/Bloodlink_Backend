@@ -787,7 +787,13 @@ func (c *BloodInventoryController) ConvertPlasma(ctx *gin.Context) {
 		return
 	}
 
-	err := c.usecase.ConvertPlasmaToCryo(id, req.CryoprecipitateQuantity, req.CryoPoorPlasmaQuantity, req.CryoPositionNumber, req.CryoPoorPositionNumber)
+	err := c.usecase.ConvertPlasmaToCryo(
+		id,
+		req.CryoprecipitateQuantity,
+		req.CryoPoorPlasmaQuantity,
+		req.CryoStorageLocation, req.CryoRackNumber, req.CryoShelfNumber, req.CryoPositionNumber,
+		req.CryoPoorStorageLocation, req.CryoPoorRackNumber, req.CryoPoorShelfNumber, req.CryoPoorPositionNumber,
+	)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
