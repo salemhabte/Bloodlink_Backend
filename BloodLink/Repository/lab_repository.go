@@ -541,6 +541,9 @@ func (r *LabRepository) FilterTestResults(filter Domain.TestFilter) ([]Domain.Do
 		t.donation_id,
 		t.donor_id,
 		t.tested_by,
+		COALESCE(u.full_name, '')       AS tester_name,
+		COALESCE(c.location, '')        AS campaign_address,
+		COALESCE(d.donation_number, '') AS donation_number,
 		t.hiv_result,
 		COALESCE(t.hepatitis_b_result, ''),
 		COALESCE(t.hepatitis_c_result, ''),
@@ -549,8 +552,10 @@ func (r *LabRepository) FilterTestResults(filter Domain.TestFilter) ([]Domain.Do
 		t.overall_status,
 		t.created_at
 	FROM donor_test_results t
-	LEFT JOIN blood_units bu ON t.donation_id = bu.donation_id
+	LEFT JOIN users u  ON t.tested_by = u.user_id
+	LEFT JOIN blood_units bu ON t.donation_id = bu.donation_id AND bu.is_deleted = false
 	LEFT JOIN donation_records d ON t.donation_id = d.donation_id
+	LEFT JOIN campaigns c ON d.campaign_id = c.campaign_id
 	WHERE 1=1
 	`
 
@@ -615,6 +620,9 @@ func (r *LabRepository) FilterTestResults(filter Domain.TestFilter) ([]Domain.Do
 			&rlt.DonationID,
 			&rlt.DonorID,
 			&rlt.TestedBy,
+			&rlt.TesterName,
+			&rlt.CampaignAddress,
+			&rlt.DonationNumber,
 			&rlt.HIVResult,
 			&rlt.HepatitisBResult,
 			&rlt.HepatitisCResult,

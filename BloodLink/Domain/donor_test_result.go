@@ -3,14 +3,15 @@ package Domain
 import "time"
 
 type DonorTestResult struct {
-	TestID      string `json:"test_id"`
-	DonationID  string `json:"donation_id"`
-	DonorID     string `json:"donor_id"`
-	TestedBy    string `json:"tested_by"`
+	TestID     string `json:"test_id"`
+	DonationID string `json:"donation_id"`
+	DonorID    string `json:"donor_id"`
+	TestedBy   string `json:"tested_by"`
 
 	// Resolved fields — populated in API responses, not stored in DB
 	TesterName      string `json:"tester_name"`
 	CampaignAddress string `json:"campaign_address"`
+	DonationNumber  string `json:"donation_number"`
 
 	HIVResult        string `json:"hiv_result"`
 	HepatitisBResult string `json:"hepatitis_b_result"`
@@ -23,9 +24,9 @@ type DonorTestResult struct {
 	CreatedAt time.Time `json:"created_at"`
 
 	// --- Transient input fields (used in request body, NOT persisted in donor_test_results) ---
-	StorageLocation string               `json:"storage_location,omitempty"`
-	RackNumber      string               `json:"rack_number,omitempty"`
-	ShelfNumber     string               `json:"shelf_number,omitempty"`
+	StorageLocation string                `json:"storage_location,omitempty"`
+	RackNumber      string                `json:"rack_number,omitempty"`
+	ShelfNumber     string                `json:"shelf_number,omitempty"`
 	Components      []BloodComponentInput `json:"components,omitempty"`
 }
 
