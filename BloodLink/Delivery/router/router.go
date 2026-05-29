@@ -104,7 +104,6 @@ func SetupRouter(
 		adminCampaigns := admin.Group("/campaigns")
 		{
 			adminCampaigns.POST("/", campaignController.CreateCampaign)
-			adminCampaigns.GET("/", campaignController.GetAllAdminCampaigns)
 			adminCampaigns.PUT("/:id", campaignController.UpdateCampaign)
 			adminCampaigns.DELETE("/:id", campaignController.DeleteCampaign)
 		}
@@ -169,6 +168,12 @@ func SetupRouter(
 		admin.GET("/audit-logs/export", auditLogController.ExportLogs)
 		admin.GET("/audit-logs/:id", auditLogController.GetLogByID)
 		admin.DELETE("/audit-logs/:id", auditLogController.DeleteLog)
+	}
+
+	adminCampaignsRead := r.Group("/api/bloodbankadmin/campaigns")
+	adminCampaignsRead.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin, domain.RoleBloodCollector))
+	{
+		adminCampaignsRead.GET("/", campaignController.GetAllAdminCampaigns)
 	}
 
 	// Donor Routes
