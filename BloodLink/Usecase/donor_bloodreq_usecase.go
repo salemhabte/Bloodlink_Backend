@@ -235,10 +235,6 @@ func (u *DonorBloodRequestUsecase) FulfillRequest(requestID string) (*Domain.Don
 // GET METHODS
 ////////////////////////
 
-func (u *DonorBloodRequestUsecase) GetAllRequests() ([]Domain.DonorBloodRequest, error) {
-	return u.repo.GetAll()
-}
-
 // GetAllAdminRequests returns filtered donor requests sorted by successful
 // donation count descending — donors who donated more appear first (higher priority).
 func (u *DonorBloodRequestUsecase) GetAllAdminRequests(filter Domain.DonorBloodRequestFilter) (*Domain.DonorBloodRequestListResponse, error) {

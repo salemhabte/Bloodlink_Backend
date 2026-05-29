@@ -600,13 +600,13 @@ func (r *BloodInventoryRepository) ConvertPlasmaToCryo(plasmaUnitID string, cryo
 
 	insertQuery := `
 	INSERT INTO blood_units (
-		blood_unit_id, donation_id, blood_type, component_type,
+		blood_unit_id, unit_number, donation_id, blood_type, component_type,
 		quantity_ml, collection_date, expiration_date, status, created_at, storage_location, rack_number, shelf_number, position_number
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
 
 	// Insert Cryoprecipitate
 	_, err = tx.Exec(insertQuery,
-		cryo.BloodUnitID, cryo.DonationID, cryo.BloodType, cryo.ComponentType,
+		cryo.BloodUnitID, cryo.UnitNumber, cryo.DonationID, cryo.BloodType, cryo.ComponentType,
 		cryo.QuantityML, cryo.CollectionDate, cryo.ExpirationDate, cryo.Status, cryo.CreatedAt,
 		cryo.StorageLocation, cryo.RackNumber, cryo.ShelfNumber, cryo.PositionNumber,
 	)
@@ -616,7 +616,7 @@ func (r *BloodInventoryRepository) ConvertPlasmaToCryo(plasmaUnitID string, cryo
 
 	// Insert Cryo-poor Plasma
 	_, err = tx.Exec(insertQuery,
-		cryoPoor.BloodUnitID, cryoPoor.DonationID, cryoPoor.BloodType, cryoPoor.ComponentType,
+		cryoPoor.BloodUnitID, cryoPoor.UnitNumber, cryoPoor.DonationID, cryoPoor.BloodType, cryoPoor.ComponentType,
 		cryoPoor.QuantityML, cryoPoor.CollectionDate, cryoPoor.ExpirationDate, cryoPoor.Status, cryoPoor.CreatedAt,
 		cryoPoor.StorageLocation, cryoPoor.RackNumber, cryoPoor.ShelfNumber, cryoPoor.PositionNumber,
 	)

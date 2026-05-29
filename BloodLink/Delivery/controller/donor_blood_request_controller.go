@@ -110,24 +110,6 @@ func (c *DonorBloodRequestController) GetMyRequests(ctx *gin.Context) {
 }
 
 ////////////////////////
-// GET ALL REQUESTS (ADMIN) — simple unfiltered version
-////////////////////////
-
-func (c *DonorBloodRequestController) GetAllRequests(ctx *gin.Context) {
-
-	data, err := c.usecase.GetAllRequests()
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{
-		"message": "All requests fetched successfully",
-		"data":    data,
-	})
-}
-
-////////////////////////
 // GET ALL REQUESTS — ADMIN FILTERED (sorted by successful donations DESC)
 // Query params: start_date, end_date, blood_type, status
 ////////////////////////

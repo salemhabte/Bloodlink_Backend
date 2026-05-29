@@ -8,7 +8,6 @@ type IDonorBloodRequestRepository interface {
 
 	// ===== CRUD =====
 	Create(req *Domain.DonorBloodRequest) error
-	GetAll() ([]Domain.DonorBloodRequest, error)
 	GetAllAdmin(filter Domain.DonorBloodRequestFilter) ([]Domain.DonorBloodRequest, error)
 	GetByID(id string) (*Domain.DonorBloodRequest, error)
 	GetByDonorID(donorID string, filter Domain.DonorBloodRequestFilter) ([]Domain.DonorBloodRequest, error)

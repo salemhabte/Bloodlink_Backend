@@ -95,7 +95,6 @@ func SetupRouter(
 	{
 		admin.GET("/leaderboard", badgeController.GetLeaderboard)
 		admin.GET("/badges", badgeController.GetAllBadges)
-		admin.GET("/blood-requests", donorBloodReqController.GetAllRequests)
 		admin.GET("/donor-blood-requests", donorBloodReqController.GetAllAdminRequests) // filtered + sorted by donations
 		admin.POST("/donor-blood-requests/expire-stale", donorBloodReqController.ExpireStaleRequests)
 		admin.PUT("/blood-requests/:id/approve", donorBloodReqController.ApproveRequest)
