@@ -3,14 +3,14 @@ package Usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	domain "bloodlink/Domain"
 	domainInterface "bloodlink/Domain/Interfaces"
 	"bloodlink/Infrastructure"
-
-	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -156,15 +156,17 @@ func (u *UserUseCaseBase) sendVerificationOTP(ctx context.Context, email string)
 
 	otp := Infrastructure.GenerateOTP()
 	expiresAt := time.Now().Add(otpTTL)
+
+	log.Printf("[SEND OTP] Saving OTP for email=%s otp=%s", email, otp)
+
 	if err := u.userRepo.SetOTP(ctx, email, otp, expiresAt); err != nil {
 		return err
 	}
 
-	go func(email, otp string) {
-		if err := Infrastructure.SendOTP(email, otp); err != nil {
-			log.Printf("[ERROR] Failed to send verification email to %s: %v", email, err)
-		}
-	}(email, otp)
+	if err := Infrastructure.SendOTP(email, otp); err != nil {
+		log.Printf("[ERROR] Failed to send verification email to %s: %v", email, err)
+		return fmt.Errorf("failed to send OTP email: %v", err)
+	}
 
 	return nil
 }
@@ -251,6 +253,11 @@ func (u *UserUseCaseBase) VerifyOTP(ctx context.Context, email, otp string) erro
 	if user == nil {
 		return errors.New("user not found")
 	}
+
+	otp = strings.TrimSpace(otp)
+
+	log.Printf("[VERIFY OTP] email=%s stored_otp=%q provided_otp=%q expires_at=%v now=%v",
+		email, user.OTP, otp, user.OTPExpiresAt, time.Now())
 
 	if user.OTP != otp {
 		return errors.New("invalid OTP")
@@ -398,7 +405,6 @@ func (u *UserUseCaseBase) GetUsersByRole(ctx context.Context, filter domain.User
 }
 
 func (u *UserUseCaseBase) ForgotPassword(ctx context.Context, email string) error {
-	// Verify user exists
 	user, err := u.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
 		return err
@@ -407,25 +413,24 @@ func (u *UserUseCaseBase) ForgotPassword(ctx context.Context, email string) erro
 		return errors.New("user not found")
 	}
 
-	// Generate and store OTP
 	otp := Infrastructure.GenerateOTP()
 	expiresAt := time.Now().Add(otpTTL)
+
+	log.Printf("[FORGOT PASSWORD] Saving OTP for email=%s otp=%s", email, otp)
+
 	if err := u.userRepo.SetOTP(ctx, email, otp, expiresAt); err != nil {
 		return err
 	}
 
-	// Send OTP email asynchronously
-	go func() {
-		if err := Infrastructure.SendPasswordResetOTP(email, otp); err != nil {
-			log.Printf("[ERROR] Failed to send password reset email to %s: %v", email, err)
-		}
-	}()
+	if err := Infrastructure.SendPasswordResetOTP(email, otp); err != nil {
+		log.Printf("[ERROR] Failed to send password reset email to %s: %v", email, err)
+		return fmt.Errorf("failed to send OTP email: %v", err)
+	}
 
 	return nil
 }
 
 func (u *UserUseCaseBase) ResetPassword(ctx context.Context, email, otp, newPassword string) error {
-	// Get user and verify OTP
 	user, err := u.userRepo.GetUserByEmail(ctx, email)
 	if err != nil {
 		return err
@@ -433,6 +438,12 @@ func (u *UserUseCaseBase) ResetPassword(ctx context.Context, email, otp, newPass
 	if user == nil {
 		return errors.New("user not found")
 	}
+
+	otp = strings.TrimSpace(otp)
+
+	log.Printf("[RESET PASSWORD] email=%s stored_otp=%q provided_otp=%q expires_at=%v now=%v",
+		email, user.OTP, otp, user.OTPExpiresAt, time.Now())
+
 	if user.OTP != otp {
 		return errors.New("invalid OTP")
 	}
@@ -440,7 +451,6 @@ func (u *UserUseCaseBase) ResetPassword(ctx context.Context, email, otp, newPass
 		return errors.New("OTP has expired")
 	}
 
-	// Validate and hash new password
 	if !u.validation.IsStrongPassword(newPassword) {
 		return errors.New("password is not strong enough")
 	}

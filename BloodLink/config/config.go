@@ -14,9 +14,12 @@ var (
 	JWTREFRESHSECRET string
 	CURR_USER        string
 
-	SENDGRID_API_KEY string
-	FROM_EMAIL       string
-	FROM_NAME        string
+	SMTP_HOST     string
+	SMTP_PORT     string
+	SMTP_USERNAME string
+	SMTP_PASSWORD string
+	FROM_EMAIL    string
+	FROM_NAME     string
 )
 
 func InitEnv() {
@@ -24,16 +27,17 @@ func InitEnv() {
 	if err != nil {
 		log.Printf("Warning: .env file not found or could not be loaded. Relying on system environment variables.")
 	}
+
 	POSTGRES_DSN = getEnv("POSTGRES_DSN")
-
 	JWTSECRET = getEnv("JWTSECRET")
-
-	SENDGRID_API_KEY = getEnv("SENDGRID_API_KEY")
-	FROM_EMAIL = getEnvWithDefault("FROM_EMAIL", "nebiyattakele23@gmail.com")
-	FROM_NAME = getEnvWithDefault("FROM_NAME", "BloodLink")
-
 	JWTREFRESHSECRET = getEnv("JWTREFRESHSECRET")
 
+	SMTP_HOST     = getEnvWithDefault("SMTP_HOST", "sandbox.smtp.mailtrap.io")
+	SMTP_PORT     = getEnvWithDefault("SMTP_PORT", "2525")
+	SMTP_USERNAME = getEnv("SMTP_USERNAME")
+	SMTP_PASSWORD = getEnv("SMTP_PASSWORD")
+	FROM_EMAIL    = getEnvWithDefault("FROM_EMAIL", "bloodlink@demo.com")
+	FROM_NAME     = getEnvWithDefault("FROM_NAME", "BloodLink")
 }
 
 func getEnvWithDefault(key, defaultVal string) string {

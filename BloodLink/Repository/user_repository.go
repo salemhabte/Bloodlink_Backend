@@ -169,13 +169,15 @@ func (r *UserRepository) SetOTP(ctx context.Context, email, otp string, expiresA
 	query := `UPDATE users SET otp = $1, otp_expires_at = $2 WHERE email = $3`
 	result, err := r.DB.ExecContext(ctx, query, otp, expiresAt, email)
 	if err != nil {
-		log.Printf("[DATABASE ERROR] SetOTP failed: %v", err)
+		log.Printf("[DATABASE ERROR] SetOTP failed for %s: %v", email, err)
 		return err
 	}
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
+		log.Printf("[DATABASE ERROR] SetOTP: no rows updated for email=%s", email)
 		return errors.New("user not found")
 	}
+	log.Printf("[DATABASE] SetOTP success for email=%s otp=%s expiresAt=%s", email, otp, expiresAt)
 	return nil
 }
 
