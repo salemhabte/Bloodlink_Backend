@@ -132,8 +132,11 @@ func (r *BloodInventoryRepository) DeleteBloodUnitByID(id string) error {
 func (r *BloodInventoryRepository) GetFullBloodUnitDetails(id string) (map[string]interface{}, error) {
 	query := `
 SELECT
-    bu.blood_unit_id, COALESCE(bu.unit_number, ''), bu.blood_type, bu.quantity_ml,
+    bu.blood_unit_id, COALESCE(bu.unit_number, ''), bu.blood_type,
+    COALESCE(bu.component_type, ''), bu.quantity_ml,
     bu.collection_date, bu.expiration_date, bu.status,
+    COALESCE(bu.storage_location, ''), COALESCE(bu.rack_number, ''),
+    COALESCE(bu.shelf_number, ''), COALESCE(bu.position_number, ''),
     d.donation_id, COALESCE(d.donation_number, ''), d.donor_id, d.collected_by,
     u.full_name, u.email, u.phone
 FROM blood_units bu
@@ -150,8 +153,11 @@ WHERE bu.blood_unit_id = $1
 	var donorName, donorEmail, donorPhone string
 
 	err := row.Scan(
-		&bloodUnit.BloodUnitID, &bloodUnit.UnitNumber, &bloodUnit.BloodType, &bloodUnit.QuantityML,
+		&bloodUnit.BloodUnitID, &bloodUnit.UnitNumber, &bloodUnit.BloodType,
+		&bloodUnit.ComponentType, &bloodUnit.QuantityML,
 		&bloodUnit.CollectionDate, &bloodUnit.ExpirationDate, &bloodUnit.Status,
+		&bloodUnit.StorageLocation, &bloodUnit.RackNumber,
+		&bloodUnit.ShelfNumber, &bloodUnit.PositionNumber,
 		&donationID, &donationNumber, &donorID, &collectedBy,
 		&donorName, &donorEmail, &donorPhone,
 	)
@@ -174,7 +180,7 @@ WHERE bu.blood_unit_id = $1
 	rows, err := r.DB.Query(`
 	SELECT hiv_result, hepatitis_b_result, hepatitis_c_result, syphilis_result
 	FROM donor_test_results WHERE donation_id = $1
-	`, donation["donation_id"])
+	`, donationID)
 	if err != nil {
 		return nil, err
 	}
