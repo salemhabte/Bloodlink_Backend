@@ -140,17 +140,26 @@ func (u *emergencyRequestUsecase) RejectEmergency(id string) error {
 
 func (u *emergencyRequestUsecase) CreateManualEmergency(dtos []Domain.CreateEmergencyRequestDTO) error {
 	for _, dto := range dtos {
+		// Fetch location, latitude, longitude from hospital table by name
+		hospital, err := u.hospitalRepo.GetHospitalByName(dto.HospitalName)
+		if err != nil {
+			return fmt.Errorf("could not find hospital '%s': %v", dto.HospitalName, err)
+		}
+		if hospital.Latitude == 0 && hospital.Longitude == 0 {
+			return fmt.Errorf("hospital '%s' has no location set", dto.HospitalName)
+		}
+
 		emergency := &Domain.EmergencyRequest{
 			EmergencyID:       uuid.New().String(),
 			BloodType:         dto.BloodType,
 			QuantityRequired:  dto.QuantityRequired,
 			QuantityFulfilled: 0,
 			UrgencyLevel:      "emergency",
-			HospitalName:      dto.HospitalName,
-			Location:          dto.Location,
-			Latitude:          dto.Latitude,
-			Longitude:         dto.Longitude,
-			Status:            Domain.EmergencyStatusPublished, // Manual ones are published immediately
+			HospitalName:      hospital.Name,
+			Location:          hospital.Address,
+			Latitude:          hospital.Latitude,
+			Longitude:         hospital.Longitude,
+			Status:            Domain.EmergencyStatusPublished,
 			IsManual:          true,
 			CreatedAt:         time.Now(),
 		}
@@ -170,27 +179,26 @@ func (u *emergencyRequestUsecase) CreateManualEmergency(dtos []Domain.CreateEmer
 		now := time.Now()
 		emergency.PublishedAt = &now
 
-		err := u.repo.Create(emergency)
-		if err != nil {
+		if err := u.repo.Create(emergency); err != nil {
 			return err
 		}
 
-		// Notify nearby donors if location is provided
-		if emergency.Latitude != 0 && emergency.Longitude != 0 {
-			go func(e *Domain.EmergencyRequest) {
-				ctx := context.Background()
-				radiusKm := 20.0
-				donors, err := u.userRepo.GetDonorsNearby(ctx, e.BloodType, e.Latitude, e.Longitude, radiusKm)
-				if err == nil {
-					for _, donor := range donors {
-						subject := fmt.Sprintf("URGENT: %s Blood Emergency nearby", e.BloodType)
-						content := fmt.Sprintf("Hello %s,<br><br><b>%s</b> urgently needs <b>%d units</b> of <b>%s</b> blood.<br>Urgency: <b>%s</b>.<br>Since you are within %.1f km, your donation could save a life!<br><br>Please visit the hospital at <b>%s</b> or contact us for more details.", donor.FullName, e.HospitalName, e.QuantityRequired, e.BloodType, e.UrgencyLevel, radiusKm, e.Location)
-						_ = Infrastructure.SendBloodRequestNotification(donor.Email, subject, content)
-						_ = u.notifUC.SendNotification(donor.UserID, "EMERGENCY", "URGENT: Blood Emergency", fmt.Sprintf("%s needs %s blood.", e.HospitalName, e.BloodType))
-					}
+		// Notify nearby donors
+		go func(e *Domain.EmergencyRequest) {
+			ctx := context.Background()
+			radiusKm := 20.0
+			donors, err := u.userRepo.GetDonorsNearby(ctx, e.BloodType, e.Latitude, e.Longitude, radiusKm)
+			if err == nil {
+				for _, donor := range donors {
+					subject := fmt.Sprintf("URGENT: %s Blood Emergency nearby", e.BloodType)
+					content := fmt.Sprintf("Hello %s,<br><br><b>%s</b> urgently needs <b>%d units</b> of <b>%s</b> blood.<br>Urgency: <b>%s</b>.<br>Since you are within %.1f km, your donation could save a life!<br><br>Please visit the hospital at <b>%s</b> or contact us for more details.",
+						donor.FullName, e.HospitalName, e.QuantityRequired, e.BloodType, e.UrgencyLevel, radiusKm, e.Location)
+					_ = Infrastructure.SendBloodRequestNotification(donor.Email, subject, content)
+					_ = u.notifUC.SendNotification(donor.UserID, "EMERGENCY", "URGENT: Blood Emergency",
+						fmt.Sprintf("%s needs %s blood.", e.HospitalName, e.BloodType))
 				}
-			}(emergency)
-		}
+			}
+		}(emergency)
 	}
 	return nil
 }

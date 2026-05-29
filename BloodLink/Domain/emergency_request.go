@@ -29,13 +29,10 @@ type EmergencyRequest struct {
 }
 
 type CreateEmergencyRequestDTO struct {
-	BloodType        string  `json:"blood_type" binding:"required,oneof='A+' 'A-' 'B+' 'B-' 'AB+' 'AB-' 'O+' 'O-'"`
-	QuantityRequired int     `json:"quantity_required" binding:"omitempty,gt=0"`
-	HospitalName     string  `json:"hospital_name" binding:"required"`
-	Location         string  `json:"location" binding:"required"`
-	EndDate          string  `json:"end_date" binding:"required"`
-	Latitude         float64 `json:"latitude,string" binding:"required"`
-	Longitude        float64 `json:"longitude,string" binding:"required"`
+	BloodType        string `json:"blood_type" binding:"required,oneof='A+' 'A-' 'B+' 'B-' 'AB+' 'AB-' 'O+' 'O-'"`
+	QuantityRequired int    `json:"quantity_required" binding:"omitempty,gt=0"`
+	HospitalName     string `json:"hospital_name" binding:"required"`
+	EndDate          string `json:"end_date" binding:"required"`
 }
 
 type EmergencyRequestFilter struct {

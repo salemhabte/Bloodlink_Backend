@@ -400,7 +400,7 @@ func (c *UserController) GetDonors(ctx *gin.Context) {
 		Status:        ctx.Query("status"),
 	}
 
-	if isEligible := ctx.Query("is_eligible"); isEligible != "" {
+	if isEligible := ctx.Query("g"); isEligible != "" {
 		val := isEligible == "true"
 		filter.IsEligible = &val
 	}

@@ -29,6 +29,7 @@ type IHospitalRepository interface {
 	GetSignedContracts(status string) ([]Domain.HospitalContractResponse, error)
 	GetHospitalDashboard(hospitalID string) (*Domain.HospitalDashboard, error)
 	GetHospitalByPhone(phone string) (*Domain.Hospital, error)
+	GetHospitalByName(name string) (*Domain.Hospital, error)
 	GetAllHospitals() ([]Domain.Hospital, error)
 	IsPhoneRegisteredOrPending(phone string) (bool, error)
 	IsAdminEmailPending(email string) (bool, error)

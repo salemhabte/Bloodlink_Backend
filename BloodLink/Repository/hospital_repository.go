@@ -432,6 +432,23 @@ func (r *hospitalRepository) GetHospitalByPhone(phone string) (*Domain.Hospital,
 	return hospital, nil
 }
 
+func (r *hospitalRepository) GetHospitalByName(name string) (*Domain.Hospital, error) {
+	query := `SELECT hospital_id, name, address, phone, COALESCE(latitude, 0), COALESCE(longitude, 0), created_at
+	          FROM hospitals WHERE LOWER(name) = LOWER($1) LIMIT 1`
+	hospital := &Domain.Hospital{}
+	err := r.db.QueryRow(query, name).Scan(
+		&hospital.HospitalID, &hospital.Name, &hospital.Address, &hospital.Phone,
+		&hospital.Latitude, &hospital.Longitude, &hospital.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("hospital '%s' not found", name)
+		}
+		return nil, err
+	}
+	return hospital, nil
+}
+
 func (r *hospitalRepository) GetAllHospitals() ([]Domain.Hospital, error) {
 	query := `SELECT hospital_id, name, address, phone, COALESCE(license_document, ''), created_at FROM hospitals`
 	rows, err := r.db.Query(query)
