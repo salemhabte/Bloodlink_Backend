@@ -28,6 +28,13 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 	                 COALESCE(br.fulfilled_count, 0),
 	                 COALESCE(br.fulfilled_quantity_ml, 0),
 	                 COALESCE(br.notes, ''),
+	                 EXISTS (
+	                     SELECT 1
+	                     FROM blood_units bu
+	                     WHERE bu.request_id = br.request_id
+	                       AND bu.status = 'USED'
+	                       AND bu.is_deleted = false
+	                 ) AS is_used,
 	                 br.created_at, br.approved_at
 	          FROM blood_requests br
 	          JOIN hospitals h ON br.hospital_id = h.hospital_id
@@ -86,6 +93,7 @@ func (r *bloodRequestRepository) GetRequestsByHospital(filter Domain.BloodReques
 			&req.RequestID, &req.HospitalID, &req.HospitalName,
 			&req.BloodType, &req.Component, &req.Quantity, &req.UrgencyLevel, &req.Status,
 			&req.FulfilledCount, &req.FulfilledQuantityMl, &req.Notes,
+			&req.IsUsed,
 			&req.CreatedAt, &req.ApprovedAt,
 		); err != nil {
 			return nil, err
@@ -101,6 +109,13 @@ func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter
 	                 COALESCE(br.fulfilled_count, 0),
 	                 COALESCE(br.fulfilled_quantity_ml, 0),
 	                 COALESCE(br.notes, ''),
+	                 EXISTS (
+	                     SELECT 1
+	                     FROM blood_units bu
+	                     WHERE bu.request_id = br.request_id
+	                       AND bu.status = 'USED'
+	                       AND bu.is_deleted = false
+	                 ) AS is_used,
 	                 br.created_at, br.approved_at
 	          FROM blood_requests br
 	          JOIN hospitals h ON br.hospital_id = h.hospital_id
@@ -160,6 +175,7 @@ func (r *bloodRequestRepository) GetAllRequests(filter Domain.BloodRequestFilter
 			&req.RequestID, &req.HospitalID, &req.HospitalName,
 			&req.BloodType, &req.Component, &req.Quantity, &req.UrgencyLevel, &req.Status,
 			&req.FulfilledCount, &req.FulfilledQuantityMl, &req.Notes,
+			&req.IsUsed,
 			&req.CreatedAt, &req.ApprovedAt,
 		); err != nil {
 			return nil, err
