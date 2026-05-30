@@ -20,6 +20,7 @@ import (
 type IUserRepository interface {
 	CreateUser(ctx context.Context, user *domain.User) error
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
+	GetUserByID(ctx context.Context, userID string) (*domain.User, error)
 	ActivateUser(ctx context.Context, userID string) error
 	CreateDonor(ctx context.Context, donor *domain.Donor) error
 	DeleteUser(ctx context.Context, userID string) error
@@ -287,12 +288,33 @@ func (u *UserUseCaseBase) VerifyOTP(ctx context.Context, email, otp string) erro
 }
 
 func (u *UserUseCaseBase) GetProfile(ctx context.Context, userID string) (*domain.ProfileResponse, error) {
+	// Special case: hardcoded blood bank admin has no users table row
+	if userID == "00000000-0000-0000-0000-000000000000" {
+		return &domain.ProfileResponse{
+			UserProfile: domain.UserProfile{
+				ProfileID: userID,
+				UserID:    userID,
+				FullName:  "Blood Bank Admin",
+				Phone:     "",
+			},
+		}, nil
+	}
+
 	profile, err := u.profileRepo.GetProfileByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
+
+	// If no profile row exists (hospital admin, blood bank admin skip OTP so no profile is created)
+	// Fall back to building a minimal profile from the users table
 	if profile == nil {
-		return nil, nil
+		profile, err = u.buildProfileFromUser(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		if profile == nil {
+			return nil, nil
+		}
 	}
 
 	response := &domain.ProfileResponse{
@@ -302,13 +324,27 @@ func (u *UserUseCaseBase) GetProfile(ctx context.Context, userID string) (*domai
 	// Check if user is a donor
 	donor, err := u.userRepo.GetDonorByUserID(ctx, userID)
 	if err == nil && donor != nil {
-		// It's a donor, calculate eligibility
 		eligibility := u.CalculateEligibility(ctx, donor.DonorID, donor.OverallStatus)
 		response.DonorInfo = donor
 		response.Eligibility = eligibility
 	}
 
 	return response, nil
+}
+
+// buildProfileFromUser creates a minimal UserProfile from the users table
+// used for roles that don't go through OTP verification (hospitaladmin, bloodbankadmin)
+func (u *UserUseCaseBase) buildProfileFromUser(ctx context.Context, userID string) (*domain.UserProfile, error) {
+	user, err := u.userRepo.GetUserByID(ctx, userID)
+	if err != nil || user == nil {
+		return nil, err
+	}
+	return &domain.UserProfile{
+		ProfileID: userID, // synthetic — no real profile row
+		UserID:    user.ID,
+		FullName:  user.FullName,
+		Phone:     user.Phone,
+	}, nil
 }
 
 func (u *UserUseCaseBase) CalculateEligibility(ctx context.Context, donorID string, overallStatus string) *domain.DonorEligibility {
@@ -362,6 +398,16 @@ func (u *UserUseCaseBase) GetAllProfiles(ctx context.Context, filter domain.Prof
 }
 
 func (u *UserUseCaseBase) UpdateProfile(ctx context.Context, profile *domain.UserProfile) error {
+	// Check if a real profile row exists
+	existing, err := u.profileRepo.GetProfileByUserID(ctx, profile.UserID)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		// No profile row yet (hospital admin / blood bank admin) — create one first
+		profile.ProfileID = uuid.New().String()
+		return u.profileRepo.CreateProfile(ctx, profile)
+	}
 	return u.profileRepo.UpdateProfile(ctx, profile)
 }
 
@@ -643,8 +689,17 @@ func (u *UserUseCaseBase) UpdateLocation(ctx context.Context, userID string, lat
 	if err != nil {
 		return err
 	}
+
 	if profile == nil {
-		return errors.New("profile not found")
+		// No profile row yet — build one from users table and insert it
+		profile, err = u.buildProfileFromUser(ctx, userID)
+		if err != nil || profile == nil {
+			return errors.New("profile not found")
+		}
+		profile.ProfileID = uuid.New().String()
+		profile.Latitude = &lat
+		profile.Longitude = &lon
+		return u.profileRepo.CreateProfile(ctx, profile)
 	}
 
 	profile.Latitude = &lat

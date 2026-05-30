@@ -48,6 +48,23 @@ func (r *UserRepository) CreateUser(ctx context.Context, user *domain.User) erro
 	return nil
 }
 
+// GetUserByID retrieves a user by their ID
+func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
+	query := `SELECT user_id, full_name, email, COALESCE(phone, ''), password_hash, role, is_active, created_at FROM users WHERE user_id = $1`
+	var user domain.User
+	err := r.DB.QueryRowContext(ctx, query, userID).Scan(
+		&user.ID, &user.FullName, &user.Email, &user.Phone,
+		&user.Password, &user.Role, &user.IsActive, &user.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
 // GetUserByEmail retrieves a user by their email address for login verification
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
 	query := `SELECT user_id, full_name, email, COALESCE(phone, ''), password_hash, role, is_active, COALESCE(otp, ''), otp_expires_at, created_at, COALESCE(refresh_token, '') FROM users WHERE email = $1`
