@@ -106,6 +106,7 @@ func SetupRouter(
 			adminCampaigns.PUT("/:id", campaignController.UpdateCampaign)
 			adminCampaigns.DELETE("/:id", campaignController.DeleteCampaign)
 		}
+		
 
 		adminDonors := admin.Group("/donors")
 		{
@@ -153,6 +154,9 @@ func SetupRouter(
 			adminBloodRequests.POST("/:id/approve", bloodReqController.ApproveRequest)
 			adminBloodRequests.POST("/:id/reject", bloodReqController.RejectRequest)
 		}
+
+		// Mark all reserved units as USED when hospital collects in person
+		admin.PATCH("/reserved/:id/mark-used", bloodReqController.MarkRequestUnitsAsUsed)
 
 		adminEmergencies := admin.Group("/emergencies")
 		{
@@ -244,9 +248,9 @@ func SetupRouter(
 		adminActions := inventory.Group("/")
 		adminActions.Use(Infrastructure.AuthMiddleware(auth, domain.RoleBloodBankAdmin))
 		{
-			adminActions.PUT("/:id/used", inventoryController.MarkUsed)
 			adminActions.GET("/reserved/:hospital_id", inventoryController.GetReservedByHospital)
 			adminActions.GET("/reserved-request/:request_id", inventoryController.GetReservedByRequest)
+			adminActions.PUT("/:id/used", inventoryController.MarkUsed)
 		}
 
 		// Lab-Only Routes

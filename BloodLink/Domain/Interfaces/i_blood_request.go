@@ -18,4 +18,5 @@ type IBloodRequestUsecase interface {
 	GetAllRequests(filter Domain.BloodRequestFilter) (*Domain.BloodRequestListResponse, error)
 	ApproveRequest(requestID string) (*Domain.ApproveRequestResult, error)
 	RejectRequest(requestID string) error
+	MarkRequestUnitsAsUsed(requestID string) error
 }

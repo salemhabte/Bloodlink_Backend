@@ -240,6 +240,36 @@ func (u *bloodRequestUsecase) ApproveRequest(requestID string) (*Domain.ApproveR
 	}, nil
 }
 
+func (u *bloodRequestUsecase) MarkRequestUnitsAsUsed(requestID string) error {
+	// Get the blood request to verify it exists and is in a fulfillable state
+	br, err := u.repo.GetRequestByID(requestID)
+	if err != nil {
+		return err
+	}
+
+	if br.Status != Domain.BloodRequestStatusFulfilled && br.Status != Domain.BloodRequestStatusPartiallyFulfilled {
+		return fmt.Errorf("cannot mark as used: request status is '%s', must be FULFILLED or PARTIALLY_FULFILLED", br.Status)
+	}
+
+	// Get all reserved units for this request
+	units, err := u.inventoryRepo.GetReservedUnitsByRequestID(requestID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch reserved units: %v", err)
+	}
+	if len(units) == 0 {
+		return fmt.Errorf("no reserved units found for request %s", requestID)
+	}
+
+	// Mark each reserved unit as USED
+	for _, unit := range units {
+		if err := u.inventoryRepo.MarkUnitAsUsed(unit.BloodUnitID); err != nil {
+			return fmt.Errorf("failed to mark unit %s as used: %v", unit.BloodUnitID, err)
+		}
+	}
+
+	return nil
+}
+
 func (u *bloodRequestUsecase) RejectRequest(requestID string) error {
 	br, err := u.repo.GetRequestByID(requestID)
 	if err != nil {

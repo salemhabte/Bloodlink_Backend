@@ -28,7 +28,7 @@ type BloodRequest struct {
 
 type BloodRequestItemDTO struct {
 	BloodType string `json:"blood_type" binding:"required,oneof='A+' 'A-' 'B+' 'B-' 'AB+' 'AB-' 'O+' 'O-'"`
-	Component string `json:"component" binding:"required,oneof='CRS' 'Plasma' 'Platelets' 'Cryo Precipitate' 'Whole Blood'"`
+	Component string `json:"component" binding:"required,oneof=PRBC PLASMA PLATELETS CRYOPRECIPITATE CRYO_POOR_PLASMA WHOLE_BLOOD"`
 	Quantity  int    `json:"quantity" binding:"required,gt=0"`
 }
 

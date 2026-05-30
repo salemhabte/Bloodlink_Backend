@@ -132,3 +132,19 @@ func (c *BloodRequestController) RejectRequest(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Blood request rejected successfully"})
 }
+
+func (c *BloodRequestController) MarkRequestUnitsAsUsed(ctx *gin.Context) {
+	requestID := ctx.Param("id")
+
+	if err := c.Usecase.MarkRequestUnitsAsUsed(requestID); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if c.auditLogger != nil {
+		adminID := ctx.GetString("userID")
+		c.auditLogger.LogAction(adminID, "MARK_UNITS_USED", "blood_requests", requestID, "Marked all reserved units as used for request")
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "All reserved blood units for this request have been marked as USED"})
+}
