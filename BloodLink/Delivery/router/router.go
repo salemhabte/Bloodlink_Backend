@@ -32,10 +32,11 @@ func SetupRouter(
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowAllOrigins: true,
-		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:    []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:   []string{"Content-Length"},
+		AllowOrigins:     []string{"http://localhost:5173", "https://bloodlinkmanagement.netlify.app"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
 	}))
 
 	// Public Routes
@@ -106,7 +107,6 @@ func SetupRouter(
 			adminCampaigns.PUT("/:id", campaignController.UpdateCampaign)
 			adminCampaigns.DELETE("/:id", campaignController.DeleteCampaign)
 		}
-		
 
 		adminDonors := admin.Group("/donors")
 		{
