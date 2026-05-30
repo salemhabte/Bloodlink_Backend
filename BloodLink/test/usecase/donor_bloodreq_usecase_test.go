@@ -35,7 +35,7 @@ func TestCreateRequest_Success(t *testing.T) {
 	repo.On("IsDonorInTop10", donorID).Return(true, nil)
 	repo.On("GetLastRequestDateByDonor", donorID).Return(time.Time{}, nil) // zero = never requested
 	repo.On("GetDonorProfile", donorID).Return(donorProfile, nil)
-	repo.On("Create", mock.AnythingOfType("*domain.DonorBloodRequest")).Return(nil)
+	repo.On("Create", mock.AnythingOfType("*Domain.DonorBloodRequest")).Return(nil)
 
 	result, err := uc.CreateRequest(userID, 2, "PRBC", "Post-surgery", "St. Paul", "Addis Ababa", "0912345678")
 

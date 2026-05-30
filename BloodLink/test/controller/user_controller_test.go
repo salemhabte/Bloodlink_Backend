@@ -92,7 +92,7 @@ func TestRegisterUser_Handler_Success(t *testing.T) {
 	ctrl := controller.NewUserController(uc)
 	r := newTestRouter(ctrl)
 
-	uc.On("RegisterUser", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil)
+	uc.On("RegisterUser", mock.Anything, mock.AnythingOfType("*Domain.User")).Return(nil)
 
 	body := map[string]string{
 		"full_name": "Test Collector",
@@ -113,7 +113,7 @@ func TestRegisterUser_Handler_UsecaseError(t *testing.T) {
 	ctrl := controller.NewUserController(uc)
 	r := newTestRouter(ctrl)
 
-	uc.On("RegisterUser", mock.Anything, mock.AnythingOfType("*domain.User")).Return(errors.New("email already registered"))
+	uc.On("RegisterUser", mock.Anything, mock.AnythingOfType("*Domain.User")).Return(errors.New("email already registered"))
 
 	body := map[string]string{
 		"full_name": "Test",
@@ -308,7 +308,7 @@ func TestUpdateProfile_Handler_Success(t *testing.T) {
 	}
 
 	uc.On("GetProfile", mock.Anything, "test-user-id").Return(existing, nil)
-	uc.On("UpdateProfile", mock.Anything, mock.AnythingOfType("*domain.UserProfile")).Return(nil)
+	uc.On("UpdateProfile", mock.Anything, mock.AnythingOfType("*Domain.UserProfile")).Return(nil)
 
 	body := map[string]string{"full_name": "New Name"}
 

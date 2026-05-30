@@ -67,7 +67,7 @@ func TestRegisterUser_Success(t *testing.T) {
 	validation.On("Hashpassword", user.Password).Return("hashed_password")
 	userRepo.On("GetUserByEmail", mock.Anything, user.Email).Return(nil, nil)
 	userRepo.On("GetUserByPhone", mock.Anything, user.Phone).Return(nil, nil)
-	userRepo.On("CreateUser", mock.Anything, mock.AnythingOfType("*domain.User")).Return(nil)
+	userRepo.On("CreateUser", mock.Anything, mock.AnythingOfType("*Domain.User")).Return(nil)
 
 	err := uc.RegisterUser(context.Background(), user)
 
@@ -152,6 +152,7 @@ func TestRegisterUser_DonorRoleBlocked(t *testing.T) {
 	userRepo.On("GetUserByEmail", mock.Anything, user.Email).Return(nil, nil)
 	userRepo.On("GetUserByPhone", mock.Anything, user.Phone).Return(nil, nil)
 	validation.On("IsStrongPassword", user.Password).Return(true)
+	validation.On("Hashpassword", user.Password).Return("hashed")
 
 	err := uc.RegisterUser(context.Background(), user)
 
@@ -322,12 +323,12 @@ func TestUpdateProfile_NoRow_CallsCreate(t *testing.T) {
 
 	// No existing row
 	profileRepo.On("GetProfileByUserID", mock.Anything, profile.UserID).Return(nil, nil)
-	profileRepo.On("CreateProfile", mock.Anything, mock.AnythingOfType("*domain.UserProfile")).Return(nil)
+	profileRepo.On("CreateProfile", mock.Anything, mock.AnythingOfType("*Domain.UserProfile")).Return(nil)
 
 	err := uc.UpdateProfile(context.Background(), profile)
 
 	assert.NoError(t, err)
-	profileRepo.AssertCalled(t, "CreateProfile", mock.Anything, mock.AnythingOfType("*domain.UserProfile"))
+	profileRepo.AssertCalled(t, "CreateProfile", mock.Anything, mock.AnythingOfType("*Domain.UserProfile"))
 	profileRepo.AssertNotCalled(t, "UpdateProfile")
 }
 
@@ -356,8 +357,8 @@ func TestLogin_Success(t *testing.T) {
 
 	userRepo.On("GetUserByEmail", mock.Anything, "donor@test.com").Return(user, nil)
 	validation.On("ComparePassword", "hashed_password", "plaintext").Return(nil)
-	auth.On("GenerateToken", mock.AnythingOfType("*domain.UserClaims"), "access_token").Return("access-token-value", nil)
-	auth.On("GenerateToken", mock.AnythingOfType("*domain.UserClaims"), "refresh_token").Return("refresh-token-value", nil)
+	auth.On("GenerateToken", mock.AnythingOfType("*Domain.UserClaims"), "access_token").Return("access-token-value", nil)
+	auth.On("GenerateToken", mock.AnythingOfType("*Domain.UserClaims"), "refresh_token").Return("refresh-token-value", nil)
 	userRepo.On("UpdateRefreshToken", mock.Anything, user.ID, "refresh-token-value").Return(nil)
 
 	at, rt, role, uid, otpNeeded, err := uc.Login(context.Background(), "donor@test.com", "plaintext")
@@ -381,8 +382,8 @@ func TestLogin_HardcodedAdmin_Bypass(t *testing.T) {
 
 	uc := buildUserUsecase(userRepo, profileRepo, donationRepo, auth, validation, notif, hospitalRepo)
 
-	auth.On("GenerateToken", mock.AnythingOfType("*domain.UserClaims"), "access_token").Return("admin-access-token", nil)
-	auth.On("GenerateToken", mock.AnythingOfType("*domain.UserClaims"), "refresh_token").Return("admin-refresh-token", nil)
+	auth.On("GenerateToken", mock.AnythingOfType("*Domain.UserClaims"), "access_token").Return("admin-access-token", nil)
+	auth.On("GenerateToken", mock.AnythingOfType("*Domain.UserClaims"), "refresh_token").Return("admin-refresh-token", nil)
 
 	at, rt, role, uid, _, err := uc.Login(context.Background(), "admin@bloodlink.com", "Admin123!")
 
@@ -468,13 +469,13 @@ func TestVerifyOTP_Success(t *testing.T) {
 
 	userRepo.On("GetUserByEmail", mock.Anything, "labtech@test.com").Return(user, nil)
 	userRepo.On("ActivateUser", mock.Anything, user.ID).Return(nil)
-	profileRepo.On("CreateProfile", mock.Anything, mock.AnythingOfType("*domain.UserProfile")).Return(nil)
+	profileRepo.On("CreateProfile", mock.Anything, mock.AnythingOfType("*Domain.UserProfile")).Return(nil)
 
 	err := uc.VerifyOTP(context.Background(), "labtech@test.com", "123456")
 
 	assert.NoError(t, err)
 	userRepo.AssertCalled(t, "ActivateUser", mock.Anything, user.ID)
-	profileRepo.AssertCalled(t, "CreateProfile", mock.Anything, mock.AnythingOfType("*domain.UserProfile"))
+	profileRepo.AssertCalled(t, "CreateProfile", mock.Anything, mock.AnythingOfType("*Domain.UserProfile"))
 }
 
 func TestVerifyOTP_InvalidOTP(t *testing.T) {
