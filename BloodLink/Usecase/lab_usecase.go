@@ -421,18 +421,39 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult, currentLab
 		return err
 	}
 
+	// Fetch old units before deleting to preserve their unit numbers
+	oldUnits, _ := u.repo.GetBloodUnitsByDonationID(result.DonationID)
+	unitNumMap := make(map[string]string)
+	for _, ou := range oldUnits {
+		if !ou.IsDeleted {
+			unitNumMap[ou.ComponentType] = ou.UnitNumber
+		}
+	}
+
 	// 6. Handle blood units — delete old ones first, then re-create if CLEARED
 	_ = u.repo.DeleteBloodUnitsByDonationID(result.DonationID)
 
 	if result.OverallStatus == "CLEARED" {
+		year := time.Now().Year()
+
 		for _, comp := range result.Components {
 			componentType := strings.ToUpper(comp.ComponentType)
 			if componentType == "CRBC" {
 				componentType = "PRBC"
 			}
 
+			unitNum := unitNumMap[componentType]
+			if unitNum == "" {
+				nextVal, seqErr := u.seqRepo.GetNextSequenceValue("BLOOD_UNIT", year)
+				if seqErr != nil {
+					return fmt.Errorf("failed to generate unit number: %v", seqErr)
+				}
+				unitNum = fmt.Sprintf("UNIT-%d-%06d", year, nextVal)
+			}
+
 			bloodUnit := &Domain.BloodUnit{
 				BloodUnitID:     uuid.New().String(),
+				UnitNumber:      unitNum,
 				DonationID:      donation.DonationID,
 				BloodType:       result.BloodType,
 				ComponentType:   componentType,

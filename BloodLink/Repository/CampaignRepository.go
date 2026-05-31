@@ -55,9 +55,9 @@ func (r *CampaignRepository) GetAllCampaigns(filter Domain.CampaignFilter, liveO
 	placeholderID := 1
 
 	if liveOnly || filter.LiveOnly {
-		query += fmt.Sprintf(" AND end_date >= $%d", placeholderID)
-		args = append(args, time.Now())
-		placeholderID++
+		query += fmt.Sprintf(" AND start_date <= $%d AND end_date >= $%d", placeholderID, placeholderID+1)
+		args = append(args, time.Now(), time.Now())
+		placeholderID += 2
 	}
 
 	if filter.Title != "" {

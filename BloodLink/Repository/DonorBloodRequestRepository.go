@@ -441,7 +441,10 @@ func (r *donorBloodRequestRepository) GetAllAdmin(filter domain.DonorBloodReques
 		argId++
 	}
 
-	query += ` ORDER BY successful_donations DESC, dbr.created_at DESC`
+	query += ` ORDER BY 
+		CASE WHEN dbr.status = 'PENDING' THEN 0 ELSE 1 END ASC,
+		successful_donations DESC, 
+		dbr.created_at DESC`
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
