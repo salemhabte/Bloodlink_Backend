@@ -353,8 +353,7 @@ func (r *BloodInventoryRepository) ReserveUnitsForHospital(bloodType string, com
 	}
 
 	var units []Domain.BloodUnit
-	accumulatedQuantity := 0
-	
+
 	for rows.Next() {
 		var u Domain.BloodUnit
 		if err := rows.Scan(
@@ -364,12 +363,11 @@ func (r *BloodInventoryRepository) ReserveUnitsForHospital(bloodType string, com
 			rows.Close()
 			return nil, err
 		}
-		
+
 		units = append(units, u)
-		accumulatedQuantity += u.QuantityML
-		
-		if accumulatedQuantity >= quantity {
-			break // Stop once we have enough quantity
+
+		if len(units) >= quantity {
+			break // Stop once we have enough physical units (bags)
 		}
 	}
 	rows.Close()
