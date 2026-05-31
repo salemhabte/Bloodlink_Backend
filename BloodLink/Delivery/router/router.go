@@ -98,9 +98,9 @@ func SetupRouter(
 		admin.GET("/badges", badgeController.GetAllBadges)
 		admin.GET("/donor-blood-requests", donorBloodReqController.GetAllAdminRequests) // filtered + sorted by donations
 		admin.POST("/donor-blood-requests/expire-stale", donorBloodReqController.ExpireStaleRequests)
-		admin.PUT("/blood-requests/:id/approve", donorBloodReqController.ApproveRequest)
-		admin.PUT("/blood-requests/:id/fulfill", donorBloodReqController.FulfillRequest)
-		admin.PUT("/blood-requests/:id/reject", donorBloodReqController.RejectRequest)
+		admin.PUT("/donor-blood-requests/:id/approve", donorBloodReqController.ApproveRequest)
+		admin.PUT("/donor-blood-requests/:id/fulfill", donorBloodReqController.FulfillRequest)
+		admin.PUT("/donor-blood-requests/:id/reject", donorBloodReqController.RejectRequest)
 		adminCampaigns := admin.Group("/campaigns")
 		{
 			adminCampaigns.POST("", campaignController.CreateCampaign)

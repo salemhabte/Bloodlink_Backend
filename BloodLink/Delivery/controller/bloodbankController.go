@@ -435,24 +435,8 @@ func (c *LabController) GetTestResult(ctx *gin.Context) {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "test result not found"})
 		return
 	}
-	// Convert boolean → readable text
-	response := gin.H{
-		"test_id":     result.TestID,
-		"donation_id": result.DonationID,
-		"donor_id":    result.DonorID,
-		"tested_by":   result.TestedBy,
 
-		"hiv_result":         result.HIVResult,
-		"hepatitis_b_result": result.HepatitisBResult,
-		"hepatitis_c_result": result.HepatitisCResult,
-		"syphilis_result":    result.SyphilisResult,
-
-		"blood_type":     result.BloodType,
-		"overall_status": result.OverallStatus,
-		"created_at":     result.CreatedAt,
-	}
-
-	ctx.JSON(http.StatusOK, response)
+	ctx.JSON(http.StatusOK, result)
 }
 
 func (c *LabController) GetPendingDonations(ctx *gin.Context) {

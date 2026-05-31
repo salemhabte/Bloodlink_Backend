@@ -243,7 +243,13 @@ func (u *LabUsecase) removeBloodUnit(donationID string) error {
 }
 
 func (u *LabUsecase) GetTestResult(donationID string) (*Domain.DonorTestResult, error) {
-	return u.repo.GetTestResult(donationID)
+	result, err := u.repo.GetTestResult(donationID)
+	if err != nil {
+		return nil, err
+	}
+	// Populate storage location and components from blood_units (same as GetAllTestsFiltered)
+	u.populateTestComponents(result)
+	return result, nil
 }
 
 func (u *LabUsecase) GetPendingDonations() ([]Domain.DonationRecord, error) {
