@@ -12,6 +12,12 @@ type BloodTypeStat struct {
 	Percent   float64 `json:"percent"`
 }
 
+type ComponentTypeStat struct {
+	ComponentType string  `json:"componentType"`
+	Count         int     `json:"count"`
+	Percent       float64 `json:"percent"`
+}
+
 // ================= DONOR RESPONSE =================
 type DonorSummaryResponse struct {
 	TotalRegisteredDonors     int `json:"totalRegisteredDonors"`
@@ -55,9 +61,10 @@ type LabSummaryResponse struct {
 
 // ================= INVENTORY RESPONSE =================
 type InventorySummaryResponse struct {
-	TotalBloodUnits int             `json:"totalBloodUnits"`
-	BloodTypeStats  []BloodTypeStat `json:"bloodTypeStats"`
-	NearExpiryUnits int             `json:"nearExpiryUnits"`
+	TotalBloodUnits    int                 `json:"totalBloodUnits"`
+	BloodTypeStats     []BloodTypeStat     `json:"bloodTypeStats"`
+	ComponentTypeStats []ComponentTypeStat `json:"componentTypeStats"`
+	NearExpiryUnits    int                 `json:"nearExpiryUnits"`
 }
 
 // ================= HOSPITAL RESPONSE =================
@@ -97,9 +104,10 @@ type AdminDashboard struct {
 	LabPermPercent    float64        `json:"labPermPercent"`
 	TestsPerLabTech   []LabTestStats `json:"testsPerLabTech"`
 
-	TotalBloodUnits int             `json:"totalBloodUnits"`
-	BloodTypeStats  []BloodTypeStat `json:"bloodTypeStats"`
-	NearExpiryUnits int             `json:"nearExpiryUnits"`
+	TotalBloodUnits    int                 `json:"totalBloodUnits"`
+	BloodTypeStats     []BloodTypeStat     `json:"bloodTypeStats"`
+	ComponentTypeStats []ComponentTypeStat `json:"componentTypeStats"`
+	NearExpiryUnits    int                 `json:"nearExpiryUnits"`
 
 	// HOSPITAL METRICS
 	TotalHospitals          int `json:"totalHospitals"`

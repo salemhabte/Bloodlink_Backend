@@ -210,7 +210,7 @@ func (r *adminAnalyticsRepository) GetLabStats() (int, int, int, int, int, []Dom
 	// ================================
 	return totalLabs, totalTests, cleared, temp, perm, perLab, nil
 }
-func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeStat, int, error) {
+func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeStat, []Domain.ComponentTypeStat, int, error) {
 
 	// ================================
 	// 1. TOTAL BLOOD UNITS
@@ -223,7 +223,7 @@ func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeS
 	`).Scan(&total)
 
 	if err != nil {
-		return 0, nil, 0, err
+		return 0, nil, nil, 0, err
 	}
 
 	// ================================
@@ -238,7 +238,7 @@ func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeS
 
 	rows, err := r.db.Query(query)
 	if err != nil {
-		return 0, nil, 0, err
+		return 0, nil, nil, 0, err
 	}
 	defer rows.Close()
 
@@ -249,7 +249,7 @@ func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeS
 
 		err := rows.Scan(&b.BloodType, &b.Count)
 		if err != nil {
-			return 0, nil, 0, err
+			return 0, nil, nil, 0, err
 		}
 
 		// percentage
@@ -261,7 +261,41 @@ func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeS
 	}
 
 	// ================================
-	// 3. NEAR EXPIRY (≤ 7 DAYS)
+	// 3. COMPONENT TYPE DISTRIBUTION
+	// ================================
+	compQuery := `
+		SELECT component_type, COUNT(*)
+		FROM blood_units
+		WHERE is_deleted = false
+		GROUP BY component_type
+	`
+
+	compRows, err := r.db.Query(compQuery)
+	if err != nil {
+		return 0, nil, nil, 0, err
+	}
+	defer compRows.Close()
+
+	var compTypes []Domain.ComponentTypeStat
+
+	for compRows.Next() {
+		var c Domain.ComponentTypeStat
+
+		err := compRows.Scan(&c.ComponentType, &c.Count)
+		if err != nil {
+			return 0, nil, nil, 0, err
+		}
+
+		// percentage
+		if total > 0 {
+			c.Percent = float64(c.Count) / float64(total) * 100
+		}
+
+		compTypes = append(compTypes, c)
+	}
+
+	// ================================
+	// 4. NEAR EXPIRY (≤ 7 DAYS)
 	// ================================
 	var nearExpiry int
 	err = r.db.QueryRow(`
@@ -273,10 +307,10 @@ func (r *adminAnalyticsRepository) GetInventoryStats() (int, []Domain.BloodTypeS
 	`).Scan(&nearExpiry)
 
 	if err != nil {
-		return 0, nil, 0, err
+		return 0, nil, nil, 0, err
 	}
 
-	return total, bloodTypes, nearExpiry, nil
+	return total, bloodTypes, compTypes, nearExpiry, nil
 }
 
 func (r *adminAnalyticsRepository) GetHospitalStats() (int, int, int, int, error) {

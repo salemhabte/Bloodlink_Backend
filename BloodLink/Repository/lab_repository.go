@@ -48,7 +48,13 @@ func (r *LabRepository) CreateTestResult(result *Domain.DonorTestResult) error {
 		result.OverallStatus,
 		time.Now(),
 	)
-	return err
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "23505") {
+			return errors.New("a test result for this donation already exists")
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *LabRepository) CreateBloodUnit(unit *Domain.BloodUnit) error {
@@ -199,16 +205,44 @@ func (r *LabRepository) GetPendingDonationByID(donationID string) (*Domain.Donat
 func (r *LabRepository) GetTestResult(donationID string) (*Domain.DonorTestResult, error) {
 	var result Domain.DonorTestResult
 	
-	query := `SELECT test_id, donation_id, donor_id, tested_by, hiv_result,
-	          COALESCE(hepatitis_b_result, ''), COALESCE(hepatitis_c_result, ''),
-	          syphilis_result, blood_type, overall_status, created_at
-	          FROM donor_test_results WHERE donation_id=$1`
+	query := `
+	SELECT 
+		t.test_id, 
+		t.donation_id, 
+		t.donor_id, 
+		t.tested_by, 
+		COALESCE(u.full_name, '') AS tester_name,
+		COALESCE(c.location, '') AS campaign_address,
+		COALESCE(d.donation_number, '') AS donation_number,
+		t.hiv_result,
+		COALESCE(t.hepatitis_b_result, ''), 
+		COALESCE(t.hepatitis_c_result, ''),
+		t.syphilis_result, 
+		t.blood_type, 
+		t.overall_status, 
+		t.created_at
+	FROM donor_test_results t
+	LEFT JOIN users u ON t.tested_by = u.user_id
+	LEFT JOIN donation_records d ON t.donation_id = d.donation_id
+	LEFT JOIN campaigns c ON d.campaign_id = c.campaign_id
+	WHERE t.donation_id=$1
+	`
 	
 	err := r.DB.QueryRow(query, donationID).Scan(
-		&result.TestID, &result.DonationID, &result.DonorID, &result.TestedBy,
-		&result.HIVResult, &result.HepatitisBResult, &result.HepatitisCResult,
+		&result.TestID, 
+		&result.DonationID, 
+		&result.DonorID, 
+		&result.TestedBy,
+		&result.TesterName,
+		&result.CampaignAddress,
+		&result.DonationNumber,
+		&result.HIVResult, 
+		&result.HepatitisBResult, 
+		&result.HepatitisCResult,
 		&result.SyphilisResult,
-		&result.BloodType, &result.OverallStatus, &result.CreatedAt,
+		&result.BloodType, 
+		&result.OverallStatus, 
+		&result.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -421,7 +455,7 @@ func (r *LabRepository) DeleteBloodUnit(donationID string) error {
 
 // DeleteBloodUnitsByDonationID removes all blood units for a donation (used on update/re-creation)
 func (r *LabRepository) DeleteBloodUnitsByDonationID(donationID string) error {
-	query := `UPDATE blood_units SET is_deleted = true WHERE donation_id = $1`
+	query := `DELETE FROM blood_units WHERE donation_id = $1`
 	_, err := r.DB.Exec(query, donationID)
 	return err
 }

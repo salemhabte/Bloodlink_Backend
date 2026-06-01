@@ -73,6 +73,7 @@ func (u *AdminAnalyticsUsecase) GetDashboard() (*Domain.AdminDashboard, error) {
 
 	d.TotalBloodUnits = inventory.TotalBloodUnits
 	d.BloodTypeStats = inventory.BloodTypeStats
+	d.ComponentTypeStats = inventory.ComponentTypeStats
 	d.NearExpiryUnits = inventory.NearExpiryUnits
 
 	// ================= HOSPITALS =================
@@ -170,15 +171,16 @@ func (u *AdminAnalyticsUsecase) GetLabSummary() (*Domain.LabSummaryResponse, err
 }
 func (u *AdminAnalyticsUsecase) GetInventorySummary() (*Domain.InventorySummaryResponse, error) {
 
-	total, bloodTypes, nearExpiry, err := u.repo.GetInventoryStats()
+	total, bloodTypes, compTypes, nearExpiry, err := u.repo.GetInventoryStats()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Domain.InventorySummaryResponse{
-		TotalBloodUnits: total,
-		BloodTypeStats:  bloodTypes,
-		NearExpiryUnits: nearExpiry,
+		TotalBloodUnits:    total,
+		BloodTypeStats:     bloodTypes,
+		ComponentTypeStats: compTypes,
+		NearExpiryUnits:    nearExpiry,
 	}, nil
 }
 
