@@ -425,12 +425,12 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult, currentLab
 	}
 
 	// 4. Update donor blood type
-	if err := u.repo.UpdateDonorBloodType(result.DonorID, result.BloodType); err != nil {
+	if err := u.repo.UpdateDonorBloodType(donation.DonorID, result.BloodType); err != nil {
 		return err
 	}
 
 	// 5. Update donor overall status
-	if err := u.repo.UpdateDonorOverallStatus(result.DonorID, result.OverallStatus); err != nil {
+	if err := u.repo.UpdateDonorOverallStatus(donation.DonorID, result.OverallStatus); err != nil {
 		return err
 	}
 
