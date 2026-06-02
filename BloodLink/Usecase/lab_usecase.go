@@ -3,6 +3,7 @@ package Usecase
 import (
 	"bloodlink/Domain"
 	Interface "bloodlink/Domain/Interfaces"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -245,6 +246,9 @@ func (u *LabUsecase) removeBloodUnit(donationID string) error {
 func (u *LabUsecase) GetTestResult(donationID string) (*Domain.DonorTestResult, error) {
 	result, err := u.repo.GetTestResult(donationID)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("test result not found")
+		}
 		return nil, err
 	}
 	// Populate storage location and components from blood_units (same as GetAllTestsFiltered)
@@ -275,6 +279,9 @@ func (u *LabUsecase) UpdateTestResult(result *Domain.DonorTestResult, currentLab
 	// 1. Check if test exists
 	existing, err := u.repo.GetTestResult(result.DonationID)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("test result not found")
+		}
 		return err
 	}
 	if existing == nil {
@@ -508,7 +515,7 @@ func (u *LabUsecase) RejectBlood(donationID string, currentLabTechID string) err
 }
 
 func (u *LabUsecase) GetPendingDonation(donationID string) (*Domain.DonationRecord, error) {
-	return u.repo.GetPendingDonationByID(donationID)
+	return u.repo.GetDonationByID(donationID)
 }
 
 func calculateExpiration(collectionDate time.Time, component string) time.Time {

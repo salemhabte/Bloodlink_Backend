@@ -221,14 +221,14 @@ func SetupRouter(
 		lab.PUT("/tests/:donation_id", labController.UpdateTest)
 		lab.PATCH("/tests/:donation_id/reject", labController.RejectBlood)
 
-		// SINGLE test
+		// MY tests — MUST be declared BEFORE the wildcard /:donation_id route
+		lab.GET("/tests/my", labController.GetMyTests)
+
+		// SINGLE test (wildcard — must come after static /tests/my)
 		lab.GET("/tests/:donation_id", labController.GetTestResult)
 
 		// PRIMARY TEST LIST (History + Filters)
 		lab.GET("/all-tests", labController.GetAllTestHistory)
-
-		// MY tests
-		lab.GET("/tests/my", labController.GetMyTests)
 
 		//  donations (fetch before testing)
 		lab.GET("/pending-donations", labController.GetPendingDonations)
